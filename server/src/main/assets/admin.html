@@ -232,7 +232,7 @@
       <button id="uploadBtn" class="primary" type="button">＋ Add movies</button>
       <button id="rescan" type="button" title="Look for files copied to the phone another way">Rescan</button>
       <button id="healthBtn" type="button" title="How the phone is doing">♥ Health</button>
-      <button id="settingsBtn" type="button" title="Online movie info settings" aria-label="Settings">⚙︎ Settings</button>
+      <button id="settingsBtn" type="button" title="Settings" aria-label="Settings">⚙︎ Settings</button>
     </div>
     <div class="tabs" role="group" aria-label="Filter">
       <button class="tab" data-filter="all" aria-pressed="true">All <span class="n" id="n-all"></span></button>
@@ -247,7 +247,7 @@
   </header>
 
   <main>
-    <div id="privateBar" class="private-bar"></div>
+    <div id="privateNote" class="private-bar open hidden"></div>
     <div id="drop" class="hidden">
       <strong>Drop movie files here</strong> <span class="muted">or</span>
       <button id="pick" type="button">choose files</button>
@@ -386,6 +386,11 @@
       <input type="password" id="sPin" inputmode="numeric" maxlength="8" placeholder="4 to 8 digits" autocomplete="off"></label>
     <div class="muted small" style="margin:-8px 0 8px" id="sPinState"></div>
     <button type="button" id="savePin">Set PIN</button> <button type="button" class="ghost danger" id="clearPin">Clear PIN</button>
+
+    <h3 class="section">Private folder</h3>
+    <p class="muted small" style="margin-top:0">Videos in Private are hidden from every TV and the web app. Unlock them
+      for a while to watch on the TV; they lock again by themselves. Kids profiles never see them.</p>
+    <div id="privateBar" class="private-bar"></div>
 
     <h3 class="section">Backup</h3>
     <p class="muted small" style="margin-top:0">One file with everything you've typed in or looked up, everyone's progress, profiles
@@ -1306,10 +1311,17 @@ function renderPrivate(p) {
        <select id="privateMinutes" aria-label="Unlock for"><option value="30">for 30 minutes</option><option value="60">for 1 hour</option>
        <option value="120" selected>for 2 hours</option><option value="240">for 4 hours</option></select>
        <button type="button" data-private="unlock">Unlock on the TV</button>`;
+  // On the main page only while unlocked, as a reminder to lock it again.
+  const note = $('#privateNote');
+  note.classList.toggle('hidden', !p.unlocked);
+  note.innerHTML = p.unlocked
+    ? `<span class="grow">🔓 <strong>Private is unlocked</strong> on the TV until ${esc(until)}.</span>
+       <button type="button" class="primary" data-private="lock">Lock now</button>`
+    : '';
   clearTimeout(renderPrivate.timer);
   if (p.unlocked && p.until) renderPrivate.timer = setTimeout(load, Math.max(1000, p.until - Date.now() + 1000));
 }
-$('#privateBar').addEventListener('click', async (e) => {
+async function onPrivateClick(e) {
   const b = e.target.closest('button[data-private]');
   if (!b) return;
   const unlock = b.dataset.private === 'unlock';
@@ -1320,7 +1332,9 @@ $('#privateBar').addEventListener('click', async (e) => {
   } catch (err) {
     if (!err.quiet) toast(err.message, true);
   }
-});
+}
+$('#privateBar').addEventListener('click', onPrivateClick);
+$('#privateNote').addEventListener('click', onPrivateClick);
 
 $('#edClose').addEventListener('click', () => closeEditor());
 $('#edCancel').addEventListener('click', () => closeEditor());

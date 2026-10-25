@@ -88,15 +88,21 @@ shows the address.
 - **What's the same as the TV:** "Who's watching?", with the parent PIN to leave a kids profile; the same rows
   (Continue watching, My List, Because you watched, shows, genres); search; details with cast and More like this;
   seasons and episodes; resume points shared with the TV; Skip intro; and Next episode at the credits.
-- **Subtitles:** subtitle files beside the video (`.srt`, `.vtt`) appear in the player's captions menu. Subtitles
-  inside an MKV only show on the TV.
+- **The player:** a seek bar that shows the time as you drag; −10 s and +10 s; volume; full screen and
+  picture-in-picture; and one menu for subtitles (with three text sizes), the audio language where the browser allows
+  it (Safari), and speed: 1×, 1.25×, 1.5× or 2×.
+  - On a phone or tablet, tap to show the controls, and double-tap the left or right side to skip 10 seconds.
+  - The phone's lock screen and a laptop's media keys control it too.
+- **Subtitles:** subtitle files beside the video (`.srt`, `.vtt`) are in the player's menu, and each profile's
+  choice is remembered. Subtitles inside an MKV only show on the TV.
 - **What a browser can play** depends on the browser, not the TV:
   - MP4 with H.264 video and AAC sound plays everywhere, and so does a lighter copy made by the phone.
   - MKV plays in Chrome and Edge, and may not in other browsers.
   - HEVC (H.265) video plays in Safari and Edge, and in Chrome on most recent computers.
   - Dolby Digital sound plays in Safari and Edge only; DTS and TrueHD play in no browser.
   - The details page warns when a file may not play, and the TV plays them all.
-- **Keyboard:** Space to pause, ← and → to skip, Esc to go back, and / to search.
+- **Keyboard:** Space or K to pause, ← and → (or J and L) to skip 10 seconds, ↑ and ↓ for volume, M to mute, F for
+  full screen, C for subtitles, `<` and `>` for speed, N for the next episode, Esc to go back, and / to search.
 - **Add it to your home screen** on a phone or tablet (Share → Add to Home Screen) to open it like an app.
 
 It only works on the home network, like everything else in HomeReel. To watch away from home, use a VPN such as
@@ -239,8 +245,9 @@ folder** on the admin page, **Move to Private** on a film, or copy files there b
 - **Locked (the default):**
   - The TV doesn't list them, and asking for one directly gets "not found".
   - That covers the list, the details, the stream, the poster and saving progress.
-- **Unlocking:** the admin page's **Private** bar unlocks them on the TV for 30 minutes to 4 hours. They then show
-  in their own **🔒 Private** row on the TV and nowhere else.
+- **Unlocking:** on the admin page, **Settings → Private folder** unlocks them on the TV for 30 minutes to 4 hours.
+  They then show in their own **🔒 Private** row on the TV and nowhere else. While Private is unlocked, the admin
+  page's main screen shows a reminder with **Lock now**.
   - Private locks itself again when the time runs out, or at once with **Lock now**.
   - Only a browser paired as admin can unlock it; a TV can't.
 - **Kept out of other places:**
@@ -300,9 +307,13 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
   - The video and audio formats, and why a file may not play.
   - **More like this**, from shared genres.
 - **Player:**
-  - −10 s and +30 s buttons.
-  - **CC** cycles Off and each subtitle track, both `.srt` files and subtitles inside an MKV.
-  - The **speaker** button cycles the audio tracks of a dubbed film.
+  - With the controls hidden, **Left** and **Right** on the remote skip 10 seconds without opening them.
+  - −10 s and +30 s buttons, and "Ends at …" beside the title, allowing for the speed.
+  - **CC** opens a list: Off and each subtitle track, both `.srt` files and subtitles inside an MKV.
+  - The **speaker** button lists the audio languages of a dubbed film.
+  - The **speed** button (it shows the speed, like 1.5×) offers 1×, 1.25×, 1.5× and 2×; voices keep their pitch.
+    A TV that sends Dolby sound straight to an amplifier may only play at 1×.
+  - The subtitle and audio language you pick are remembered for each profile on that TV.
   - The position is saved every 10 seconds and when you stop; a movie counts as watched at 95%.
 
 ## Wireless

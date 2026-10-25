@@ -245,4 +245,19 @@ class TvPrefs(context: Context) {
     var matchFrameRate: Boolean
         get() = sp.getBoolean("matchFrameRate", true)
         set(value) = sp.edit().putBoolean("matchFrameRate", value).apply()
+
+    /** The subtitle language a profile picked last: a language code, [UNDETERMINED] for a file without one, or [OFF]. */
+    fun subtitleLanguage(profileId: String?): String? = sp.getString("subs.${profileId.orEmpty()}", null)
+
+    fun setSubtitleLanguage(profileId: String?, language: String) = sp.edit().putString("subs.${profileId.orEmpty()}", language).apply()
+
+    /** The audio language a profile picked last, for dubbed films. */
+    fun audioLanguage(profileId: String?): String? = sp.getString("audio.${profileId.orEmpty()}", null)
+
+    fun setAudioLanguage(profileId: String?, language: String) = sp.edit().putString("audio.${profileId.orEmpty()}", language).apply()
+
+    companion object {
+        const val OFF = "off"
+        const val UNDETERMINED = "und"
+    }
 }

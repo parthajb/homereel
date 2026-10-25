@@ -2,10 +2,19 @@ package com.parthajb.homereel.tv
 
 import android.app.AlertDialog
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -24,8 +33,10 @@ import androidx.leanback.widget.Action
 import androidx.leanback.widget.ArrayObjectAdapter
 import androidx.leanback.widget.PlaybackControlsRow
 import androidx.media3.common.C
+import androidx.media3.common.Format as MediaFormat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -42,6 +53,7 @@ import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.Playability
+import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -98,9 +110,18 @@ class PlaybackFragment : VideoSupportFragment() {
     private val tick = object : Runnable {
         override fun run() {
             if (player?.isPlaying == true) saveProgress()
+            // "Ends at" moves while paused; refreshed only while the controls are hidden, so focus never jumps.
+            if (!isControlsOverlayVisible) glue?.let(::label)
             main.postDelayed(this, 10_000)
         }
     }
+
+    /** The small "» 10 s" note shown when Left or Right skips while the controls are hidden. */
+    private var osd: TextView? = null
+    private val hideOsd = Runnable { osd?.visibility = View.GONE }
+
+    /** Set just before Leanback would show the controls for a key we handled ourselves. */
+    private var skipTickle = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,6 +148,7 @@ class PlaybackFragment : VideoSupportFragment() {
             )
             .build()
         player = exo
+        applyTrackPrefs(exo)
 
         exo.setMediaItem(mediaItem(movie), start)
         loadUpcoming()
@@ -168,22 +190,101 @@ class PlaybackFragment : VideoSupportFragment() {
         }
         main.postDelayed(tick, 10_000)
         main.postDelayed(markerTick, 500)
+
+        // Left and Right skip 10 seconds straight away while the controls are hidden, as on streaming apps;
+        // with the controls showing they move between buttons as usual.
+        setOnKeyInterceptListener { _, keyCode, event ->
+            val by = when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> -10_000L
+                KeyEvent.KEYCODE_DPAD_RIGHT -> 10_000L
+                else -> return@setOnKeyInterceptListener false
+            }
+            if (isControlsOverlayVisible) return@setOnKeyInterceptListener false
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                skipTickle = true
+                quickSeek(by)
+            }
+            true
+        }
+    }
+
+    /** Leanback shows the controls on every D-pad press, even one the key listener handled; this skips that once. */
+    override fun tickle() {
+        if (skipTickle) skipTickle = false else super.tickle()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         val root = super.onCreateView(inflater, container, savedInstanceState) as ViewGroup
+        val context = requireContext()
         // Above the video surface, below the controls, which Leanback adds later.
-        subtitleView = SubtitleView(requireContext()).apply {
+        subtitleView = SubtitleView(context).apply {
             setUserDefaultStyle()
             setUserDefaultTextSize()
         }
         root.addView(subtitleView, 1, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        osd = TextView(context).apply {
+            setTextColor(Color.WHITE)
+            textSize = 20f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(context, 20), dp(context, 10), dp(context, 20), dp(context, 10))
+            background = GradientDrawable().apply {
+                setColor(0xB3000000.toInt())
+                cornerRadius = dp(context, 10).toFloat()
+            }
+            visibility = View.GONE
+        }
+        root.addView(osd, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(context, 56) })
         return root
     }
 
     override fun onDestroyView() {
+        main.removeCallbacks(hideOsd)
         subtitleView = null
+        osd = null
         super.onDestroyView()
+    }
+
+    private fun quickSeek(by: Long) {
+        val p = player ?: return
+        val duration = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return
+        val to = (p.currentPosition + by).coerceIn(0, (duration - 1000).coerceAtLeast(0))
+        p.seekTo(to)
+        val arrow = if (by < 0) "«  ${-by / 1000} s" else "${by / 1000} s  »"
+        showOsd("$arrow     ${Format.clock(to)} / ${Format.clock(duration)}")
+    }
+
+    private fun showOsd(text: String) {
+        val view = osd ?: return
+        view.text = text
+        view.visibility = View.VISIBLE
+        main.removeCallbacks(hideOsd)
+        main.postDelayed(hideOsd, 1500)
+    }
+
+    /** Starts with the subtitles and audio language this profile chose last time. */
+    private fun applyTrackPrefs(exo: ExoPlayer) {
+        val prefs = TvPrefs(requireContext())
+        val profile = store.profileId
+        val params = exo.trackSelectionParameters.buildUpon()
+        prefs.audioLanguage(profile)?.let { params.setPreferredAudioLanguage(it) }
+        when (val subs = prefs.subtitleLanguage(profile)) {
+            null -> Unit
+            TvPrefs.OFF -> params.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            TvPrefs.UNDETERMINED -> params.setSelectUndeterminedTextLanguage(true)
+            else -> params.setPreferredTextLanguage(subs)
+        }
+        exo.trackSelectionParameters = params.build()
+    }
+
+    /** "Ends at 10:42 pm", allowing for the playback speed. */
+    private fun endsAt(): String? {
+        val context = context ?: return null
+        val p = player ?: return null
+        val duration = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: movie.durationMs.takeIf { it > 0 } ?: return null
+        val left = ((duration - p.currentPosition).coerceAtLeast(0) / p.playbackParameters.speed).toLong()
+        val time = android.text.format.DateFormat.getTimeFormat(context).format(Date(System.currentTimeMillis() + left))
+        return getString(R.string.ends_at, time)
     }
 
     override fun onPause() {
@@ -230,16 +331,16 @@ class PlaybackFragment : VideoSupportFragment() {
             .build()
     }
 
-    /** "Panchayat · S2:E5 Title" for an episode; the title and year for a film. */
+    /** "Panchayat · S2:E5 Title" for an episode; the title and year for a film. Both end with when it finishes. */
     private fun label(glue: MovieGlue) {
-        if (movie.kind == Kind.EPISODE) {
+        val subtitle = if (movie.kind == Kind.EPISODE) {
             glue.title = movie.showTitle ?: movie.title
-            glue.subtitle = "${Format.episodeCode(movie)}  ${movie.title}"
+            listOfNotNull("${Format.episodeCode(movie)}  ${movie.title}", endsAt())
         } else {
             glue.title = movie.title
-            glue.subtitle = listOfNotNull(movie.year?.toString(), movie.video?.let { Playability.describe(it.mime) })
-                .joinToString(" · ")
-        }
+            listOfNotNull(movie.year?.toString(), movie.video?.let { Playability.describe(it.mime) }, endsAt())
+        }.joinToString(" · ")
+        if (glue.subtitle?.toString() != subtitle) glue.subtitle = subtitle
     }
 
     private fun loadUpcoming() {
@@ -407,16 +508,29 @@ class PlaybackFragment : VideoSupportFragment() {
     }
 
     /**
-     * The standard controls plus −10 s / +30 s, a subtitle button that cycles Off → each track, and an audio
-     * button that cycles the languages a dubbed film carries.
+     * The standard controls plus −10 s / +30 s, and three pickers: subtitles (with Off), the audio language of a
+     * dubbed film, and playback speed. Subtitles and audio are remembered per profile for the next film.
      */
-    private class MovieGlue(context: Context, adapter: LeanbackPlayerAdapter, private val player: ExoPlayer) :
+    private inner class MovieGlue(context: Context, adapter: LeanbackPlayerAdapter, private val player: ExoPlayer) :
         PlaybackTransportControlGlue<LeanbackPlayerAdapter>(context, adapter) {
         private val rewind = PlaybackControlsRow.RewindAction(context)
         private val forward = PlaybackControlsRow.FastForwardAction(context)
         private val captions = PlaybackControlsRow.ClosedCaptioningAction(context)
         private val audio = Action(ACTION_AUDIO, context.getString(R.string.audio_track), null,
             ContextCompat.getDrawable(context, R.drawable.ic_audio))
+        private val speed = Action(ACTION_SPEED, context.getString(R.string.speed), null, speedIcon(1f))
+
+        init {
+            player.addListener(object : Player.Listener {
+                override fun onTracksChanged(tracks: Tracks) = syncCaptions(tracks.isTypeSelected(C.TRACK_TYPE_TEXT))
+
+                // Some TVs can't speed up passthrough sound (Dolby to an amplifier); the player then stays at 1×.
+                override fun onPlaybackParametersChanged(params: PlaybackParameters) {
+                    speed.icon = speedIcon(params.speed)
+                    notifyActionChanged(speed)
+                }
+            })
+        }
 
         override fun onCreatePrimaryActions(primary: ArrayObjectAdapter) {
             primary.add(rewind)
@@ -427,49 +541,130 @@ class PlaybackFragment : VideoSupportFragment() {
         override fun onCreateSecondaryActions(secondary: ArrayObjectAdapter) {
             secondary.add(captions)
             secondary.add(audio)
+            secondary.add(speed)
         }
 
         override fun onActionClicked(action: Action) {
             when (action) {
                 rewind -> player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
                 forward -> player.seekTo(player.currentPosition + 30_000)
-                captions -> toast(cycle(C.TRACK_TYPE_TEXT, allowOff = true))
-                audio -> toast(cycle(C.TRACK_TYPE_AUDIO, allowOff = false))
+                captions -> pickTrack(C.TRACK_TYPE_TEXT)
+                audio -> pickTrack(C.TRACK_TYPE_AUDIO)
+                speed -> pickSpeed()
                 else -> super.onActionClicked(action)
             }
         }
 
-        private fun cycle(type: Int, allowOff: Boolean): String {
+        private fun tracksOf(type: Int): List<Pair<Tracks.Group, Int>> {
             val options = ArrayList<Pair<Tracks.Group, Int>>()
             for (group in player.currentTracks.groups) {
                 if (group.type != type) continue
                 for (i in 0 until group.length) if (group.isTrackSupported(i)) options += group to i
             }
-            if (options.isEmpty()) {
-                return context.getString(if (type == C.TRACK_TYPE_TEXT) R.string.no_subtitles else R.string.one_audio_track)
+            return options
+        }
+
+        private fun trackName(format: MediaFormat, n: Int): String =
+            format.label
+                ?: format.language?.takeIf { it != C.LANGUAGE_UNDETERMINED }
+                    ?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale.ENGLISH).ifEmpty { it } }
+                ?: context.getString(R.string.track_number, n + 1)
+
+        /** A list with the current choice ticked; the remote moves through it and OK picks. */
+        private fun pickTrack(type: Int) {
+            val text = type == C.TRACK_TYPE_TEXT
+            val options = tracksOf(type)
+            if (options.isEmpty() || (!text && options.size < 2)) {
+                toast(context.getString(if (text) R.string.no_subtitles else R.string.one_audio_track))
+                return
             }
-            val current = options.indexOfFirst { (g, i) -> g.isTrackSelected(i) }
-            val next = current + 1
+            val names = options.mapIndexed { n, (group, i) -> trackName(group.getTrackFormat(i), n) }
+            val off = text && C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes
+            val current = if (off) -1 else options.indexOfFirst { (group, i) -> group.isTrackSelected(i) }
+            val items = if (text) listOf(context.getString(R.string.off)) + names else names
+            AlertDialog.Builder(context)
+                .setTitle(if (text) R.string.subtitles else R.string.audio_track)
+                .setSingleChoiceItems(items.toTypedArray(), if (text) current + 1 else current) { dialog, which ->
+                    select(type, options.getOrNull(if (text) which - 1 else which))
+                    dialog.dismiss()
+                }
+                .show()
+        }
+
+        private fun select(type: Int, option: Pair<Tracks.Group, Int>?) {
+            val prefs = TvPrefs(context)
+            val profile = store.profileId
             val params = player.trackSelectionParameters.buildUpon()
-            if (next >= options.size && allowOff) {
+            if (option == null) {
                 player.trackSelectionParameters = params.setTrackTypeDisabled(type, true).build()
-                return context.getString(R.string.subtitles_off)
+                prefs.setSubtitleLanguage(profile, TvPrefs.OFF)
+                return
             }
-            val (group, index) = options[next % options.size]
-            player.trackSelectionParameters = params
-                .setTrackTypeDisabled(type, false)
-                .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index))
-                .build()
-            val format = group.getTrackFormat(index)
-            return format.label
-                ?: format.language?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale.ENGLISH).ifEmpty { it } }
-                ?: context.getString(R.string.track_number, next % options.size + 1)
+            val (group, index) = option
+            val language = group.getTrackFormat(index).language?.takeIf { it.isNotBlank() && it != C.LANGUAGE_UNDETERMINED }
+            params.setTrackTypeDisabled(type, false).setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index))
+            // The preferred language carries the choice on to the next episode, where this exact track doesn't exist.
+            if (type == C.TRACK_TYPE_TEXT) {
+                if (language != null) params.setPreferredTextLanguage(language) else params.setSelectUndeterminedTextLanguage(true)
+                prefs.setSubtitleLanguage(profile, language ?: TvPrefs.UNDETERMINED)
+            } else if (language != null) {
+                params.setPreferredAudioLanguage(language)
+                prefs.setAudioLanguage(profile, language)
+            }
+            player.trackSelectionParameters = params.build()
+        }
+
+        private fun pickSpeed() {
+            val current = SPEEDS.indexOfFirst { kotlin.math.abs(it - player.playbackParameters.speed) < 0.01f }
+            val items = SPEEDS.map { if (it == 1f) context.getString(R.string.speed_normal) else speedText(it) }
+            AlertDialog.Builder(context)
+                .setTitle(R.string.speed)
+                .setSingleChoiceItems(items.toTypedArray(), current) { dialog, which ->
+                    // Pitch stays the same, so voices sound natural at 1.5×.
+                    player.setPlaybackSpeed(SPEEDS[which])
+                    dialog.dismiss()
+                    label(this)
+                }
+                .show()
+        }
+
+        private fun syncCaptions(on: Boolean) {
+            val index = if (on) PlaybackControlsRow.ClosedCaptioningAction.INDEX_ON else PlaybackControlsRow.ClosedCaptioningAction.INDEX_OFF
+            if (captions.index == index) return
+            captions.index = index
+            notifyActionChanged(captions)
+        }
+
+        private fun notifyActionChanged(action: Action) {
+            val adapter = controlsRow?.secondaryActionsAdapter as? ArrayObjectAdapter ?: return
+            val i = adapter.indexOf(action)
+            if (i >= 0) adapter.notifyArrayItemRangeChanged(i, 1)
+        }
+
+        private fun speedText(value: Float): String =
+            context.getString(R.string.speed_value, if (value % 1f == 0f) value.toInt().toString() else value.toString())
+
+        /** The speed button shows the speed itself ("1.5×"), drawn as its icon. */
+        private fun speedIcon(value: Float): BitmapDrawable {
+            val size = dp(context, 48)
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val text = speedText(value)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                typeface = Typeface.DEFAULT_BOLD
+                textAlign = Paint.Align.CENTER
+                textSize = size * if (text.length > 3) 0.36f else 0.46f
+            }
+            Canvas(bitmap).drawText(text, size / 2f, size / 2f - (paint.descent() + paint.ascent()) / 2, paint)
+            return BitmapDrawable(context.resources, bitmap)
         }
 
         private fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-
-        private companion object {
-            const val ACTION_AUDIO = 1001L
-        }
     }
 }
+
+private const val ACTION_AUDIO = 1001L
+private const val ACTION_SPEED = 1002L
+
+/** The speeds offered, on the TV and in the web app. */
+private val SPEEDS = floatArrayOf(1f, 1.25f, 1.5f, 2f)

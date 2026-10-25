@@ -105,8 +105,13 @@
     <string name="audio_track">Audio track</string>
     <string name="no_subtitles">This movie has no subtitles</string>
     <string name="one_audio_track">This movie has one audio track</string>
-    <string name="subtitles_off">Subtitles off</string>
     <string name="track_number">Track %1$d</string>
+    <string name="subtitles">Subtitles</string>
+    <string name="off">Off</string>
+    <string name="speed">Playback speed</string>
+    <string name="speed_normal">Normal (1×)</string>
+    <string name="speed_value">%1$s×</string>
+    <string name="ends_at">Ends at %1$s</string>
     <string name="error_network">Lost the connection to %1$s. Check that the phone is on and on this Wi-Fi.</string>
     <string name="error_http">The phone refused the file. It may have been moved or deleted; try Refresh.</string>
     <string name="error_codec">This TV can\'t decode this file\'s video or audio. Converting it to H.264 video with AAC audio fixes that.</string>

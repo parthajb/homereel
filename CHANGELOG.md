@@ -3,6 +3,17 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## 0.4.0 (2026-10-25)
+
+- **Web player:** HomeReel's own controls instead of the browser's: a seek bar with the time as you drag, ±10 s,
+  volume, one menu for subtitles (and their size), audio and speed, Next episode, picture-in-picture, a loading
+  spinner, double-tap to skip on phones, more keyboard shortcuts, and the lock screen's media controls. Each
+  profile's subtitle choice is remembered.
+- **TV player:** speed (1×, 1.25×, 1.5×, 2×); lists for subtitles and audio instead of cycling through them, remembered
+  per profile; Left and Right skip 10 seconds while the controls are hidden; and "Ends at …" beside the title.
+- **Admin page:** unlocking the Private folder moved into Settings. The main screen only shows a reminder while
+  it's unlocked.
+
 ## 0.3.0 (2026-10-25)
 
 - **Web app:** watch in any browser on the home Wi-Fi at `http://<phone ip>:8080`, on a laptop, phone or tablet,
