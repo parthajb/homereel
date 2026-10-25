@@ -1,23 +1,32 @@
 # HomeReel
 
-Turn an old Android phone into a movie server for your home Wi-Fi, and watch from an Android TV app.
+Turn an old Android phone into a movie server for your home Wi-Fi, and watch from an Android TV app that feels like
+a streaming service.
 
-- **HomeReel Server** (`server/`, package `com.parthajb.homereel.server`) runs on the phone. It serves the movies
-  in one folder over a small REST API, with seeking, posters, subtitles and resume points.
+- **HomeReel Server** (`server/`, package `com.parthajb.homereel.server`) runs on the phone. It serves the videos in
+  the folders you pick (a USB drive too) over a small REST API, with seeking, posters, subtitles and resume points.
 - **HomeReel** (`tv/`, package `com.parthajb.homereel.tv`) runs on the TV. It finds the phone by itself, shows
-  your movies in rows and plays them.
-- **The admin page** at `http://<phone ip>:8080/admin` works in any browser on the Wi-Fi. Use it to add, rename
-  and delete movies.
+  your films and shows in rows, and plays them.
+- **The admin page** at `http://<phone ip>:8080/admin` works in any browser on the Wi-Fi. Use it to add, edit and
+  delete videos, and to manage profiles, settings and updates.
 
-Everything stays on your network. There's no account, no cloud and no internet access, and nothing is copied to
-the TV.
+**Everything stays on your network.** There's no account, no cloud and no tracking, and nothing is copied to the
+TV. The TV app never goes online. The phone only does if you add a free TMDB key for posters and details, and then
+it sends titles and years and nothing else.
+
+**HomeReel plays files you already have:** your own rips, DRM-free purchases, home videos. It doesn't download,
+find or stream anything from elsewhere, and it can't play anything protected by DRM.
+
+**Status:** a personal project, shared under the [MIT licence](LICENSE). It's tested on a Redmi Note 9 Pro
+(Android 13) as the server and a OnePlus TV (Android TV 11) as the TV, and on the Android emulator. Both apps need
+Android 8.0 or later. There are no prebuilt downloads: you build the apps yourself, below.
 
 ## How it works
 
 ```
  Laptop browser ──upload / delete──▶  Phone: HomeReel Server  ◀──list / stream / progress── TV: HomeReel
                                       foreground service, port 8080
-                                      one folder of movies (SAF)
+                                      your folders of videos (SAF)
                                       advertised as _homereel._tcp
 ```
 
@@ -58,7 +67,8 @@ itself after a reboot.
 ## Set up the TV
 
 1. **Install the app:** with ADB to the TV, run `adb install -r tv/build/outputs/apk/release/tv-release.apk`.
-   With the cleanyourtv tools, use `tools/b64push.py` and then `pm install -r`.
+   If `adb install` is refused on your TV, the [cleanyourtv](https://github.com/Gathin23/cleanyourtv) tools'
+   `tools/b64push.py` copies the APK over first; then run `pm install -r` on the TV.
 2. **Pair:** open **HomeReel**, pick the phone from the list (or type its address), and enter the 6-digit code
    the phone shows.
 3. **Optional:** add `com.parthajb.homereel.tv` to the launcher's dock.
@@ -290,7 +300,12 @@ Everything goes over the home Wi-Fi.
   - The TV pairs as a **viewer**: it can list, stream and save progress.
   - A browser pairs as an **admin**: it can also upload, edit and delete. Its token is an `HttpOnly`,
     `SameSite=Strict` cookie, and every change also needs an `X-HomeReel` header that other websites can't send.
-- **Folder access:** the phone can read and write only the folder you picked.
+- **Folder access:** the phone can read and write only the folders you picked.
+- **Lookup keys:** the TMDB and OMDb keys stay in the phone app's private storage. The API only says whether
+  they're set, even to the admin page.
+- **Updates:** the phone only keeps an uploaded APK if it's the right HomeReel app, signed with the same key.
+
+To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## API
 
@@ -354,3 +369,28 @@ All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin co
 | `shared/` | Plain Kotlin: API models, Range parsing, title parsing, the playability rules, and their unit tests |
 | `server/` | Phone app: NanoHTTPD server, Storage Access Framework scanner, uploads, NSD, the admin page (`src/main/assets/admin.html`) |
 | `tv/` | TV app: AndroidX Leanback and Media3 ExoPlayer |
+| `tools/mock_tmdb.py` | A fake TMDB and OMDb with made-up data, for testing online movie info without keys |
+
+## Contributing
+
+Bug reports, fixes and ideas are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains what fits HomeReel, how to
+try a change on the Android emulator without a spare phone or TV, and what a pull request needs. Changes are listed
+in [CHANGELOG.md](CHANGELOG.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+
+## Licence and credits
+
+HomeReel is released under the [MIT licence](LICENSE).
+
+It builds on:
+
+| Project | Used for | Licence |
+|---|---|---|
+| [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd) | The phone's web server | BSD 3-Clause |
+| [AndroidX Media3](https://github.com/androidx/media) (ExoPlayer, Transformer) | Playback on the TV; reading tracks and making lighter copies on the phone | Apache 2.0 |
+| [AndroidX Leanback](https://developer.android.com/jetpack/androidx/releases/leanback) and RecyclerView | The TV interface | Apache 2.0 |
+| [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization) | The API's JSON | Apache 2.0 |
+| [Material icons](https://fonts.google.com/icons) | Icons in the TV app | Apache 2.0 |
+
+Movie and show details and pictures come from [TMDB](https://www.themoviedb.org), and IMDb ratings from
+[OMDb](https://www.omdbapi.com), using keys each person gets for themselves. This product uses the TMDB API but is
+not endorsed or certified by TMDB. HomeReel isn't affiliated with Netflix, Google, TMDB, IMDb or any device maker.
