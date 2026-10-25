@@ -17,6 +17,8 @@ import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
+import com.parthajb.homereel.shared.Updates
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
@@ -37,6 +39,7 @@ class MainActivity : Activity() {
     private lateinit var cantPlay: TextView
     private lateinit var startStop: Button
     private lateinit var battery: Button
+    private lateinit var installUpdate: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +50,8 @@ class MainActivity : Activity() {
         cantPlay = findViewById(R.id.cant_play)
         startStop = findViewById(R.id.start_stop)
         battery = findViewById(R.id.battery)
+        installUpdate = findViewById(R.id.install_update)
+        installUpdate.setOnClickListener { installUpdate() }
 
         findViewById<Button>(R.id.choose_folder).setOnClickListener { chooseFolder() }
         findViewById<Button>(R.id.rescan).setOnClickListener { app.library.requestScan() }
@@ -143,6 +148,18 @@ class MainActivity : Activity() {
         refresh()
     }
 
+    /** Installs the phone update the admin page uploaded. Android asks to confirm; the server restarts afterwards. */
+    private fun installUpdate() {
+        if (app.updates.pendingPhoneUpdate() == null || !ApkInstaller.allowedOrAsk(this)) return
+        installUpdate.isEnabled = false
+        Thread {
+            runCatching { ApkInstaller.install(this, app.updates.file(Updates.PHONE)) }.onFailure {
+                runOnUiThread { Toast.makeText(this, getString(R.string.update_failed, it.message), Toast.LENGTH_LONG).show() }
+            }
+            runOnUiThread { installUpdate.isEnabled = true }
+        }.start()
+    }
+
     @SuppressLint("BatteryLife")
     private fun askToIgnoreBatteryOptimisation() {
         startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
@@ -194,6 +211,9 @@ class MainActivity : Activity() {
         findViewById<Button>(R.id.remove_folder).visibility = if (app.prefs.extraTrees.isEmpty()) View.GONE else View.VISIBLE
         val power = getSystemService(PowerManager::class.java)
         battery.visibility = if (power.isIgnoringBatteryOptimizations(packageName)) View.GONE else View.VISIBLE
+        val update = app.updates.pendingPhoneUpdate()
+        installUpdate.visibility = if (update == null) View.GONE else View.VISIBLE
+        if (update != null) installUpdate.text = getString(R.string.install_update, update.versionName)
 
         val (items, source) = library.cantPlay()
         val titles = library.allMovies().associate { it.id to it.title }

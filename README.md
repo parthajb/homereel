@@ -65,6 +65,27 @@ itself after a reboot.
 
 Switch ADB off on the TV again when you're done.
 
+## Updating without a cable
+
+ADB is only needed for the first install. After that:
+
+1. Build both apps on the same computer as before (the same key signs them).
+2. On the admin page, open **Settings → App updates** and upload `tv-release.apk` with **Upload TV app…** and
+   `server-release.apk` with **Upload phone app…**.
+   - The phone only keeps a HomeReel app signed with the same key as itself, and a phone app newer than the one
+     running. Android refuses an update signed with another key anyway.
+3. **TV:** the next time HomeReel opens, it says an update is ready, and the Settings row starts with
+   **Update to 0.x.y**. Choose it, then **Update**.
+4. **Phone:** a notification says the update is ready, and HomeReel Server shows **Install update**. Tap it, then
+   **Update**. The server restarts by itself.
+
+The first time, Android asks to allow HomeReel to install apps (on the TV: Device Preferences → Security &
+restrictions → Unknown sources → HomeReel). Google Play Protect may ask to scan the app, since it has never seen it.
+**Scan app** sends the APK to Google; **More details → Install without scanning** keeps it on the device.
+
+The version is set in `server/build.gradle` and `tv/build.gradle` (the `versionCode` default, now 2, and
+`versionName`): raise both for every update. `-PhomereelVersion=N` builds a copy with version N, for trying the update path.
+
 ## Adding and removing movies
 
 | Way | How |
@@ -308,6 +329,8 @@ All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin co
 | `DELETE /movies/{id}` | admin | Deletes the file, its subtitles and poster |
 | `GET /admin/health` | admin | Battery, Wi-Fi, folders, warnings and the recent event log |
 | `GET /admin/backup`; `POST /admin/restore` | admin | Download a backup file; restore one (returns how many films, shows and profiles came back) |
+| `GET /updates/tv`, `GET /updates/tv/apk` | viewer | The TV app update the admin uploaded (version, size, SHA-256), and the APK |
+| `GET /admin/updates`; `PUT` / `DELETE /admin/updates/{tv or phone}` | admin | Installed and uploaded versions; upload an APK (checked for package, key and version), or remove it |
 | `GET /admin/status` | admin | Folder, free space, scan state, what can't play |
 | `POST /admin/uploads` `{name, size, private}` | admin | Starts an upload (into Private if asked), or resumes one with the same name and size |
 | `GET` / `PUT ?offset=N` / `DELETE /admin/uploads/{id}` | admin | Upload state, next piece, cancel |

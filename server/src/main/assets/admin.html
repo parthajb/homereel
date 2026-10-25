@@ -392,6 +392,16 @@
     <a href="/api/v1/admin/backup" download><button type="button">Download a backup</button></a>
     <button type="button" id="restoreBtn">Restore from a backup…</button>
     <input type="file" id="restoreFile" accept="application/json,.json" class="hidden">
+
+    <h3 class="section">App updates</h3>
+    <p class="muted small" style="margin-top:0">Update the apps without a cable or ADB: upload a newer .apk built from this
+      project. TVs offer it the next time HomeReel opens on them, and the phone shows <strong>Install update</strong>.
+      Only HomeReel apps signed with the same key as this one are accepted.</p>
+    <div id="updRows" class="small" style="margin-bottom:10px"></div>
+    <button type="button" id="updTvBtn">Upload TV app…</button>
+    <button type="button" id="updPhoneBtn">Upload phone app…</button>
+    <input type="file" id="updFile" accept=".apk,application/vnd.android.package-archive" class="hidden">
+    <div class="muted small" id="updState" style="margin-top:6px"></div>
   </form>
   <div class="ed-foot">
     <button type="button" id="sRun">Look up missing info now</button>
@@ -1072,6 +1082,58 @@ $('#restoreFile').addEventListener('change', async (e) => {
   } catch (err) { if (!err.quiet) toast(err.message, true); }
 });
 
+// ---- App updates ----
+async function loadUpdates() {
+  const u = await api('GET', '/admin/updates');
+  const row = (label, x, target) => `<div>${label}: <strong>${esc(x.versionName)}</strong>, uploaded ${fmtAgo(x.uploadedAt)}
+    (${fmtSize(x.size)}) <button type="button" class="ghost danger" data-upd-del="${target}">Remove</button></div>`;
+  $('#updRows').innerHTML = `<div>Phone app installed: <strong>${esc(u.phoneVersionName)}</strong></div>
+    ${u.phone ? row('Waiting to be installed on the phone', u.phone, 'phone') : ''}
+    ${u.tv ? row('TV app offered to the TVs', u.tv, 'tv') : '<div class="muted">No TV app uploaded.</div>'}`;
+}
+function putApk(target, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', `${API}/admin/updates/${target}`);
+    x.setRequestHeader('X-HomeReel', '1');
+    x.setRequestHeader('Content-Type', 'application/vnd.android.package-archive');
+    x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    x.onload = () => {
+      let data = {};
+      try { data = JSON.parse(x.responseText); } catch (_) { /* not JSON */ }
+      if (x.status >= 200 && x.status < 300) resolve(data);
+      else reject(new Error(data.error || 'HTTP ' + x.status));
+    };
+    x.onerror = () => reject(new Error('Connection lost'));
+    x.send(file);
+  });
+}
+let updTarget = null;
+$('#updTvBtn').addEventListener('click', () => { updTarget = 'tv'; $('#updFile').click(); });
+$('#updPhoneBtn').addEventListener('click', () => { updTarget = 'phone'; $('#updFile').click(); });
+$('#updFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !updTarget) return;
+  const state = $('#updState');
+  state.textContent = `Uploading ${file.name}…`;
+  try {
+    const u = await putApk(updTarget, file, (pct) => { state.textContent = `Uploading ${file.name}: ${pct}%`; });
+    state.textContent = '';
+    toast(updTarget === 'tv'
+      ? `TV app ${u.versionName} is ready. TVs offer it the next time HomeReel opens.`
+      : `Phone app ${u.versionName} is ready. On the phone, tap Install update.`);
+  } catch (err) {
+    state.textContent = err.message;
+  }
+  loadUpdates().catch(() => {});
+});
+$('#updRows').addEventListener('click', async (e) => {
+  const target = e.target.dataset && e.target.dataset.updDel;
+  if (!target) return;
+  try { await api('DELETE', `/admin/updates/${target}`); loadUpdates(); } catch (err) { if (!err.quiet) toast(err.message, true); }
+});
+
 // ---- Settings ----
 async function openSettings() {
   try {
@@ -1084,6 +1146,7 @@ async function openSettings() {
     $('#sOpt').checked = st.autoOptimize;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
     await loadProfiles();
+    loadUpdates().catch(() => {});
     $('#scrim').classList.remove('hidden');
     $('#settings').classList.remove('hidden');
     $('#sTmdb').focus();

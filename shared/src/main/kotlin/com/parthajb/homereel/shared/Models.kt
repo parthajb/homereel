@@ -392,3 +392,32 @@ data class Health(
 
 @Serializable
 data class RestoreSummary(val films: Int, val filmsInBackup: Int, val shows: Int, val showsInBackup: Int, val profiles: Int)
+
+/** An app update the admin uploaded to the phone: the TV app ([Updates.TV]) or the phone app ([Updates.PHONE]). */
+@Serializable
+data class AppUpdate(
+    val target: String,
+    val versionCode: Long,
+    val versionName: String,
+    val size: Long,
+    val sha256: String,
+    val uploadedAt: Long,
+)
+
+@Serializable
+data class UpdateStatus(
+    val phoneVersionCode: Long,
+    val phoneVersionName: String,
+    val tv: AppUpdate? = null,
+    val phone: AppUpdate? = null,
+)
+
+object Updates {
+    const val TV = "tv"
+    const val PHONE = "phone"
+    const val TV_PACKAGE = "com.parthajb.homereel.tv"
+    const val PHONE_PACKAGE = "com.parthajb.homereel.server"
+
+    /** Whether an uploaded update is newer than what's installed. */
+    fun isNewer(update: AppUpdate?, installedVersionCode: Long): Boolean = update != null && update.versionCode > installedVersionCode
+}

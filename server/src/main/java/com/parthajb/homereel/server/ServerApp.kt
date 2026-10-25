@@ -18,6 +18,8 @@ class ServerApp : Application() {
         private set
     lateinit var health: HealthMonitor
         private set
+    lateinit var updates: AppUpdates
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -34,5 +36,6 @@ class ServerApp : Application() {
         locks = ActivityLocks(this)
         library = Library(this, prefs, locks, events)
         health = HealthMonitor(this, prefs, library, events)
+        updates = AppUpdates(this, events)
     }
 }

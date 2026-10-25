@@ -113,7 +113,7 @@ class ServerService : Service() {
 
     companion object {
         private const val TAG = "HomeReel"
-        private const val CHANNEL = "server"
+        const val CHANNEL = "server"
         private const val NOTIFICATION_ID = 1
 
         @Volatile var running = false

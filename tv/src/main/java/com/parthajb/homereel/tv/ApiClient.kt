@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.parthajb.homereel.shared.Api
 import com.parthajb.homereel.shared.ApiJson
+import com.parthajb.homereel.shared.AppUpdate
 import com.parthajb.homereel.shared.ErrorBody
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.MovieList
@@ -18,14 +19,17 @@ import com.parthajb.homereel.shared.ServerInfo
 import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.ShowDetail
 import com.parthajb.homereel.shared.ShowList
+import com.parthajb.homereel.shared.Updates
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
+import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.URL
+import java.security.MessageDigest
 
 open class ApiException(val code: Int, message: String) : IOException(message)
 
@@ -63,6 +67,41 @@ class ApiClient(val host: String, val port: Int, private val token: String?, pri
 
     fun setInList(key: String, on: Boolean) {
         request(if (on) "PUT" else "DELETE", "/me/list/$key", null)
+    }
+
+    /** The TV app update the admin uploaded to the phone, or null if there's none (or the phone is older). */
+    fun update(): AppUpdate? = try {
+        get("/updates/${Updates.TV}", AppUpdate.serializer())
+    } catch (e: ApiException) {
+        if (e.code == 404) null else throw e
+    }
+
+    /** Downloads the update to [file] and checks it's exactly what the phone described. */
+    fun downloadUpdate(update: AppUpdate, file: File) {
+        val c = open("GET", "/updates/${Updates.TV}/apk", null)
+        c.readTimeout = 60_000
+        try {
+            if (c.responseCode != 200) throw ApiException(c.responseCode, "The phone answered ${c.responseCode}")
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.outputStream().use { out ->
+                c.inputStream.use { input ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        digest.update(buf, 0, n)
+                        out.write(buf, 0, n)
+                    }
+                }
+            }
+            val sha = digest.digest().joinToString("") { "%02x".format(it) }
+            if (file.length() != update.size || sha != update.sha256) {
+                file.delete()
+                throw IOException("The update didn't arrive whole. Try again.")
+            }
+        } finally {
+            c.disconnect()
+        }
     }
 
     fun show(id: String): ShowDetail = get("/shows/$id", ShowDetail.serializer())

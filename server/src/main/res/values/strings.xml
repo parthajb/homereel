@@ -34,4 +34,10 @@
     <string name="cant_play_none">None found.</string>
     <string name="cant_play_tv">The TV checked these against its own decoders:</string>
     <string name="cant_play_guess">A guess until the TV app connects:</string>
+    <string name="update_allow">Allow HomeReel to install apps, then choose Update again.</string>
+    <string name="update_allow_manual">Allow HomeReel under Settings → Apps → Special app access → Install unknown apps (on a TV: Device Preferences → Security &amp; restrictions → Unknown sources), then choose Update again.</string>
+    <string name="update_failed">The update didn\'t install: %1$s</string>
+    <string name="install_update">Install update %1$s</string>
+    <string name="update_ready_title">HomeReel Server %1$s is ready</string>
+    <string name="update_ready_text">Tap, then Install update. The server restarts by itself.</string>
 </resources>

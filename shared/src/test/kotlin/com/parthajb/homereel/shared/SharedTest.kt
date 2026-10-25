@@ -239,3 +239,12 @@ class PlaybackTest {
     @Test fun parseNonsense() = assertNull(Markers.parse("1:75"))
     @Test fun parseEmpty() = assertNull(Markers.parse(" "))
 }
+
+class UpdatesTest {
+    private fun update(code: Long) = AppUpdate(Updates.TV, code, "0.2.$code", 1, "x", 0)
+
+    @Test fun newerIsOffered() = assertEquals(true, Updates.isNewer(update(3), 2))
+    @Test fun sameIsNotOffered() = assertEquals(false, Updates.isNewer(update(2), 2))
+    @Test fun olderIsNotOffered() = assertEquals(false, Updates.isNewer(update(1), 2))
+    @Test fun noneIsNotOffered() = assertEquals(false, Updates.isNewer(null, 2))
+}

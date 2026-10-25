@@ -112,4 +112,11 @@
     <string name="error_codec">This TV can\'t decode this file\'s video or audio. Converting it to H.264 video with AAC audio fixes that.</string>
     <string name="error_container">This TV can\'t read this kind of file, or the file is damaged.</string>
     <string name="error_other">The movie stopped (%1$s).</string>
+    <string name="update_allow">Allow HomeReel to install apps, then choose Update again.</string>
+    <string name="update_allow_manual">Allow HomeReel under Settings → Apps → Special app access → Install unknown apps (on a TV: Device Preferences → Security &amp; restrictions → Unknown sources), then choose Update again.</string>
+    <string name="update_failed">The update didn\'t install: %1$s</string>
+    <string name="action_update">Update to %1$s</string>
+    <string name="help_update">Installs HomeReel %1$s from the phone, no cable needed. The TV asks you to confirm, then HomeReel restarts.</string>
+    <string name="update_available">HomeReel %1$s is ready to install: Settings row, Update.</string>
+    <string name="update_downloading">Getting the update from the phone…</string>
 </resources>

@@ -4,6 +4,7 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.parthajb.homereel.shared.Api
 import com.parthajb.homereel.shared.ApiJson
+import com.parthajb.homereel.shared.AppUpdate
 import com.parthajb.homereel.shared.ErrorBody
 import com.parthajb.homereel.shared.MatchRequest
 import com.parthajb.homereel.shared.MediaFiles
@@ -34,6 +35,7 @@ import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.ServerInfo
 import com.parthajb.homereel.shared.TmdbResult
 import com.parthajb.homereel.shared.UploadRequest
+import com.parthajb.homereel.shared.UpdateStatus
 import com.parthajb.homereel.shared.UploadState
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.serialization.KSerializer
@@ -213,6 +215,32 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             p == listOf("admin", "health") && method == Method.GET -> {
                 requireAdmin()
                 json(200, Health.serializer(), app.health.report())
+            }
+            // App updates: a TV asks whether there's a newer TV app and downloads it; the admin page uploads them.
+            p.size == 2 && p[0] == "updates" && method == Method.GET ->
+                json(200, AppUpdate.serializer(), app.updates.info(p[1]) ?: throw HttpError(404, "No update"))
+            p.size == 3 && p[0] == "updates" && p[2] == "apk" && method == Method.GET -> {
+                val file = app.updates.file(p[1])
+                if (app.updates.info(p[1]) == null) throw HttpError(404, "No update")
+                newFixedLengthResponse(Response.Status.OK, "application/vnd.android.package-archive", FileInputStream(file), file.length())
+            }
+            p == listOf("admin", "updates") && method == Method.GET -> {
+                requireAdmin()
+                json(200, UpdateStatus.serializer(), app.updates.status())
+            }
+            p.size == 3 && p[0] == "admin" && p[1] == "updates" -> {
+                requireAdmin()
+                when (method) {
+                    Method.PUT -> {
+                        val length = s.headers["content-length"]?.toLongOrNull() ?: throw HttpError(411, "Content-Length is missing")
+                        json(200, AppUpdate.serializer(), app.updates.store(p[2], bodies.get()!!, length))
+                    }
+                    Method.DELETE -> {
+                        app.updates.delete(p[2])
+                        noContent()
+                    }
+                    else -> throw HttpError(405, "Method not allowed")
+                }
             }
             p == listOf("admin", "backup") && method == Method.GET -> {
                 requireAdmin()

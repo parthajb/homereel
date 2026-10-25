@@ -12,12 +12,15 @@ import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.parthajb.homereel.shared.ApiJson
+import com.parthajb.homereel.shared.AppUpdate
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.PlayabilityItem
 import com.parthajb.homereel.shared.PlayabilityReport
 import com.parthajb.homereel.shared.Recommend
 import com.parthajb.homereel.shared.Show
+import com.parthajb.homereel.shared.Updates
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
 
@@ -37,6 +40,7 @@ class MainActivity : FragmentActivity(), CardHost {
     private var shows: List<Show> = emptyList()
     private var myList: List<String> = emptyList()
     private var privateUntil: Long? = null
+    private var update: AppUpdate? = null
     private var loading = false
     private var firstLoad = true
     private var focusedKey: String? = null
@@ -101,6 +105,7 @@ class MainActivity : FragmentActivity(), CardHost {
                 val showList = api.shows()
                 val listKeys = runCatching { api.myList() }.getOrDefault(emptyList())
                 val until = runCatching { api.info().privateUntil }.getOrNull()
+                val newer = runCatching { api.update() }.getOrNull()?.takeIf { Updates.isNewer(it, BuildConfig.VERSION_CODE.toLong()) }
                 val report = list.mapNotNull { m -> codecs.reason(m)?.let { PlayabilityItem(m.id, it) } }
                 main.post {
                     loading = false
@@ -109,6 +114,12 @@ class MainActivity : FragmentActivity(), CardHost {
                     shows = showList
                     myList = listKeys
                     privateUntil = until
+                    update = newer
+                    // Mentioned once per version and run of the app; the Settings row keeps offering it.
+                    if (newer != null && newer.versionCode != announcedUpdate && !store.profileKids) {
+                        announcedUpdate = newer.versionCode
+                        Toast.makeText(this, getString(R.string.update_available, newer.versionName), Toast.LENGTH_LONG).show()
+                    }
                     cantPlayReasons = report.associate { it.id to it.reason }
                     show(list)
                 }
@@ -243,7 +254,8 @@ class MainActivity : FragmentActivity(), CardHost {
         }
         out += HomeRow(
             getString(R.string.row_settings),
-            listOf(
+            listOfNotNull(
+                update?.let { ActionItem(ACTION_UPDATE, getString(R.string.action_update, it.versionName), R.drawable.ic_update) },
                 ActionItem(ACTION_PROFILE, getString(R.string.action_profile), R.drawable.ic_person),
                 ActionItem(ACTION_REFRESH, getString(R.string.action_refresh), R.drawable.ic_refresh),
                 ActionItem(ACTION_RESCAN, getString(R.string.action_rescan), R.drawable.ic_folder),
@@ -362,6 +374,7 @@ class MainActivity : FragmentActivity(), CardHost {
         ACTION_ABOUT -> getString(R.string.help_about)
         ACTION_PROFILE -> getString(R.string.help_profile)
         ACTION_FRAMERATE -> getString(R.string.help_framerate)
+        ACTION_UPDATE -> getString(R.string.help_update, update?.versionName ?: "")
         else -> getString(R.string.help_switch)
     }
 
@@ -403,6 +416,7 @@ class MainActivity : FragmentActivity(), CardHost {
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
             ACTION_PROFILE -> switchProfile()
+            ACTION_UPDATE -> installUpdate()
             ACTION_FRAMERATE -> {
                 val prefs = TvPrefs(this)
                 prefs.matchFrameRate = !prefs.matchFrameRate
@@ -412,6 +426,23 @@ class MainActivity : FragmentActivity(), CardHost {
                 store.forget()
                 startActivity(Intent(this, ConnectActivity::class.java))
                 finish()
+            }
+        }
+    }
+
+    /** Downloads the TV app update from the phone and hands it to Android's installer, which asks to confirm. */
+    private fun installUpdate() {
+        val target = update ?: return
+        if (!ApkInstaller.allowedOrAsk(this)) return
+        Toast.makeText(this, R.string.update_downloading, Toast.LENGTH_SHORT).show()
+        val api = store.api()
+        worker.execute {
+            try {
+                val file = File(cacheDir, "update.apk")
+                api.downloadUpdate(target, file)
+                ApkInstaller.install(this, file)
+            } catch (e: Exception) {
+                main.post { Toast.makeText(this, getString(R.string.update_failed, e.message), Toast.LENGTH_LONG).show() }
             }
         }
     }
@@ -442,6 +473,10 @@ class MainActivity : FragmentActivity(), CardHost {
         private const val ACTION_SWITCH = 4
         private const val ACTION_PROFILE = 5
         private const val ACTION_FRAMERATE = 6
+        private const val ACTION_UPDATE = 7
+
+        /** The update version already mentioned in a toast, so it isn't repeated on every visit to Home. */
+        private var announcedUpdate = 0L
 
         /** Started but not finished: more than 15 seconds or 2% in, and not marked watched. */
         fun inProgress(m: Movie) = !m.watched && m.positionMs > 0 &&
