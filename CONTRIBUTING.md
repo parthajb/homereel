@@ -58,7 +58,8 @@ You don't need a spare phone and TV: one Android emulator can be both.
 
    In HomeReel Server, tap **Choose movie folder** and pick `Movies/HomeReelTest`.
 4. **Reach the server from your computer:** `adb forward tcp:18080 tcp:8080`, then open
-   `http://127.0.0.1:18080/admin`. The TV app on the same emulator usually finds the server by itself; if it
+   `http://127.0.0.1:18080/admin`, or the web app at `http://127.0.0.1:18080`. Open the web app at
+   `http://localhost:18080` too, to try it as a separate, viewer-only browser. The TV app on the same emulator usually finds the server by itself; if it
    doesn't, type `127.0.0.1:8080`.
 5. **Online movie info without real keys:** run `python3 tools/mock_tmdb.py` and point a debug build at it. Its
    first lines say which settings to fill in, and how to simulate a network blip or an OMDb outage.

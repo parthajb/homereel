@@ -217,6 +217,8 @@
     <button class="primary" type="submit" style="width:100%;justify-content:center">Pair this browser</button>
   </form>
   <p id="pairErr" class="err"></p>
+  <p id="pairNote" class="muted small"></p>
+  <p class="muted small">Just want to watch? <a href="/">Open the web app</a>.</p>
 </section>
 
 <div id="app" class="hidden">
@@ -477,11 +479,17 @@ async function api(method, path, body, raw) {
   let data = {};
   try { data = text ? JSON.parse(text) : {}; } catch (_) { /* not JSON */ }
   if (r.status === 401) { showPair(); throw Object.assign(new Error('Not paired'), { quiet: true }); }
+  // Paired for watching (the web app at /), not for managing: ask for the code again to pair as admin.
+  if (r.status === 403 && /paired as admin/.test(data.error || '')) {
+    showPair('This browser is paired for watching. Enter the code again to manage HomeReel too.');
+    throw Object.assign(new Error('Not admin'), { quiet: true });
+  }
   if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { status: r.status, data });
   return data;
 }
 
-function showPair() {
+function showPair(note) {
+  $('#pairNote').textContent = note || '';
   $('#app').classList.add('hidden');
   $('#pair').classList.remove('hidden');
   $('#code').focus();

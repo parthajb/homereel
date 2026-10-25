@@ -99,8 +99,8 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
     private fun route(s: IHTTPSession): Response {
         val path = s.uri.trimEnd('/').ifEmpty { "/" }
         val method = s.method
-        if (path == "/") return redirect("/admin")
-        if (path == "/admin" && method == Method.GET) return adminPage()
+        if (path == "/" && method == Method.GET) return page("watch.html", media = true)
+        if (path == "/admin" && method == Method.GET) return page("admin.html", media = false)
         if (!path.startsWith(Api.PREFIX)) throw HttpError(404, "Not found")
         val p = path.removePrefix(Api.PREFIX).split('/').filter { it.isNotEmpty() }
 
@@ -112,9 +112,11 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
         }
         // Which profile is asking (a TV sends it; the admin page doesn't). The admin always sees the Private
         // folder; a TV only while the admin has it unlocked, and never on a kids profile.
-        val named = app.profiles.resolve(s.headers[PROFILE_HEADER])
+        // A browser's <video> and <img> can't send headers, so the web app names the profile in the address instead.
+        val profileId = s.headers[PROFILE_HEADER] ?: s.parameters["profile"]?.firstOrNull()
+        val named = app.profiles.resolve(profileId)
         // The admin page names no profile and must always see everything, even if the first profile is a kids one.
-        val profile = if (role == Api.ROLE_ADMIN && s.headers[PROFILE_HEADER] == null) named.copy(kids = false) else named
+        val profile = if (role == Api.ROLE_ADMIN && profileId == null) named.copy(kids = false) else named
         val viewer = Viewer(
             profile,
             app.profiles.myList(profile.id).toSet(),
@@ -410,13 +412,10 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
     private fun pair(s: IHTTPSession): Response {
         val request = readJson(s, PairRequest.serializer())
         return when (val result = app.auth.pair(request)) {
+            // A browser keeps its token in a cookie, as an admin (the admin page) or a viewer (the web app); the TV
+            // app uses the token in the body and ignores the cookie.
             is PairResult.Ok -> json(200, PairResponse.serializer(), PairResponse(result.token, result.role, app.prefs.serverName)).apply {
-                if (result.role == Api.ROLE_ADMIN) {
-                    addHeader(
-                        "Set-Cookie",
-                        "${Api.TOKEN_COOKIE}=${result.token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict",
-                    )
-                }
+                addHeader("Set-Cookie", "${Api.TOKEN_COOKIE}=${result.token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict")
             }
             PairResult.WrongCode -> throw HttpError(403, "That code isn't right. Check the HomeReel app on the phone.")
             is PairResult.Locked -> throw HttpError(429, "Too many wrong codes. Try again in ${result.seconds} s.")
@@ -482,15 +481,17 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             addHeader("Cache-Control", "private, max-age=86400")
         }
 
-    private fun adminPage(): Response {
-        val html = app.assets.open("admin.html").use { it.readBytes() }
+    /** The admin page, or the web app (which also plays video and loads subtitles it converts in the browser). */
+    private fun page(asset: String, media: Boolean): Response {
+        val html = app.assets.open(asset).use { it.readBytes() }
+        val mediaSrc = if (media) "media-src 'self' blob:; " else ""
         return newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html.inputStream(), html.size.toLong()).apply {
             addHeader("Cache-Control", "no-cache")
             addHeader("X-Frame-Options", "DENY")
             addHeader(
                 "Content-Security-Policy",
-                "default-src 'self'; img-src 'self' data: https://image.tmdb.org; style-src 'self' 'unsafe-inline'; " +
-                    "script-src 'self' 'unsafe-inline'; frame-ancestors 'none'",
+                "default-src 'self'; img-src 'self' data: https://image.tmdb.org; $mediaSrc" +
+                    "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'",
             )
         }
     }
@@ -520,9 +521,6 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
     private fun noContent(): Response {
         return newFixedLengthResponse(Code(204), "text/plain", "")
     }
-
-    private fun redirect(to: String): Response =
-        newFixedLengthResponse(Code(302), "text/plain", "").apply { addHeader("Location", to) }
 
     private class Code(private val code: Int) : Response.IStatus {
         override fun getDescription(): String = "$code ${REASONS[code] ?: "Status"}"

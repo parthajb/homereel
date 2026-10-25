@@ -7,6 +7,8 @@ a streaming service.
   the folders you pick (a USB drive too) over a small REST API, with seeking, posters, subtitles and resume points.
 - **HomeReel** (`tv/`, package `com.parthajb.homereel.tv`) runs on the TV. It finds the phone by itself, shows
   your films and shows in rows, and plays them.
+- **The web app** at `http://<phone ip>:8080` lets a laptop, phone or tablet on the Wi-Fi watch too, with the same
+  profiles, My List and resume points as the TV.
 - **The admin page** at `http://<phone ip>:8080/admin` works in any browser on the Wi-Fi. Use it to add, edit and
   delete videos, and to manage profiles, settings and updates.
 
@@ -24,10 +26,10 @@ Android 8.0 or later. There are no prebuilt downloads: you build the apps yourse
 ## How it works
 
 ```
- Laptop browser ──upload / delete──▶  Phone: HomeReel Server  ◀──list / stream / progress── TV: HomeReel
-                                      foreground service, port 8080
-                                      your folders of videos (SAF)
-                                      advertised as _homereel._tcp
+ Admin page (/admin) ──upload / edit──▶  Phone: HomeReel Server  ◀──list / stream / progress── TV: HomeReel
+                                         foreground service, port 8080
+ Web app (/) ───list / stream / progress─▶ your folders of videos (SAF)
+                                         advertised as _homereel._tcp
 ```
 
 - **Streaming:** the phone streams each file as it is, with HTTP Range requests, so seeking works and the phone
@@ -74,6 +76,31 @@ itself after a reboot.
 3. **Optional:** add `com.parthajb.homereel.tv` to the launcher's dock.
 
 Switch ADB off on the TV again when you're done.
+
+## Watching in a browser
+
+Open `http://<phone ip>:8080` in a browser on the home Wi-Fi: on a laptop, a phone or a tablet. The phone's screen
+shows the address.
+
+- **Pairing:** the first time, enter the 6-digit code from the phone. The browser pairs as a viewer, like a TV: it
+  can watch and save progress, but not change anything. A browser already paired for the admin page doesn't need
+  to pair again.
+- **What's the same as the TV:** "Who's watching?", with the parent PIN to leave a kids profile; the same rows
+  (Continue watching, My List, Because you watched, shows, genres); search; details with cast and More like this;
+  seasons and episodes; resume points shared with the TV; Skip intro; and Next episode at the credits.
+- **Subtitles:** subtitle files beside the video (`.srt`, `.vtt`) appear in the player's captions menu. Subtitles
+  inside an MKV only show on the TV.
+- **What a browser can play** depends on the browser, not the TV:
+  - MP4 with H.264 video and AAC sound plays everywhere, and so does a lighter copy made by the phone.
+  - MKV plays in Chrome and Edge, and may not in other browsers.
+  - HEVC (H.265) video plays in Safari and Edge, and in Chrome on most recent computers.
+  - Dolby Digital sound plays in Safari and Edge only; DTS and TrueHD play in no browser.
+  - The details page warns when a file may not play, and the TV plays them all.
+- **Keyboard:** Space to pause, ← and → to skip, Esc to go back, and / to search.
+- **Add it to your home screen** on a phone or tablet (Share → Add to Home Screen) to open it like an app.
+
+It only works on the home network, like everything else in HomeReel. To watch away from home, use a VPN such as
+Tailscale on the phone and your device rather than opening port 8080 to the internet.
 
 ## Updating without a cable
 
@@ -297,9 +324,14 @@ Everything goes over the home Wi-Fi.
   - The code is 6 digits. Five wrong guesses lock pairing for a minute.
   - **New pairing code** on the phone changes it; **Forget paired devices** signs everyone out.
 - **Roles:**
-  - The TV pairs as a **viewer**: it can list, stream and save progress.
-  - A browser pairs as an **admin**: it can also upload, edit and delete. Its token is an `HttpOnly`,
-    `SameSite=Strict` cookie, and every change also needs an `X-HomeReel` header that other websites can't send.
+  - The TV and the web app pair as a **viewer**: they can list, stream and save progress.
+  - The admin page pairs as an **admin**: it can also upload, edit and delete.
+  - A browser keeps its token in an `HttpOnly`, `SameSite=Strict` cookie, and every change also needs an
+    `X-HomeReel` header that other websites can't send. A browser has one role: pairing it on the admin page makes
+    it an admin, which can also watch.
+- **Kids profiles** are filtered on the phone, so a kids profile gets no other titles, pictures or videos, whatever
+  the browser or TV asks for. The parent PIN guards leaving a kids profile in the TV and web app; it isn't a
+  password, so a determined older child at a computer could get round it.
 - **Folder access:** the phone can read and write only the folders you picked.
 - **Lookup keys:** the TMDB and OMDb keys stay in the phone app's private storage. The API only says whether
   they're set, even to the admin page.
@@ -309,12 +341,14 @@ To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## API
 
-All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin cookie). The TV also sends
-`X-Profile: <profile id>`. Progress, My List and kids filtering follow it, and without it the first profile is used.
+All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the browser's cookie). The TV and the web app
+also send `X-Profile: <profile id>`; pictures and video in a browser use `?profile=<id>` instead, since `<img>` and
+`<video>` can't send headers. Progress, My List and kids filtering follow it, and without it the first profile is
+used. The web app is served at `/` and the admin page at `/admin`.
 
 | Method and path | Role | What it does |
 |---|---|---|
-| `POST /pair` `{code, client, role}` | none | Returns `{token, role, serverName}` |
+| `POST /pair` `{code, client, role}` | none | Returns `{token, role, serverName}`, and sets the browser's cookie |
 | `GET /info` | viewer | Name, version, movie count, whether a scan is running |
 | `GET /movies`, `GET /movies/{id}` | viewer | Films (not episodes) with tracks, subtitles, progress; private ones only while Private is unlocked |
 | `GET /movies/{id}/stream` | viewer | The file, with `Range` support (`206`, `416`) |
@@ -367,7 +401,7 @@ All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin co
 | Path | What it is |
 |---|---|
 | `shared/` | Plain Kotlin: API models, Range parsing, title parsing, the playability rules, and their unit tests |
-| `server/` | Phone app: NanoHTTPD server, Storage Access Framework scanner, uploads, NSD, the admin page (`src/main/assets/admin.html`) |
+| `server/` | Phone app: NanoHTTPD server, Storage Access Framework scanner, uploads, NSD, the admin page and the web app (`src/main/assets/admin.html`, `watch.html`) |
 | `tv/` | TV app: AndroidX Leanback and Media3 ExoPlayer |
 | `tools/mock_tmdb.py` | A fake TMDB and OMDb with made-up data, for testing online movie info without keys |
 

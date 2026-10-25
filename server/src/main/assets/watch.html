@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>HomeReel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%231e1b4b'/%3E%3Cpath d='M10 7.5l6 4.5-6 4.5z' fill='%23f5b301'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0b0f; --surface: #16161d; --raised: #202029; --fg: #ffffff; --body: #d4d4dc; --muted: #a3a3b2;
+    --line: #2c2c37; --accent: #f5b301; --accent-fg: #1b1300; --red: #e50914; --danger: #fca5a5;
+    --gutter: clamp(16px, 4vw, 56px); --card: clamp(108px, 13vw, 168px);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-weight: 650;
+    background: rgb(255 255 255 / 16%); color: var(--fg); white-space: nowrap; }
+  .btn:hover { background: rgb(255 255 255 / 26%); }
+  .btn.primary { background: var(--fg); color: #000; }
+  .btn.primary:hover { background: #e3e3e8; }
+  .btn.icon { padding: 10px; border-radius: 50%; border: 2px solid rgb(255 255 255 / 45%); background: rgb(20 20 28 / 60%); }
+  .btn.icon.on { border-color: var(--accent); color: var(--accent); }
+  .btn svg { width: 20px; height: 20px; flex: none; }
+
+  /* Pairing and "Who's watching?" */
+  .center { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px var(--gutter); text-align: center; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .14em; color: var(--accent);
+    font-size: 14px; text-transform: uppercase; }
+  .brand svg { width: 26px; height: 26px; }
+  .center h1 { font-size: clamp(28px, 5vw, 52px); margin: 18px 0 8px; letter-spacing: -.01em; }
+  #pairForm { display: flex; flex-direction: column; gap: 12px; width: min(340px, 100%); margin-top: 18px; }
+  #code { text-align: center; font-size: 30px; letter-spacing: .3em; padding: 12px; border-radius: 10px;
+    border: 2px solid var(--line); background: var(--surface); }
+  #code:focus { border-color: var(--accent); outline: none; }
+  .err { color: var(--danger); min-height: 1.4em; }
+  .profiles { display: flex; flex-wrap: wrap; justify-content: center; gap: clamp(16px, 3vw, 36px); margin-top: 28px; }
+  .profile { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); padding: 8px;
+    border-radius: 14px; }
+  .profile:hover, .profile:focus-visible { color: var(--fg); }
+  .avatar { width: clamp(84px, 11vw, 128px); aspect-ratio: 1; border-radius: 12px; display: grid; place-items: center;
+    font-size: clamp(34px, 5vw, 56px); font-weight: 800; color: #fff; border: 3px solid transparent; }
+  .profile:hover .avatar, .profile:focus-visible .avatar { border-color: var(--fg); }
+  .kids-tag { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+
+  /* Header */
+  header { position: fixed; inset: 0 0 auto; z-index: 20; display: flex; align-items: center; gap: 16px;
+    padding: 14px var(--gutter); background: linear-gradient(rgb(0 0 0 / 75%), transparent); transition: background .2s; }
+  header.solid { background: rgb(11 11 15 / 96%); }
+  header .brand { margin-right: auto; cursor: pointer; }
+  .search { display: flex; align-items: center; gap: 8px; background: rgb(0 0 0 / 55%); border: 1px solid rgb(255 255 255 / 30%);
+    border-radius: 8px; padding: 6px 10px; width: min(300px, 40vw); }
+  .search svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
+  .search input { background: none; border: 0; outline: none; width: 100%; min-width: 0; }
+  .me { position: relative; }
+  .me > button { display: flex; align-items: center; gap: 8px; }
+  .me .avatar { width: 34px; font-size: 16px; border-radius: 6px; border-width: 0; }
+  .menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 220px; background: rgb(16 16 22 / 97%);
+    border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 12px 40px rgb(0 0 0 / 60%); }
+  .menu button, .menu a { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 6px;
+    text-align: left; color: var(--fg); text-decoration: none; }
+  .menu button:hover, .menu a:hover { background: var(--raised); }
+  .menu .avatar { width: 28px; font-size: 14px; border-radius: 5px; }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+
+  /* Hero */
+  .hero { position: relative; min-height: min(78vh, 720px); display: flex; align-items: flex-end;
+    padding: 120px var(--gutter) clamp(28px, 6vh, 64px); overflow: hidden; }
+  .hero .art { position: absolute; inset: 0; background: center / cover no-repeat; }
+  .hero::after { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgb(11 11 15 / 92%) 0%, rgb(11 11 15 / 55%) 45%, transparent 75%),
+                linear-gradient(0deg, var(--bg) 0%, transparent 35%); }
+  .hero .info { position: relative; z-index: 1; max-width: 640px; }
+  .hero h2 { font-size: clamp(30px, 5vw, 60px); line-height: 1.05; margin: 0 0 12px; letter-spacing: -.01em; }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--body); font-size: 14px; }
+  .meta .star { color: var(--accent); font-weight: 700; }
+  .cert { border: 1px solid rgb(255 255 255 / 55%); border-radius: 4px; padding: 0 6px; font-size: 12px; }
+  .hero p { color: var(--body); margin: 12px 0 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  /* Rows */
+  main { padding-bottom: 60px; }
+  .rows { position: relative; z-index: 2; margin-top: -30px; }
+  .row { margin: 0 0 clamp(18px, 3vw, 32px); }
+  .row h3 { margin: 0 0 8px; padding: 0 var(--gutter); font-size: clamp(16px, 1.6vw, 21px); }
+  .strip { position: relative; }
+  .track { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding: 0 var(--gutter);
+    padding: 6px var(--gutter) 10px; scrollbar-width: none; }
+  .track::-webkit-scrollbar { display: none; }
+  .arrow { position: absolute; top: 6px; bottom: 10px; width: calc(var(--gutter) - 4px); min-width: 36px; z-index: 3;
+    background: rgb(0 0 0 / 55%); color: #fff; opacity: 0; transition: opacity .15s; font-size: 28px; }
+  .arrow.left { left: 0; border-radius: 0 6px 6px 0; } .arrow.right { right: 0; border-radius: 6px 0 0 6px; }
+  .strip:hover .arrow { opacity: 1; }
+  @media (hover: none) { .arrow { display: none; } }
+  .card { position: relative; flex: none; width: var(--card); scroll-snap-align: start; border-radius: 8px; overflow: hidden;
+    background: var(--surface); text-align: left; transition: transform .15s; }
+  .card:hover, .card:focus-visible { transform: scale(1.05); z-index: 2; }
+  .card img { display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover; background: var(--raised); }
+  .card.wide { width: calc(var(--card) * 1.75); }
+  .card.wide img { aspect-ratio: 16 / 9; }
+  .card .cap { position: absolute; inset: auto 0 0; padding: 26px 10px 10px; font-weight: 650; font-size: 14px;
+    background: linear-gradient(transparent, rgb(0 0 0 / 85%)); }
+  .card .cap small { display: block; color: var(--body); font-weight: 400; font-size: 12px; }
+  .card .fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 10px; text-align: center;
+    font-weight: 700; color: var(--body); }
+  .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgb(255 255 255 / 25%); }
+  .bar i { display: block; height: 100%; background: var(--red); }
+  .tag { position: absolute; top: 6px; left: 6px; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 800;
+    background: var(--accent); color: var(--accent-fg); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card), 1fr)); gap: 14px 10px;
+    padding: 96px var(--gutter) 40px; }
+  .grid .card { width: auto; }
+  .grid h3 { grid-column: 1 / -1; margin: 10px 0 0; }
+  .empty { padding: 140px var(--gutter); text-align: center; color: var(--muted); }
+  .banner { margin: 90px var(--gutter) 0; padding: 14px 16px; border-radius: 10px; background: #3a1414; color: #fecaca;
+    display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+
+  /* Details */
+  .overlay { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 70%); overflow-y: auto; padding: 4vh 0; }
+  .sheet { position: relative; width: min(900px, 100%); margin: 0 auto; background: var(--surface); border-radius: 12px;
+    overflow: hidden; box-shadow: 0 20px 60px rgb(0 0 0 / 70%); }
+  @media (max-width: 700px) { .overlay { padding: 0; } .sheet { border-radius: 0; min-height: 100%; } }
+  .sheet .art { position: relative; aspect-ratio: 16 / 8; background: center / cover no-repeat var(--raised); }
+  .sheet .art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, var(--surface), transparent 60%); }
+  .sheet .close { position: absolute; top: 12px; right: 12px; z-index: 2; width: 40px; height: 40px; border-radius: 50%;
+    background: rgb(0 0 0 / 70%); font-size: 22px; }
+  .sheet .body { padding: 0 clamp(16px, 4vw, 44px) 36px; margin-top: -70px; position: relative; }
+  .sheet h2 { font-size: clamp(26px, 4vw, 42px); line-height: 1.1; margin: 0 0 10px; }
+  .sheet .tagline { color: var(--body); font-style: italic; margin: 14px 0 0; }
+  .sheet .desc { color: var(--body); margin: 12px 0; }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 14px; margin: 14px 0; }
+  .facts dt { color: var(--muted); } .facts dd { margin: 0; }
+  .note { margin: 12px 0; padding: 10px 12px; border-radius: 8px; background: #3a2a07; color: #fde68a; font-size: 14px; }
+  .seasons { display: flex; gap: 8px; flex-wrap: wrap; margin: 22px 0 10px; }
+  .seasons button { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); }
+  .seasons button.on { background: var(--fg); color: #000; border-color: var(--fg); }
+  .episode { display: grid; grid-template-columns: clamp(110px, 22vw, 180px) 1fr; gap: 14px; align-items: center; width: 100%;
+    padding: 12px; border-radius: 8px; text-align: left; border-bottom: 1px solid var(--line); }
+  .episode:hover { background: var(--raised); }
+  .episode .thumb { position: relative; border-radius: 6px; overflow: hidden; background: var(--raised); aspect-ratio: 16 / 9; }
+  .episode .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .episode b { display: block; } .episode p { margin: 4px 0 0; color: var(--muted); font-size: 13px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .sheet .row { margin-top: 22px; } .sheet .row h3, .sheet .track { padding-left: 0; padding-right: 0; }
+
+  /* Player */
+  #player { position: fixed; inset: 0; z-index: 60; background: #000; }
+  #player video { width: 100%; height: 100%; display: block; background: #000; }
+  .ptop { position: absolute; inset: 0 0 auto; display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+    background: linear-gradient(rgb(0 0 0 / 75%), transparent); transition: opacity .3s; }
+  .ptop button { width: 42px; height: 42px; border-radius: 50%; font-size: 24px; background: rgb(0 0 0 / 40%); }
+  .ptop .ptitle { font-weight: 700; } .ptop .psub { color: var(--body); font-size: 13px; }
+  #player.idle .ptop { opacity: 0; }
+  .skip { position: absolute; right: clamp(16px, 4vw, 48px); bottom: 96px; padding: 12px 22px; border-radius: 8px;
+    background: rgb(20 20 28 / 85%); border: 2px solid rgb(255 255 255 / 70%); font-weight: 700; }
+  .next { position: absolute; right: clamp(16px, 4vw, 48px); bottom: 96px; width: min(360px, calc(100% - 32px));
+    background: rgb(16 16 22 / 94%); border-radius: 12px; padding: 16px; border: 1px solid var(--line); }
+  .next .muted { font-size: 13px; } .next b { display: block; margin: 2px 0 12px; }
+  .perr { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; background: rgb(0 0 0 / 82%); }
+  .perr div { max-width: 520px; }
+
+  dialog { background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px; padding: 22px;
+    width: min(360px, calc(100% - 32px)); }
+  dialog::backdrop { background: rgb(0 0 0 / 70%); }
+  dialog input { width: 100%; font-size: 26px; text-align: center; letter-spacing: .3em; padding: 10px; margin: 12px 0;
+    border-radius: 8px; border: 2px solid var(--line); background: var(--bg); }
+  footer { padding: 30px var(--gutter) 50px; color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 640px) {
+    header { gap: 10px; }
+    header .brand span { display: none; }
+    .search { width: auto; flex: 1; }
+    .hero { min-height: 62vh; }
+    .hero p { -webkit-line-clamp: 2; }
+  }
+</style>
+</head>
+<body>
+
+<section id="pair" class="center hidden">
+  <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1e1b4b"/><path d="M10 7.5l6 4.5-6 4.5z" fill="#f5b301"/></svg>HomeReel</div>
+  <h1>Watch on this device</h1>
+  <p class="muted">Enter the 6-digit pairing code shown in the HomeReel Server app on the phone.</p>
+  <form id="pairForm">
+    <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required aria-label="Pairing code">
+    <button class="btn primary" type="submit" style="justify-content:center">Start watching</button>
+    <p id="pairErr" class="err" role="alert"></p>
+  </form>
+</section>
+
+<section id="who" class="center hidden">
+  <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1e1b4b"/><path d="M10 7.5l6 4.5-6 4.5z" fill="#f5b301"/></svg>HomeReel</div>
+  <h1>Who's watching?</h1>
+  <div class="profiles" id="profileList"></div>
+</section>
+
+<div id="app" class="hidden">
+  <header id="top">
+    <div class="brand" id="home" role="link" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1e1b4b"/><path d="M10 7.5l6 4.5-6 4.5z" fill="#f5b301"/></svg><span>HomeReel</span></div>
+    <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="search" placeholder="Titles, people, genres" aria-label="Search" autocomplete="off"></label>
+    <div class="me">
+      <button id="meBtn" aria-haspopup="true" aria-expanded="false" aria-label="Profile menu"><span class="avatar" id="meAvatar"></span></button>
+      <div class="menu hidden" id="menu" role="menu"></div>
+    </div>
+  </header>
+  <main id="main"></main>
+  <footer>Movie details and pictures from TMDB (themoviedb.org), looked up by the phone. This product uses the TMDB API but
+    is not endorsed or certified by TMDB.</footer>
+</div>
+
+<div id="details" class="overlay hidden" role="dialog" aria-modal="true" aria-label="Details"></div>
+
+<div id="player" class="hidden">
+  <video id="video" controls playsinline preload="metadata"></video>
+  <div class="ptop"><button id="pBack" aria-label="Back">←</button><div><div class="ptitle" id="pTitle"></div><div class="psub" id="pSub"></div></div></div>
+  <button class="skip hidden" id="skipIntro">Skip intro</button>
+  <div class="next hidden" id="nextPanel" role="status">
+    <div class="muted" id="nextIn"></div><b id="nextTitle"></b>
+    <div class="actions"><button class="btn primary" id="nextNow">Play now</button><button class="btn" id="nextCancel">Cancel</button></div>
+  </div>
+  <div class="perr hidden" id="pErr"><div><h2>This browser can't play this file</h2><p id="pErrText" class="muted"></p>
+    <button class="btn primary" id="pErrBack">Back</button></div></div>
+</div>
+
+<dialog id="pinDialog">
+  <form method="dialog" id="pinForm">
+    <b>Enter the parent PIN</b>
+    <div class="muted small">to leave the kids profile</div>
+    <input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" aria-label="PIN">
+    <p class="err small" id="pinErr"></p>
+    <div class="actions"><button class="btn primary" type="submit" value="ok">OK</button><button class="btn" type="button" id="pinCancel">Cancel</button></div>
+  </form>
+</dialog>
+
+<script>
+'use strict';
+const API = '/api/v1';
+const $ = (s) => document.querySelector(s);
+const AVATAR_COLOURS = ['#e50914', '#f5b301', '#16a34a', '#2563eb', '#9333ea', '#db2777', '#0891b2', '#ea580c', '#4f46e5', '#65a30d', '#be123c', '#0f766e'];
+
+// Every bit of text goes in with textContent, never as HTML: titles come from file names and online lookups.
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : String(kid));
+  return el;
+}
+const svg = (path) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = path; return s; };
+const ICON = {
+  play: '<path d="M7 4.5v15l13-7.5z" fill="currentColor"/>',
+  plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" fill="none"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" fill="none"/>',
+  info: '<circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 11v6M12 7.2v.1" stroke="currentColor" stroke-width="2.4"/>',
+  restart: '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5" stroke="currentColor" stroke-width="2.2" fill="none"/>',
+};
+
+const state = { profiles: [], pinSet: false, profile: null, movies: [], shows: [], myList: [], privateUntil: null };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* private window */ } },
+  sget(k) { try { return sessionStorage.getItem(k); } catch (_) { return null; } },
+  sset(k, v) { try { sessionStorage.setItem(k, v); } catch (_) { /* private window */ } },
+};
+
+async function api(method, path, body, opts = {}) {
+  const headers = { 'X-HomeReel': '1' };
+  if (state.profile) headers['X-Profile'] = state.profile.id;
+  const init = { method, credentials: 'same-origin', headers, keepalive: !!opts.keepalive };
+  if (body !== undefined) { headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
+  const r = await fetch(API + path, init);
+  const text = await r.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch (_) { /* not JSON */ }
+  if (r.status === 401 && !opts.allow401) { showOnly('#pair'); $('#code').focus(); throw Object.assign(new Error('Not paired'), { quiet: true }); }
+  if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { status: r.status });
+  return data;
+}
+// Pictures and video carry the profile in the address: <img> and <video> can't send headers.
+const media = (path, version) => `${API}${path}?profile=${encodeURIComponent(state.profile ? state.profile.id : '')}${version ? `&v=${version}` : ''}`;
+const poster = (x) => media(`/${x.seasons ? 'shows' : 'movies'}/${x.id}/poster`, x.artVersion);
+const backdrop = (x) => media(`/${x.seasons ? 'shows' : 'movies'}/${x.id}/backdrop`, x.artVersion);
+const isShow = (x) => Array.isArray(x.seasons);
+const keyOf = (x) => (isShow(x) ? 's:' : 'm:') + x.id;
+
+function showOnly(sel) {
+  for (const s of ['#pair', '#who', '#app']) $(s).classList.toggle('hidden', s !== sel);
+}
+
+// ---- Formatting, as on the TV ----
+const fmtLength = (ms) => { if (!ms) return ''; const m = Math.max(1, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
+const epCode = (e) => `S${e.season}:E${e.episode}`;
+const inProgress = (m) => !m.watched && m.positionMs > 0 && (m.positionMs > 15000 || (m.durationMs > 0 && m.positionMs > m.durationMs / 50));
+function metaLine(x) {
+  const out = h('div', { class: 'meta' });
+  if (x.imdbRating != null) out.append(h('span', {}, h('span', { class: 'star', text: `★ ${x.imdbRating.toFixed(1)}` }), ` ${x.ratingSource || 'IMDb'}`));
+  if (x.year) out.append(h('span', { text: isShow(x) && x.endYear && x.endYear !== x.year ? `${x.year}–${x.endYear}` : String(x.year) }));
+  if (x.certification) out.append(h('span', { class: 'cert', text: x.certification }));
+  if (isShow(x)) out.append(h('span', { text: `${x.seasons.length} season${x.seasons.length === 1 ? '' : 's'}` }));
+  else if (x.durationMs) out.append(h('span', { text: fmtLength(x.durationMs) }));
+  if (!isShow(x) && x.video && x.video.height) out.append(h('span', { class: 'cert', text: x.video.height >= 2000 ? '4K' : x.video.height >= 1000 ? 'HD' : 'SD' }));
+  return out;
+}
+
+// ---- Search and recommendations: the same rules as the TV (shared/Library.kt) ----
+const normalise = (s) => (s || '').toLowerCase().replace(/&/g, ' and ').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(the|a|an)\b/g, ' ').replace(/\s+/g, ' ').trim();
+const words = (s) => normalise(s).split(' ').filter(Boolean);
+function searchScore(query, title, other) {
+  const q = words(query);
+  if (!q.length) return 0;
+  const tw = words(title), ow = other.flatMap(words);
+  let score = 0;
+  for (const w of q) {
+    if (tw.some((t) => t.startsWith(w))) score += 3;
+    else if (ow.some((t) => t.startsWith(w))) score += 1;
+    else return 0;
+  }
+  if (normalise(title).startsWith(q.join(' '))) score += 5;
+  return score;
+}
+const signals = (x) => ({ key: keyOf(x), genres: x.genres || [], people: x.cast || [], director: isShow(x) ? x.creators : x.director });
+function similar(seed, all, limit = 15) {
+  const s = signals(seed);
+  return all.map((x) => {
+    const o = signals(x);
+    if (o.key === s.key) return [x, 0];
+    const g = o.genres.filter((v) => s.genres.includes(v)).length;
+    const p = o.people.filter((v) => s.people.includes(v)).length;
+    return [x, g + p * 3 + (s.director && s.director === o.director ? 4 : 0)];
+  }).filter((e) => e[1] >= 2).sort((a, b) => b[1] - a[1]).slice(0, limit).map((e) => e[0]);
+}
+
+// ---- Pairing ----
+$('#pairForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#pairErr').textContent = '';
+  try {
+    const name = /iPhone|iPad|Android/.test(navigator.userAgent) ? 'Web app on a phone or tablet' : 'Web app in a browser';
+    await api('POST', '/pair', { code: $('#code').value.replace(/\s/g, ''), client: name, role: 'viewer' }, { allow401: true });
+    $('#code').value = '';
+    start();
+  } catch (err) {
+    $('#pairErr').textContent = err.message;
+  }
+});
+
+// ---- Profiles ----
+function avatarEl(p, cls = 'avatar') {
+  return h('span', { class: cls, style: `background:${AVATAR_COLOURS[(p.avatar || 0) % AVATAR_COLOURS.length]}`, text: (p.name || '?').slice(0, 1).toUpperCase() });
+}
+function showWho() {
+  const list = $('#profileList');
+  list.replaceChildren(...state.profiles.map((p) => h('button', { class: 'profile', onclick: () => choose(p) },
+    avatarEl(p), h('span', { text: p.name }), p.kids ? h('span', { class: 'kids-tag', text: 'KIDS' }) : null)));
+  showOnly('#who');
+  const last = state.profiles.findIndex((p) => p.id === store.get('hr.profile'));
+  (list.children[Math.max(0, last)] || list).focus();
+}
+// Leaving a kids profile needs the parent PIN, as on the TV.
+async function choose(p) {
+  const wasKids = store.get('hr.kids') === '1';
+  if (wasKids && !p.kids && state.pinSet && !(await askPin())) return;
+  state.profile = p;
+  store.set('hr.profile', p.id);
+  store.set('hr.kids', p.kids ? '1' : '0');
+  store.sset('hr.chosen', p.id);
+  $('#meAvatar').replaceWith(Object.assign(avatarEl(p), { id: 'meAvatar' }));
+  showOnly('#app');
+  await loadLibrary();
+}
+function askPin() {
+  return new Promise((resolve) => {
+    const d = $('#pinDialog');
+    $('#pin').value = '';
+    $('#pinErr').textContent = '';
+    const done = (ok) => { d.close(); $('#pinForm').onsubmit = null; $('#pinCancel').onclick = null; resolve(ok); };
+    $('#pinForm').onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api('POST', '/profiles/pin', { pin: $('#pin').value }); done(true); }
+      catch (err) { $('#pinErr').textContent = err.message; $('#pin').select(); }
+    };
+    $('#pinCancel').onclick = () => done(false);
+    d.oncancel = () => done(false);
+    d.showModal();
+  });
+}
+function buildMenu() {
+  const menu = $('#menu');
+  const others = state.profiles.filter((p) => p.id !== state.profile.id);
+  menu.replaceChildren(
+    ...others.map((p) => h('button', { role: 'menuitem', onclick: () => { closeMenu(); choose(p); } }, avatarEl(p), p.name + (p.kids ? ' (kids)' : ''))),
+    others.length ? h('hr') : null,
+    h('button', { role: 'menuitem', onclick: () => { closeMenu(); showWho(); } }, "Who's watching?"),
+    // A kids profile gets nothing that leads out of it, as on the TV.
+    state.profile.kids ? null : h('a', { role: 'menuitem', href: '/admin' }, 'Manage HomeReel'),
+  );
+}
+const closeMenu = () => { $('#menu').classList.add('hidden'); $('#meBtn').setAttribute('aria-expanded', 'false'); };
+$('#meBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  buildMenu();
+  const open = $('#menu').classList.toggle('hidden');
+  $('#meBtn').setAttribute('aria-expanded', String(!open));
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('.me')) closeMenu(); });
+
+// ---- Library ----
+async function loadLibrary() {
+  try {
+    const [movies, shows, myList, info] = await Promise.all([
+      api('GET', '/movies'), api('GET', '/shows'), api('GET', '/me/list').catch(() => []), api('GET', '/info').catch(() => ({})),
+    ]);
+    state.movies = movies.movies;
+    state.shows = shows.shows;
+    state.myList = myList;
+    state.privateUntil = info.privateUntil || null;
+    document.title = info.name || 'HomeReel';
+    render();
+  } catch (err) {
+    if (err.quiet) return;
+    $('#main').replaceChildren(h('div', { class: 'banner' }, h('span', { text: `Can't reach the phone: ${err.message}` }),
+      h('button', { class: 'btn', onclick: loadLibrary }, 'Try again')));
+  }
+}
+
+function card(x, opts = {}) {
+  const wide = !!opts.wide;
+  const img = h('img', { src: wide ? backdrop(x) : poster(x), alt: '', loading: 'lazy' });
+  img.onerror = () => { img.replaceWith(h('div', { style: `aspect-ratio:${wide ? '16/9' : '2/3'};background:var(--raised)` }), h('div', { class: 'fallback', text: x.title })); };
+  const el = h('button', { class: 'card' + (wide ? ' wide' : ''), 'aria-label': opts.caption || x.title, onclick: () => (opts.onclick || openDetails)(x) }, img);
+  if (x.private) el.append(h('span', { class: 'tag', text: '🔒 Private' }));
+  if (wide) el.append(h('div', { class: 'cap' }, opts.caption || x.title, opts.sub ? h('small', { text: opts.sub }) : null));
+  const pos = opts.progress;
+  if (pos) el.append(h('div', { class: 'bar' }, h('i', { style: `width:${Math.min(100, Math.round(pos * 100))}%` })));
+  return el;
+}
+function row(title, cards) {
+  if (!cards.length) return null;
+  const track = h('div', { class: 'track' }, cards);
+  const scroll = (dir) => track.scrollBy({ left: dir * track.clientWidth * 0.85, behavior: 'smooth' });
+  return h('section', { class: 'row' }, h('h3', { text: title }),
+    h('div', { class: 'strip' }, h('button', { class: 'arrow left', 'aria-label': 'Scroll left', onclick: () => scroll(-1) }, '‹'), track,
+      h('button', { class: 'arrow right', 'aria-label': 'Scroll right', onclick: () => scroll(1) }, '›')));
+}
+const sortKey = (t) => t.replace(/^(The|A) /, '').trim().toLowerCase();
+
+function render() {
+  const q = $('#q').value.trim();
+  if (q) return renderSearch(q);
+  const films = state.movies.filter((m) => !m.private);
+  const privateOnes = state.movies.filter((m) => m.private);
+  const shows = state.shows;
+  const titles = [...films, ...shows];
+  const byKey = new Map(titles.map((x) => [keyOf(x), x]));
+  const rows = [];
+
+  const watching = [
+    ...films.filter(inProgress).map((m) => [m.lastPlayedAt, card(m, { wide: true, progress: m.positionMs / (m.durationMs || 1) })]),
+    ...shows.filter((s) => s.upNext).map((s) => [s.lastPlayedAt, card(s.upNext, {
+      wide: true, caption: s.title, sub: `${epCode(s.upNext)} · ${s.upNext.title}`,
+      progress: s.upNext.positionMs / (s.upNext.durationMs || 1), onclick: (ep) => playEpisode(s, ep),
+    })]),
+  ].sort((a, b) => b[0] - a[0]).map((e) => e[1]);
+  rows.push(row('Continue watching', watching));
+  rows.push(row('My List', state.myList.map((k) => byKey.get(k)).filter(Boolean).map((x) => card(x))));
+  if (titles.length > 4) rows.push(row('Recently added', [...titles].sort((a, b) => b.addedAt - a.addedAt).slice(0, 20).map((x) => card(x))));
+  const played = titles.filter((x) => x.lastPlayedAt > 0).sort((a, b) => b.lastPlayedAt - a.lastPlayedAt).slice(0, 2);
+  for (const seed of played) {
+    const items = similar(seed, titles);
+    if (items.length >= 2) rows.push(row(`Because you watched ${seed.title}`, items.map((x) => card(x))));
+  }
+  rows.push(row('TV shows', [...shows].sort((a, b) => Math.max(b.lastPlayedAt, b.addedAt) - Math.max(a.lastPlayedAt, a.addedAt)).map((x) => card(x))));
+  const rated = titles.filter((x) => x.imdbRating != null).sort((a, b) => b.imdbRating - a.imdbRating);
+  if (rated.length >= 2) rows.push(row('Top rated', rated.slice(0, 20).map((x) => card(x))));
+  const counts = {};
+  titles.forEach((x) => (x.genres || []).forEach((g) => { counts[g] = (counts[g] || 0) + 1; }));
+  Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12).forEach(([g]) => {
+    rows.push(row(g, titles.filter((x) => (x.genres || []).includes(g))
+      .sort((a, b) => (b.imdbRating || 0) - (a.imdbRating || 0) || a.title.localeCompare(b.title)).map((x) => card(x))));
+  });
+  if (privateOnes.length) {
+    const until = state.privateUntil ? new Date(state.privateUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    rows.push(row(`🔒 Private${until ? ` · until ${until}` : ''}`, privateOnes.sort((a, b) => b.addedAt - a.addedAt).map((m) => card(m, { wide: true }))));
+  }
+  const sorted = [...films].sort((a, b) => sortKey(a.title).localeCompare(sortKey(b.title)));
+  if (sorted.length <= 60) rows.push(row('All movies', sorted.map((x) => card(x))));
+  else {
+    const groups = {};
+    sorted.forEach((m) => { const c = sortKey(m.title).charAt(0).toUpperCase(); const k = /[A-Z]/.test(c) ? c : '#'; (groups[k] = groups[k] || []).push(m); });
+    Object.entries(groups).forEach(([k, list]) => rows.push(row(`Movies · ${k}`, list.map((x) => card(x)))));
+  }
+
+  const main = $('#main');
+  if (!titles.length && !privateOnes.length) {
+    main.replaceChildren(h('div', { class: 'empty' }, h('h2', { text: 'Nothing here yet' }),
+      h('p', { text: state.profile.kids ? 'Ask a grown-up to mark some films for kids on the admin page.' : 'Add videos on the admin page, or copy them into the phone\'s movie folder.' })));
+    return;
+  }
+  main.replaceChildren(hero(watchingFeature(films, shows) || [...titles].sort((a, b) => b.addedAt - a.addedAt)[0]), h('div', { class: 'rows' }, rows.filter(Boolean)));
+}
+function watchingFeature(films, shows) {
+  const recent = [...films.filter(inProgress), ...shows.filter((s) => s.upNext && s.lastPlayedAt)].sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)[0];
+  return recent && recent.hasBackdrop !== false ? recent : null;
+}
+function hero(x) {
+  if (!x) return h('div', { style: 'height:90px' });
+  const resume = isShow(x) ? x.upNext : (inProgress(x) ? x : null);
+  return h('section', { class: 'hero' }, h('div', { class: 'art', style: `background-image:url("${backdrop(x)}")` }),
+    h('div', { class: 'info' }, h('h2', { text: x.title }), metaLine(x), x.description ? h('p', { text: x.description }) : h('p'),
+      h('div', { class: 'actions' },
+        h('button', { class: 'btn primary', onclick: () => (isShow(x) ? playEpisode(x, x.upNext) : play(x, resume ? x.positionMs : 0)) },
+          svg(ICON.play), resume ? (isShow(x) ? `Resume ${epCode(resume)}` : 'Resume') : 'Play'),
+        h('button', { class: 'btn', onclick: () => openDetails(x) }, svg(ICON.info), 'More info'))));
+}
+
+function renderSearch(q) {
+  const score = (x) => searchScore(q, x.title, isShow(x) ? [x.creators, String(x.year || ''), ...(x.cast || []), ...(x.genres || [])]
+    : [x.director, String(x.year || ''), x.collection, ...(x.cast || []), ...(x.genres || [])]);
+  const films = state.movies.filter((m) => !m.private).map((x) => [x, score(x)]).filter((e) => e[1] > 0).sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+  const shows = state.shows.map((x) => [x, score(x)]).filter((e) => e[1] > 0).sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+  if (!films.length && !shows.length) {
+    $('#main').replaceChildren(h('div', { class: 'empty', text: `Nothing matches “${q}”.` }));
+    return;
+  }
+  const parts = [];
+  if (shows.length && (!films.length || score(shows[0]) > score(films[0]))) parts.push(['TV shows', shows], ['Movies', films]);
+  else parts.push(['Movies', films], ['TV shows', shows]);
+  $('#main').replaceChildren(h('div', { class: 'grid' }, parts.filter((p) => p[1].length).map(([t, list]) => [h('h3', { text: t }), ...list.map((x) => card(x))])));
+}
+let searchTimer;
+$('#q').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { window.scrollTo(0, 0); render(); }, 200); });
+$('#q').addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#q').value = ''; render(); } });
+$('#home').addEventListener('click', () => { $('#q').value = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+$('#home').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#home').click(); });
+window.addEventListener('scroll', () => $('#top').classList.toggle('solid', window.scrollY > 40), { passive: true });
+
+// ---- Details ----
+async function toggleList(x, button) {
+  const key = keyOf(x);
+  const on = !state.myList.includes(key);
+  try {
+    await api(on ? 'PUT' : 'DELETE', `/me/list/${key}`);
+    state.myList = on ? [key, ...state.myList] : state.myList.filter((k) => k !== key);
+    button.classList.toggle('on', on);
+    button.replaceChildren(svg(on ? ICON.check : ICON.plus));
+    button.setAttribute('aria-label', on ? 'Remove from My List' : 'Add to My List');
+  } catch (err) { if (!err.quiet) alert(err.message); }
+}
+function closeDetails() {
+  $('#details').classList.add('hidden');
+  $('#details').replaceChildren();
+  document.body.style.overflow = '';
+}
+$('#details').addEventListener('click', (e) => { if (e.target === $('#details')) closeDetails(); });
+
+async function openDetails(x) {
+  const d = $('#details');
+  document.body.style.overflow = 'hidden';
+  d.classList.remove('hidden');
+  const listed = state.myList.includes(keyOf(x));
+  const listBtn = h('button', { class: 'btn icon' + (listed ? ' on' : ''), 'aria-label': listed ? 'Remove from My List' : 'Add to My List' }, svg(listed ? ICON.check : ICON.plus));
+  listBtn.onclick = () => toggleList(x, listBtn);
+  const body = h('div', { class: 'body' }, h('h2', { text: x.title }), metaLine(x));
+  const sheet = h('div', { class: 'sheet' }, h('div', { class: 'art', style: `background-image:url("${backdrop(x)}")` }),
+    h('button', { class: 'close', 'aria-label': 'Close', onclick: closeDetails }, '✕'), body);
+  d.replaceChildren(sheet);
+  sheet.querySelector('.close').focus();
+
+  if (isShow(x)) {
+    let detail;
+    try { detail = await api('GET', `/shows/${x.id}`); } catch (err) { if (!err.quiet) body.append(h('p', { class: 'err', text: err.message })); return; }
+    const show = detail.show;
+    const eps = detail.episodes;
+    // Where the TV would carry on: the episode in progress, else the first one not watched yet.
+    const next = show.upNext || eps.find((e) => !e.watched) || eps[0];
+    body.append(h('div', { class: 'actions', style: 'margin-top:16px' },
+      next ? h('button', { class: 'btn primary', onclick: () => playEpisode(show, next) }, svg(ICON.play),
+        show.upNext && show.upNext.positionMs > 0 ? `Resume ${epCode(next)}` : `Play ${epCode(next)}`) : null, listBtn));
+    if (show.description) body.append(h('p', { class: 'desc', text: show.description }));
+    const facts = h('dl', { class: 'facts' });
+    if (show.cast && show.cast.length) facts.append(h('dt', { text: 'Starring' }), h('dd', { text: show.cast.slice(0, 6).join(', ') }));
+    if (show.creators) facts.append(h('dt', { text: 'Created by' }), h('dd', { text: show.creators }));
+    if (show.genres && show.genres.length) facts.append(h('dt', { text: 'Genres' }), h('dd', { text: show.genres.join(', ') }));
+    if (facts.children.length) body.append(facts);
+    const list = h('div');
+    const seasonBtns = show.seasons.map((n) => h('button', { onclick: () => pick(n) }, `Season ${n}`));
+    const pick = (n) => {
+      seasonBtns.forEach((b, i) => b.classList.toggle('on', show.seasons[i] === n));
+      list.replaceChildren(...eps.filter((e) => e.season === n).map((e) => {
+        const img = h('img', { src: backdrop(e), alt: '', loading: 'lazy' });
+        img.onerror = () => img.remove();
+        const thumb = h('div', { class: 'thumb' }, img);
+        if (inProgress(e)) thumb.append(h('div', { class: 'bar' }, h('i', { style: `width:${Math.round(e.positionMs / (e.durationMs || 1) * 100)}%` })));
+        return h('button', { class: 'episode', onclick: () => playEpisode(show, e) }, thumb,
+          h('div', {}, h('b', { text: `${e.episode}. ${e.title}` }), h('span', { class: 'muted small', text: [fmtLength(e.durationMs), e.watched ? 'Watched' : ''].filter(Boolean).join(' · ') }),
+            e.description ? h('p', { text: e.description }) : null));
+      }));
+    };
+    if (show.seasons.length > 1) body.append(h('div', { class: 'seasons' }, seasonBtns));
+    else body.append(h('h3', { text: 'Episodes', style: 'margin:22px 0 6px' }));
+    body.append(list);
+    pick(next ? next.season : show.seasons[0]);
+  } else {
+    const resume = inProgress(x);
+    body.append(h('div', { class: 'actions', style: 'margin-top:16px' },
+      h('button', { class: 'btn primary', onclick: () => play(x, resume ? x.positionMs : 0) }, svg(ICON.play), resume ? `Resume from ${clock(x.positionMs)}` : 'Play'),
+      resume ? h('button', { class: 'btn', onclick: () => play(x, 0) }, svg(ICON.restart), 'Play from start') : null,
+      listBtn,
+      x.durationMs && !x.watched ? h('button', { class: 'btn', onclick: async (e) => {
+        const button = e.currentTarget;
+        try { await api('PUT', `/movies/${x.id}/progress`, { positionMs: x.durationMs, durationMs: x.durationMs }); button.remove(); loadLibrary(); } catch (err) { if (!err.quiet) alert(err.message); }
+      } }, svg(ICON.check), 'Mark as watched') : null));
+    if (x.tagline) body.append(h('p', { class: 'tagline', text: x.tagline }));
+    if (x.description) body.append(h('p', { class: 'desc', text: x.description }));
+    const warn = browserWarning(x);
+    if (warn) body.append(h('div', { class: 'note', text: warn }));
+    else if (x.bitrateMbps > 60 && !x.optimized) body.append(h('div', { class: 'note', text: `A heavy file (${Math.round(x.bitrateMbps)} Mbps): it may stutter over Wi-Fi.` }));
+    const facts = h('dl', { class: 'facts' });
+    if (x.cast && x.cast.length) facts.append(h('dt', { text: 'Starring' }), h('dd', { text: x.cast.slice(0, 6).join(', ') }));
+    if (x.director) facts.append(h('dt', { text: 'Director' }), h('dd', { text: x.director }));
+    if (x.genres && x.genres.length) facts.append(h('dt', { text: 'Genres' }), h('dd', { text: x.genres.join(', ') }));
+    if (x.collection) facts.append(h('dt', { text: 'Collection' }), h('dd', { text: x.collection }));
+    if (x.subtitles && x.subtitles.length) facts.append(h('dt', { text: 'Subtitles' }), h('dd', { text: x.subtitles.map((s) => s.label).join(', ') }));
+    if (facts.children.length) body.append(facts);
+  }
+  const all = [...state.movies.filter((m) => !m.private), ...state.shows];
+  const more = similar(x, all);
+  const fallback = more.length ? more : all.filter((o) => keyOf(o) !== keyOf(x) && (o.genres || []).some((g) => (x.genres || []).includes(g))).slice(0, 15);
+  const r = row('More like this', fallback.map((o) => card(o, { onclick: openDetails })));
+  if (r) body.append(r);
+}
+const clock = (ms) => { const s = Math.floor(ms / 1000); const hh = Math.floor(s / 3600); const mm = Math.floor(s / 60) % 60; const ss = String(s % 60).padStart(2, '0'); return hh ? `${hh}:${String(mm).padStart(2, '0')}:${ss}` : `${mm}:${ss}`; };
+
+// ---- What this browser can play ----
+// A guess from the file's formats; the browser has the last word when it tries.
+const probe = document.createElement('video');
+const chromium = /Chrome\//.test(navigator.userAgent);
+function browserWarning(m) {
+  if (m.optimized) return null;
+  const v = m.video && m.video.codecs;
+  const container = (m.container || '').toLowerCase();
+  const a = m.audio && m.audio[0];
+  const audioCodec = a ? (a.codecs || { 'audio/mp4a-latm': 'mp4a.40.2', 'audio/ac3': 'ac-3', 'audio/eac3': 'ec-3', 'audio/opus': 'opus', 'audio/mpeg': 'mp3', 'audio/vorbis': 'vorbis', 'audio/flac': 'flac' }[a.mime]) : null;
+  if (a && /dts|true-?hd/i.test(a.mime)) return 'Its sound is DTS or TrueHD, which browsers can\'t play. Watch it on the TV.';
+  if (container === 'mkv' && !chromium) return 'MKV files play in Chrome and Edge; this browser may not play it. Watch it on the TV or in Chrome.';
+  if (container === 'avi' || container === 'wmv') return 'Browsers can\'t play this kind of file. Watch it on the TV.';
+  const type = container === 'webm' || container === 'mkv' ? 'video/webm' : 'video/mp4';
+  if (v && !probe.canPlayType(`${type}; codecs="${v}"`) && !probe.canPlayType(`video/mp4; codecs="${v}"`)) {
+    return /^(hvc1|hev1)/.test(v) ? 'Its video is HEVC (H.265), which this browser may not play. Try Safari or Edge, or watch it on the TV.'
+      : 'This browser may not play its video. Watch it on the TV if it doesn\'t start.';
+  }
+  if (audioCodec && !probe.canPlayType(`audio/mp4; codecs="${audioCodec}"`) && !probe.canPlayType(`${type}; codecs="${audioCodec}"`)) {
+    return /ac-3|ec-3/.test(audioCodec) ? 'Its sound is Dolby Digital, which most browsers can\'t play (Safari and Edge can). The picture may play silently.'
+      : 'This browser may not play its sound.';
+  }
+  return null;
+}
+
+// ---- Player ----
+const video = $('#video');
+const player = { movie: null, show: null, upcoming: [], lastSave: 0, creditsOffered: false, declined: false, timer: null, tracks: [], onMeta: null };
+
+// Plays [ep], or the show's first episode when it's null, with the rest of the show queued after it.
+async function playEpisode(show, ep) {
+  let eps = [];
+  try { eps = (await api('GET', `/shows/${show.id}`)).episodes; } catch (err) { if (err.quiet) return; }
+  const i = ep ? eps.findIndex((e) => e.id === ep.id) : 0;
+  const fresh = i >= 0 && eps[i] ? eps[i] : ep;
+  if (!fresh) return;
+  play(fresh, inProgress(fresh) ? fresh.positionMs : 0, show, i >= 0 ? eps.slice(i + 1) : []);
+}
+
+function play(m, fromMs, show = null, upcoming = []) {
+  closeDetails();
+  Object.assign(player, { movie: m, show, upcoming, lastSave: 0, creditsOffered: false, declined: false });
+  hideNext();
+  $('#skipIntro').classList.add('hidden');
+  $('#pErr').classList.add('hidden');
+  $('#pTitle').textContent = show ? show.title : m.title;
+  $('#pSub').textContent = show ? `${epCode(m)} · ${m.title}` : (m.year ? String(m.year) : '');
+  for (const t of player.tracks) URL.revokeObjectURL(t);
+  player.tracks = [];
+  video.querySelectorAll('track').forEach((t) => t.remove());
+  video.src = media(`/movies/${m.id}/stream`);
+  // Replaces any start-up still waiting from a video opened a moment ago.
+  video.removeEventListener('loadedmetadata', player.onMeta);
+  player.onMeta = () => { if (fromMs > 0 && fromMs < (video.duration * 1000 - 5000)) video.currentTime = fromMs / 1000; video.play().catch(() => { /* the person presses play */ }); };
+  video.addEventListener('loadedmetadata', player.onMeta, { once: true });
+  $('#player').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  const el = $('#player');
+  if (el.requestFullscreen && !/iPhone|iPad/.test(navigator.userAgent)) el.requestFullscreen().catch(() => { /* not allowed here */ });
+  addSubtitles(m);
+  video.focus();
+  idle();
+}
+
+// Subtitle files next to the video, turned from SRT into the WebVTT browsers read. Embedded ones stay on the TV.
+async function addSubtitles(m) {
+  for (const s of m.subtitles || []) {
+    if (!/subrip|vtt/.test(s.mime || '')) continue;
+    try {
+      const r = await fetch(media(`/movies/${m.id}/subtitles/${s.index}`), { credentials: 'same-origin' });
+      if (!r.ok || player.movie !== m) continue;
+      let text = await r.text();
+      if (!/^WEBVTT/.test(text)) {
+        text = 'WEBVTT\n\n' + text.replace(/\r/g, '').replace(/^\uFEFF/, '')
+          .replace(/(\d\d:\d\d:\d\d),(\d\d\d)/g, '$1.$2').replace(/^\d+\n(?=\d\d:\d\d)/gm, '');
+      }
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/vtt' }));
+      player.tracks.push(url);
+      video.append(h('track', { kind: 'subtitles', label: s.label || s.language || `Subtitles ${s.index + 1}`, srclang: s.language || 'und', src: url }));
+    } catch (_) { /* this subtitle is skipped */ }
+  }
+}
+
+function save(force) {
+  const m = player.movie;
+  if (!m || !video.duration || Number.isNaN(video.duration)) return;
+  const now = Date.now();
+  if (!force && now - player.lastSave < 10000) return;
+  player.lastSave = now;
+  const positionMs = Math.round(video.currentTime * 1000);
+  api('PUT', `/movies/${m.id}/progress`, { positionMs, durationMs: Math.round(video.duration * 1000) }, { keepalive: true }).catch(() => { /* next save tries again */ });
+}
+
+function closePlayer() {
+  save(true);
+  clearInterval(player.timer);
+  hideNext();
+  video.pause();
+  video.removeAttribute('src');
+  video.load();
+  player.movie = null;
+  $('#player').classList.add('hidden');
+  document.body.style.overflow = '';
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  setTimeout(loadLibrary, 300);
+}
+$('#pBack').addEventListener('click', closePlayer);
+$('#pErrBack').addEventListener('click', closePlayer);
+
+video.addEventListener('timeupdate', () => {
+  const m = player.movie;
+  if (!m) return;
+  save(false);
+  const pos = video.currentTime * 1000;
+  const inIntro = m.introStartMs != null && m.introEndMs != null && pos >= m.introStartMs && pos < m.introEndMs - 2000;
+  $('#skipIntro').classList.toggle('hidden', !inIntro);
+  const next = player.upcoming[0];
+  if (next && m.creditsStartMs != null && pos >= m.creditsStartMs && !player.creditsOffered && !player.declined) {
+    player.creditsOffered = true;
+    offerNext(next, true);
+  }
+});
+$('#skipIntro').addEventListener('click', () => { video.currentTime = player.movie.introEndMs / 1000; $('#skipIntro').classList.add('hidden'); });
+video.addEventListener('pause', () => save(true));
+video.addEventListener('ended', () => {
+  save(true);
+  const next = player.upcoming[0];
+  // The countdown may already be running from the credits; let it finish rather than start again.
+  if (next && !player.declined) { if ($('#nextPanel').classList.contains('hidden')) offerNext(next, false); }
+  else closePlayer();
+});
+video.addEventListener('error', () => {
+  if (!player.movie) return;
+  const m = player.movie;
+  $('#pErrText').textContent = browserWarning(m) || 'Its video or sound uses a format this browser doesn\'t support. It may play in another browser, or on the TV.';
+  $('#pErr').classList.remove('hidden');
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(true); });
+window.addEventListener('pagehide', () => save(true));
+
+// "Next episode" with a 10-second countdown, at the credits or the end.
+function offerNext(next, duringCredits) {
+  let left = 10;
+  $('#nextTitle').textContent = `${epCode(next)} · ${next.title}`;
+  const tick = () => {
+    $('#nextIn').textContent = `Next episode in ${left}`;
+    if (left-- <= 0) playNext();
+  };
+  clearInterval(player.timer);
+  tick();
+  player.timer = setInterval(tick, 1000);
+  $('#nextPanel').classList.remove('hidden');
+  $('#nextCancel').onclick = () => {
+    hideNext();
+    if (duringCredits) player.declined = true; else closePlayer();
+  };
+}
+function hideNext() { clearInterval(player.timer); $('#nextPanel').classList.add('hidden'); }
+function playNext() {
+  const next = player.upcoming[0];
+  hideNext();
+  if (!next) return;
+  save(true);
+  play(next, 0, player.show, player.upcoming.slice(1));
+}
+$('#nextNow').addEventListener('click', playNext);
+
+// The top bar fades while the video plays and nothing moves.
+let idleTimer;
+function idle() {
+  $('#player').classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if (!video.paused) $('#player').classList.add('idle'); }, 2500);
+}
+['mousemove', 'touchstart', 'keydown'].forEach((ev) => $('#player').addEventListener(ev, idle, { passive: true }));
+
+document.addEventListener('keydown', (e) => {
+  if (!$('#player').classList.contains('hidden')) {
+    if (e.key === 'Escape' && !document.fullscreenElement) closePlayer();
+    else if (e.key === 'ArrowLeft' && document.activeElement !== video) video.currentTime -= 10;
+    else if (e.key === 'ArrowRight' && document.activeElement !== video) video.currentTime += 10;
+    else if (e.key === ' ' && document.activeElement !== video) { e.preventDefault(); video.paused ? video.play() : video.pause(); }
+    return;
+  }
+  if (e.key === 'Escape' && !$('#details').classList.contains('hidden')) closeDetails();
+  else if (e.key === '/' && document.activeElement !== $('#q') && !$('#app').classList.contains('hidden')) { e.preventDefault(); $('#q').focus(); }
+});
+
+// ---- Start ----
+async function start() {
+  try {
+    const list = await api('GET', '/profiles');
+    state.profiles = list.profiles;
+    state.pinSet = list.pinSet;
+  } catch (err) {
+    if (!err.quiet) { showOnly('#pair'); $('#pairErr').textContent = `Can't reach the phone: ${err.message}`; }
+    return;
+  }
+  // Asked once per visit, like the TV asks once per launch.
+  const chosen = state.profiles.find((p) => p.id === store.sget('hr.chosen'));
+  if (chosen) choose(chosen); else if (state.profiles.length === 1 && !state.profiles[0].kids && store.get('hr.kids') !== '1') choose(state.profiles[0]); else showWho();
+}
+start();
+</script>
+</body>
+</html>

@@ -206,7 +206,7 @@ class MainActivity : Activity() {
         status.text = lines.joinToString("\n")
 
         code.text = app.prefs.pairCode.chunked(3).joinToString(" ")
-        admin.text = if (ip != null) getString(R.string.admin_hint, "http://$ip:$port/admin") else ""
+        admin.text = if (ip != null) getString(R.string.admin_hint, "http://$ip:$port") else ""
         startStop.setText(if (running) R.string.stop else R.string.start)
         findViewById<Button>(R.id.remove_folder).visibility = if (app.prefs.extraTrees.isEmpty()) View.GONE else View.VISIBLE
         val power = getSystemService(PowerManager::class.java)

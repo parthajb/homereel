@@ -16,7 +16,7 @@
     <string name="private_unlocked">Private: unlocked on the TV until %1$s</string>
     <string name="paired_devices">Paired devices: %1$d</string>
     <string name="code_label">Pairing code (enter it on the TV, or in a browser for the admin page)</string>
-    <string name="admin_hint">Add or remove movies from any browser on your Wi-Fi: %1$s</string>
+    <string name="admin_hint">Watch in any browser on your Wi-Fi at %1$s, and add or edit videos at %1$s/admin</string>
     <string name="choose_folder">Choose movie folder</string>
     <string name="rescan">Rescan now</string>
     <string name="add_folder">Add another folder (e.g. a USB drive)</string>
