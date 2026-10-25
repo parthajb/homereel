@@ -160,7 +160,7 @@ class MainActivity : Activity() {
         battery.visibility = if (power.isIgnoringBatteryOptimizations(packageName)) View.GONE else View.VISIBLE
 
         val (items, source) = library.cantPlay()
-        val titles = library.movies(withPrivate = true).associate { it.id to it.title }
+        val titles = library.allMovies().associate { it.id to it.title }
         cantPlay.text = if (items.isEmpty()) {
             getString(R.string.cant_play_none)
         } else {

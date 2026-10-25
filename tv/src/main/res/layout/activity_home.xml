@@ -49,6 +49,34 @@
             android:maxLines="3" />
     </LinearLayout>
 
+    <!-- Up from the first row lands here: Search, and the profile watching. -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="48dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/top_search"
+            style="@style/HomeReel.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_search"
+            android:text="@string/search"
+            android:textSize="15sp" />
+
+        <Button
+            android:id="@+id/top_profile"
+            style="@style/HomeReel.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:drawableStart="@drawable/ic_person"
+            android:textSize="15sp" />
+    </LinearLayout>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rows"
         android:layout_width="match_parent"

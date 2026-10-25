@@ -10,6 +10,8 @@ import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.MovieList
 import com.parthajb.homereel.shared.PairRequest
 import com.parthajb.homereel.shared.PairResponse
+import com.parthajb.homereel.shared.PinCheck
+import com.parthajb.homereel.shared.ProfileList
 import com.parthajb.homereel.shared.PlayabilityReport
 import com.parthajb.homereel.shared.ProgressUpdate
 import com.parthajb.homereel.shared.ServerInfo
@@ -17,6 +19,8 @@ import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.ShowDetail
 import com.parthajb.homereel.shared.ShowList
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.Inet6Address
@@ -28,13 +32,17 @@ open class ApiException(val code: Int, message: String) : IOException(message)
 class Unauthorized(message: String) : ApiException(401, message)
 
 /** Talks to the phone. Every call blocks, so call it off the main thread. */
-class ApiClient(val host: String, val port: Int, private val token: String?) {
+/** [profileId] goes with every request, so progress, My List and kids filtering follow whoever is watching. */
+class ApiClient(val host: String, val port: Int, private val token: String?, private val profileId: String? = null) {
     private val hostPart = if (host.contains(':')) "[$host]" else host
     val base = "http://$hostPart:$port"
 
     fun url(path: String) = base + Api.PREFIX + path
 
-    fun headers(): Map<String, String> = token?.let { mapOf("Authorization" to "Bearer $it") } ?: emptyMap()
+    fun headers(): Map<String, String> = buildMap {
+        token?.let { put("Authorization", "Bearer $it") }
+        profileId?.let { put("X-Profile", it) }
+    }
 
     fun info(): ServerInfo = get("/info", ServerInfo.serializer())
 
@@ -43,6 +51,19 @@ class ApiClient(val host: String, val port: Int, private val token: String?) {
     fun movie(id: String): Movie = get("/movies/$id", Movie.serializer())
 
     fun shows(): List<Show> = get("/shows", ShowList.serializer()).shows
+
+    fun profiles(): ProfileList = get("/profiles", ProfileList.serializer())
+
+    /** Throws [ApiException] (403) for a wrong PIN. */
+    fun checkPin(pin: String) {
+        request("POST", "/profiles/pin", ApiJson.encodeToString(PinCheck.serializer(), PinCheck(pin)))
+    }
+
+    fun myList(): List<String> = get("/me/list", ListSerializer(String.serializer()))
+
+    fun setInList(key: String, on: Boolean) {
+        request(if (on) "PUT" else "DELETE", "/me/list/$key", null)
+    }
 
     fun show(id: String): ShowDetail = get("/shows/$id", ShowDetail.serializer())
 
@@ -152,7 +173,16 @@ class ServerStore(context: Context) {
 
     val paired: Boolean get() = host != null && token != null
 
-    fun api(): ApiClient = ApiClient(host!!, port, token)
+    fun api(): ApiClient = ApiClient(host!!, port, token, profileId)
+
+    /** The profile watching on this TV; null until one is picked. */
+    val profileId: String? get() = sp.getString("profile", null)
+    val profileName: String? get() = sp.getString("profileName", null)
+    val profileKids: Boolean get() = sp.getBoolean("profileKids", false)
+
+    fun setProfile(id: String, name: String, kids: Boolean) {
+        sp.edit().putString("profile", id).putString("profileName", name).putBoolean("profileKids", kids).apply()
+    }
 
     fun save(host: String, port: Int, name: String, token: String) {
         sp.edit().putString("host", host).putInt("port", port).putString("name", name).putString("token", token).apply()

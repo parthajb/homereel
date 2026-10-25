@@ -3,6 +3,8 @@ package com.parthajb.homereel.server
 import android.util.Log
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.AudioTrack
+import com.parthajb.homereel.shared.Certifications
+import com.parthajb.homereel.shared.KidsSetting
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.MatchState
 import com.parthajb.homereel.shared.MediaFiles
@@ -66,8 +68,17 @@ data class Entry(
     val episodeTitle: String? = null,
     /** The episode's details from TMDB, filled in when its show is matched. */
     val episodeInfo: EpisodeInfo? = null,
+    /** Each profile's place in it. [positionMs], [watched] and [lastPlayedAt] above are from before profiles. */
+    val progress: Map<String, Progress> = emptyMap(),
+    /** The admin's choice for kids profiles (films; episodes follow their show). */
+    val kids: String = KidsSetting.AUTO,
 ) {
     val isEpisode: Boolean get() = kind == Kind.EPISODE
+
+    fun progressFor(pid: String): Progress =
+        progress[pid] ?: if (pid == Profiles.MAIN) Progress(positionMs, watched, lastPlayedAt) else Progress()
+
+    val kidsOk: Boolean get() = Certifications.kidsOk(kids, tmdb?.certification, private)
     /** The title and year to search with: whatever the user typed, else the file name. */
     val searchTitle: String get() = titleOverride ?: parsedTitle
     val searchYear: Int? get() = if (yearOverridden) yearOverride else parsedYear
@@ -75,7 +86,13 @@ data class Entry(
     /** The folder the file is in, from a document id like "primary:Movies/Home videos". */
     val folderName: String? get() = parentDocId.substringAfter(':', "").trimEnd('/').substringAfterLast('/').ifEmpty { null }
 
-    fun toMovie(showTitle: String? = null): Movie = if (isEpisode) toEpisode(showTitle) else Movie(
+    /** As [viewer] sees it: their progress and My List. Null is the first profile, for the admin page. */
+    fun toMovie(showTitle: String? = null, viewer: Viewer? = null, showKidsOk: Boolean = false): Movie {
+        val p = progressFor(viewer?.pid ?: Profiles.MAIN)
+        return if (isEpisode) toEpisode(showTitle, p, showKidsOk) else toFilm(p, viewer)
+    }
+
+    private fun toFilm(p: Progress, viewer: Viewer?) = Movie(
         id = id,
         title = titleOverride ?: tmdb?.title ?: parsedTitle,
         year = if (yearOverridden) yearOverride else tmdb?.year ?: parsedYear,
@@ -87,9 +104,9 @@ data class Entry(
         audio = audio,
         subtitles = subtitles,
         addedAt = addedAt,
-        positionMs = positionMs,
-        watched = watched,
-        lastPlayedAt = lastPlayedAt,
+        positionMs = p.positionMs,
+        watched = p.watched,
+        lastPlayedAt = p.lastPlayedAt,
         hasPoster = customPoster || tmdb?.poster == true || posterDocId != null || posterGenerated,
         hasBackdrop = tmdb?.backdrop == true || posterGenerated || customPoster || posterDocId != null,
         customPoster = customPoster,
@@ -120,10 +137,13 @@ data class Entry(
             "poster".takeIf { customPoster },
         ),
         private = private,
+        inMyList = viewer?.myList?.contains("m:$id") == true,
+        kids = kids,
+        kidsOk = kidsOk,
     )
 
     /** An episode: its title from TMDB, the file name, or just its number; pictures are TMDB's still or a frame. */
-    private fun toEpisode(showTitle: String?) = Movie(
+    private fun toEpisode(showTitle: String?, p: Progress, showKidsOk: Boolean) = Movie(
         id = id,
         title = episodeInfo?.title ?: episodeTitle ?: "Episode $episode",
         year = episodeInfo?.year,
@@ -135,9 +155,9 @@ data class Entry(
         audio = audio,
         subtitles = subtitles,
         addedAt = addedAt,
-        positionMs = positionMs,
-        watched = watched,
-        lastPlayedAt = lastPlayedAt,
+        positionMs = p.positionMs,
+        watched = p.watched,
+        lastPlayedAt = p.lastPlayedAt,
         hasPoster = episodeInfo?.still == true || posterGenerated,
         hasBackdrop = episodeInfo?.still == true || posterGenerated,
         artVersion = artVersion,
@@ -149,8 +169,13 @@ data class Entry(
         season = season,
         episode = episode,
         match = MatchState.SKIPPED,
+        kidsOk = showKidsOk,
     )
 }
+
+/** Where one profile is in one video. */
+@Serializable
+data class Progress(val positionMs: Long = 0, val watched: Boolean = false, val lastPlayedAt: Long = 0)
 
 /** An episode's details from TMDB's season listing. */
 @Serializable
@@ -179,14 +204,17 @@ data class ShowRecord(
     val tmdb: TmdbShowInfo? = null,
     val match: String = MatchState.NONE,
     val matchFailedAt: Long = 0,
+    val kids: String = KidsSetting.AUTO,
 ) {
     val title: String get() = titleOverride ?: tmdb?.title ?: parsedTitle
+    val kidsOk: Boolean get() = Certifications.kidsOk(kids, tmdb?.certification, private = false)
     val searchTitle: String get() = titleOverride ?: parsedTitle
     val searchYear: Int? get() = if (yearOverridden) yearOverride else parsedYear
 
     /** [episodes] in order; [frameFallback] says whether one of them has a frame to stand in for missing pictures. */
-    fun toShow(episodes: List<Entry>, frameFallback: Boolean): Show {
+    fun toShow(episodes: List<Entry>, frameFallback: Boolean, viewer: Viewer? = null): Show {
         val ordered = episodes.sortedWith(EPISODE_ORDER)
+        val pid = viewer?.pid ?: Profiles.MAIN
         return Show(
             id = id,
             title = title,
@@ -206,8 +234,8 @@ data class ShowRecord(
             seasons = ordered.mapNotNull { it.season }.distinct(),
             episodeCount = ordered.size,
             addedAt = ordered.maxOfOrNull { it.addedAt } ?: 0,
-            lastPlayedAt = ordered.maxOfOrNull { it.lastPlayedAt } ?: 0,
-            upNext = upNext(ordered)?.toMovie(title),
+            lastPlayedAt = ordered.maxOfOrNull { it.progressFor(pid).lastPlayedAt } ?: 0,
+            upNext = upNext(ordered, pid)?.toMovie(title, viewer, kidsOk),
             hasPoster = customPoster || tmdb?.poster == true || frameFallback,
             hasBackdrop = tmdb?.backdrop == true || frameFallback || customPoster,
             customPoster = customPoster,
@@ -223,6 +251,9 @@ data class ShowRecord(
                 "rating".takeIf { imdbRating != null },
                 "poster".takeIf { customPoster },
             ),
+            inMyList = viewer?.myList?.contains("s:$id") == true,
+            kids = kids,
+            kidsOk = kidsOk,
         )
     }
 
@@ -233,10 +264,12 @@ data class ShowRecord(
          * What to carry on with: the most recently played episode if it isn't finished, else the next one after
          * it. Null for a show nobody has started, or one watched to the end.
          */
-        fun upNext(ordered: List<Entry>): Entry? {
-            val last = ordered.filter { it.lastPlayedAt > 0 }.maxByOrNull { it.lastPlayedAt } ?: return null
-            if (!last.watched && last.positionMs > 0) return last
-            return ordered.drop(ordered.indexOf(last) + 1).firstOrNull { !it.watched }
+        fun upNext(ordered: List<Entry>, pid: String): Entry? {
+            val last = ordered.filter { it.progressFor(pid).lastPlayedAt > 0 }.maxByOrNull { it.progressFor(pid).lastPlayedAt }
+                ?: return null
+            val p = last.progressFor(pid)
+            if (!p.watched && p.positionMs > 0) return last
+            return ordered.drop(ordered.indexOf(last) + 1).firstOrNull { !it.progressFor(pid).watched }
         }
     }
 }

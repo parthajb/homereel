@@ -162,6 +162,12 @@
   .episodes li { padding: 4px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
   .episodes .num { color: var(--muted); min-width: 52px; }
   .up-private { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 14px; }
+  .profiles { display: grid; gap: 8px; margin: 8px 0 12px; }
+  .profile-row { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 8px; align-items: center; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; }
+  .profile-row label { font-size: 13px; display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
+  h3.section { font-size: 15px; margin: 22px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); }
+  select.field-select { font: inherit; width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
   footer.attrib { max-width: 1200px; margin: 0 auto; padding: 0 20px 30px; font-size: 12px; color: var(--muted); }
   footer.attrib a { color: inherit; }
 
@@ -285,6 +291,13 @@
         <datalist id="genreList"></datalist>
         <div class="suggest" id="genreSuggest"></div>
       </div>
+      <label class="field"><span>Kids profiles</span>
+        <select id="fKids" class="field-select">
+          <option value="auto">Automatic, from the age rating</option>
+          <option value="yes">Show on kids profiles</option>
+          <option value="no">Hide from kids profiles</option>
+        </select>
+        <div class="muted small" id="kidsNow" style="margin-top:4px"></div></label>
       <label class="field"><span class="lockline" data-field="description">Description</span><textarea id="fDesc" maxlength="2000" placeholder="What's it about? Shown on the TV."></textarea><div class="counter" id="descCount"></div></label>
       <details class="tech">
         <summary>File details</summary>
@@ -303,7 +316,7 @@
 
 <aside id="settings" class="hidden" role="dialog" aria-modal="true" aria-labelledby="setTitle" style="position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:21;background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column">
   <div class="ed-head">
-    <h2 id="setTitle">Online movie info</h2>
+    <h2 id="setTitle">Settings</h2>
     <button class="ghost" type="button" id="setClose" aria-label="Close">✕</button>
   </div>
   <form id="setForm" class="ed-body" autocomplete="off">
@@ -331,6 +344,16 @@
       they're set.</p>
     <p class="small"><a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Get a free TMDB key</a> ·
       <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">Get a free OMDb key</a></p>
+
+    <h3 class="section">Family</h3>
+    <p class="muted small" style="margin-top:0">Each profile has its own Continue watching, My List and “Because you watched” rows.
+      A kids profile only shows titles rated for children (U, U/A 7+, G, PG…) or ones you mark for kids, never Private.</p>
+    <div class="profiles" id="profileRows"></div>
+    <button type="button" id="addProfile">＋ Add a profile</button>
+    <label class="field" style="margin-top:16px"><span>Parent PIN (to leave a kids profile on the TV)</span>
+      <input type="password" id="sPin" inputmode="numeric" maxlength="8" placeholder="4 to 8 digits" autocomplete="off"></label>
+    <div class="muted small" style="margin:-8px 0 8px" id="sPinState"></div>
+    <button type="button" id="savePin">Set PIN</button> <button type="button" class="ghost danger" id="clearPin">Clear PIN</button>
   </form>
   <div class="ed-foot">
     <button type="button" id="sRun">Look up missing info now</button>
@@ -562,6 +585,9 @@ function openEditor(id) {
   $('#fYear').value = m.year ?? '';
   $('#fRating').value = m.imdbRating ?? '';
   $('#fDesc').value = m.description ?? '';
+  $('#fKids').value = m.kids || 'auto';
+  $('#kidsNow').textContent = m.private ? 'Private videos are never shown on kids profiles.'
+    : `Right now: ${m.kidsOk ? 'shown' : 'hidden'} on kids profiles${m.certification ? ` (rated ${m.certification})` : ' (no age rating)'}.`;
   updateCounter();
   renderGenres();
   renderArt(m);
@@ -688,7 +714,7 @@ $('#genreSuggest').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-g]');
   if (b) addGenre(b.dataset.g);
 });
-['#fTitle', '#fYear', '#fRating', '#fDesc'].forEach((s) => $(s).addEventListener('input', () => { dirty = true; }));
+['#fTitle', '#fYear', '#fRating', '#fDesc', '#fKids'].forEach((s) => $(s).addEventListener('input', () => { dirty = true; }));
 function updateCounter() { $('#descCount').textContent = `${$('#fDesc').value.length} / 2000`; }
 $('#fDesc').addEventListener('input', updateCounter);
 
@@ -815,6 +841,61 @@ function afterMatch(m, message) {
   else toast(message);
 }
 
+// ---- Family ----
+const AVATAR_COLOURS = ['#e50914', '#f5b301', '#16a34a', '#2563eb', '#9333ea', '#db2777', '#0891b2', '#ea580c', '#4f46e5', '#65a30d', '#be123c', '#0f766e'];
+async function loadProfiles() {
+  const pl = await api('GET', '/profiles');
+  $('#sPinState').textContent = pl.pinSet ? 'A PIN is set. Type a new one to change it.' : 'No PIN yet: anyone can leave a kids profile.';
+  $('#profileRows').innerHTML = pl.profiles.map((p) => `
+    <div class="profile-row" data-id="${esc(p.id)}" data-avatar="${p.avatar}">
+      <span class="avatar" style="background:${AVATAR_COLOURS[p.avatar % 12]}">${esc(p.name.charAt(0).toUpperCase())}</span>
+      <input type="text" value="${esc(p.name)}" maxlength="24" aria-label="Profile name">
+      <label><input type="checkbox" ${p.kids ? 'checked' : ''}> Kids</label>
+      <button type="button" class="ghost danger" data-del title="Delete this profile" ${pl.profiles.length < 2 ? 'disabled' : ''}>✕</button>
+    </div>`).join('');
+}
+$('#profileRows').addEventListener('change', async (e) => {
+  const row = e.target.closest('.profile-row');
+  if (!row) return;
+  try {
+    await api('PATCH', `/profiles/${encodeURIComponent(row.dataset.id)}`, {
+      name: row.querySelector('input[type=text]').value, avatar: Number(row.dataset.avatar),
+      kids: row.querySelector('input[type=checkbox]').checked,
+    });
+    toast('Profile saved');
+  } catch (err) { if (!err.quiet) toast(err.message, true); }
+  loadProfiles();
+});
+$('#profileRows').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-del]');
+  if (!b) return;
+  const row = b.closest('.profile-row');
+  if (!confirm(`Delete the profile “${row.querySelector('input[type=text]').value}”? Its My List goes with it.`)) return;
+  try { await api('DELETE', `/profiles/${encodeURIComponent(row.dataset.id)}`); } catch (err) { if (!err.quiet) toast(err.message, true); }
+  loadProfiles();
+});
+$('#addProfile').addEventListener('click', async () => {
+  const name = prompt('Name for the new profile');
+  if (!name || !name.trim()) return;
+  const kids = confirm(`Is “${name.trim()}” a kids profile?\n\nOK = kids profile, Cancel = grown-up profile.`);
+  try {
+    await api('POST', '/profiles', { name: name.trim(), avatar: Math.floor(Math.random() * 12), kids });
+    toast('Profile added');
+  } catch (err) { if (!err.quiet) toast(err.message, true); }
+  loadProfiles();
+});
+$('#savePin').addEventListener('click', async () => {
+  const pin = $('#sPin').value.trim();
+  if (!/^\d{4,8}$/.test(pin)) { toast('A PIN is 4 to 8 digits', true); return; }
+  try { await api('PUT', '/admin/pin', { pin }); $('#sPin').value = ''; toast('PIN set'); } catch (err) { if (!err.quiet) toast(err.message, true); }
+  loadProfiles();
+});
+$('#clearPin').addEventListener('click', async () => {
+  if (!confirm('Clear the PIN? Anyone could then leave a kids profile on the TV.')) return;
+  try { await api('PUT', '/admin/pin', { pin: null }); toast('PIN cleared'); } catch (err) { if (!err.quiet) toast(err.message, true); }
+  loadProfiles();
+});
+
 // ---- Settings ----
 async function openSettings() {
   try {
@@ -825,6 +906,7 @@ async function openSettings() {
     $('#sOmdbState').textContent = st.omdbKeySet ? 'A key is set. Leave this empty to keep it.' : 'No key: TMDB scores are shown instead.';
     $('#sAuto').checked = st.autoMatch;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
+    await loadProfiles();
     $('#scrim').classList.remove('hidden');
     $('#settings').classList.remove('hidden');
     $('#sTmdb').focus();
@@ -885,6 +967,7 @@ async function save() {
     const m = await api('PATCH', itemPath(editing), {
       title: $('#fTitle').value.trim(), year, imdbRating: rating, genres, description: $('#fDesc').value.trim() || null,
       reset: [...resets],
+      kids: $('#fKids').value,
     });
     replaceMovie(m);
     dirty = false;

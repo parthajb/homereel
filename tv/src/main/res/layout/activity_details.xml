@@ -116,6 +116,15 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:drawableStart="@drawable/ic_check_small" />
+
+            <Button
+                android:id="@+id/my_list"
+                style="@style/HomeReel.Pill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:drawableStart="@drawable/ic_heart_outline_small"
+                android:text="@string/my_list_add" />
         </LinearLayout>
 
         <TextView

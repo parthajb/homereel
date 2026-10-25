@@ -12,7 +12,12 @@ import com.parthajb.homereel.shared.MetadataSettingsUpdate
 import com.parthajb.homereel.shared.MovieEdit
 import com.parthajb.homereel.shared.MoveRequest
 import com.parthajb.homereel.shared.MovieList
+import com.parthajb.homereel.shared.PinCheck
+import com.parthajb.homereel.shared.PinUpdate
 import com.parthajb.homereel.shared.PrivateState
+import com.parthajb.homereel.shared.Profile
+import com.parthajb.homereel.shared.ProfileEdit
+import com.parthajb.homereel.shared.ProfileList
 import com.parthajb.homereel.shared.PrivateUpdate
 import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.ShowDetail
@@ -30,6 +35,7 @@ import com.parthajb.homereel.shared.UploadState
 import fi.iki.elonen.NanoHTTPD
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import java.io.DataInputStream
 import java.io.FileInputStream
 import java.io.InputStream
@@ -99,9 +105,17 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
         fun requireAdmin() {
             if (role != Api.ROLE_ADMIN) throw HttpError(403, "Only a browser paired as admin can do that")
         }
-        // The admin always sees the Private folder; a TV only while the admin has it unlocked.
-        val seePrivate = role == Api.ROLE_ADMIN || library.privateUnlocked
-        if (p.size >= 2 && p[0] == "movies") library.visible(p[1], seePrivate)
+        // Which profile is asking (a TV sends it; the admin page doesn't). The admin always sees the Private
+        // folder; a TV only while the admin has it unlocked, and never on a kids profile.
+        val named = app.profiles.resolve(s.headers[PROFILE_HEADER])
+        // The admin page names no profile and must always see everything, even if the first profile is a kids one.
+        val profile = if (role == Api.ROLE_ADMIN && s.headers[PROFILE_HEADER] == null) named.copy(kids = false) else named
+        val viewer = Viewer(
+            profile,
+            app.profiles.myList(profile.id).toSet(),
+            seePrivate = (role == Api.ROLE_ADMIN || library.privateUnlocked) && !profile.kids,
+        )
+        if (p.size >= 2 && p[0] == "movies") library.visible(p[1], viewer)
 
         return when {
             p == listOf("info") && method == Method.GET -> json(
@@ -112,10 +126,49 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 ),
             )
             p == listOf("movies") && method == Method.GET ->
-                json(200, MovieList.serializer(), MovieList(library.movies(seePrivate)))
-            p == listOf("shows") && method == Method.GET -> json(200, ShowList.serializer(), ShowList(library.shows()))
+                json(200, MovieList.serializer(), MovieList(library.movies(viewer)))
+            p == listOf("shows") && method == Method.GET -> json(200, ShowList.serializer(), ShowList(library.shows(viewer)))
+            p == listOf("profiles") -> when (method) {
+                Method.GET -> json(200, ProfileList.serializer(), app.profiles.list())
+                Method.POST -> {
+                    requireAdmin()
+                    json(200, Profile.serializer(), app.profiles.create(readJson(s, ProfileEdit.serializer())))
+                }
+                else -> throw HttpError(405, "Method not allowed")
+            }
+            p == listOf("profiles", "pin") && method == Method.POST -> {
+                app.profiles.checkPin(readJson(s, PinCheck.serializer()).pin)
+                noContent()
+            }
+            p.size == 2 && p[0] == "profiles" -> {
+                requireAdmin()
+                when (method) {
+                    Method.PATCH -> json(200, Profile.serializer(), app.profiles.update(p[1], readJson(s, ProfileEdit.serializer())))
+                    Method.DELETE -> {
+                        app.profiles.delete(p[1])
+                        noContent()
+                    }
+                    else -> throw HttpError(405, "Method not allowed")
+                }
+            }
+            p == listOf("admin", "pin") && method == Method.PUT -> {
+                requireAdmin()
+                app.profiles.setPin(readJson(s, PinUpdate.serializer()).pin)
+                json(200, ProfileList.serializer(), app.profiles.list())
+            }
+            p == listOf("me", "list") && method == Method.GET ->
+                json(200, ListSerializer(String.serializer()), app.profiles.myList(profile.id))
+            p.size == 3 && p[0] == "me" && p[1] == "list" -> {
+                val key = p[2]
+                when (method) {
+                    Method.PUT -> app.profiles.setInList(profile.id, key, true)
+                    Method.DELETE -> app.profiles.setInList(profile.id, key, false)
+                    else -> throw HttpError(405, "Method not allowed")
+                }
+                noContent()
+            }
             p.size == 2 && p[0] == "shows" -> when (method) {
-                Method.GET -> json(200, ShowDetail.serializer(), library.showDetail(p[1]))
+                Method.GET -> json(200, ShowDetail.serializer(), library.showDetail(p[1], viewer))
                 Method.PATCH -> {
                     requireAdmin()
                     json(200, Show.serializer(), library.editShow(p[1], readJson(s, MovieEdit.serializer())))
@@ -167,7 +220,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 json(200, com.parthajb.homereel.shared.Movie.serializer(), library.move(p[1], readJson(s, MoveRequest.serializer()).private))
             }
             p.size == 2 && p[0] == "movies" -> when (method) {
-                Method.GET -> json(200, com.parthajb.homereel.shared.Movie.serializer(), library.movie(p[1], seePrivate))
+                Method.GET -> json(200, com.parthajb.homereel.shared.Movie.serializer(), library.movie(p[1], viewer))
                 Method.PATCH -> {
                     requireAdmin()
                     val edit = readJson(s, MovieEdit.serializer())
@@ -202,7 +255,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             }
             p.size == 3 && p[0] == "movies" && p[2] == "progress" && method == Method.PUT -> {
                 val update = readJson(s, ProgressUpdate.serializer())
-                json(200, com.parthajb.homereel.shared.Movie.serializer(), library.setProgress(p[1], update))
+                json(200, com.parthajb.homereel.shared.Movie.serializer(), library.setProgress(p[1], update, viewer))
             }
             p == listOf("rescan") && method == Method.POST -> {
                 library.requestScan()
@@ -434,6 +487,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
 
     private companion object {
         const val TAG = "HomeReel"
+        const val PROFILE_HEADER = "x-profile"
         val REASONS = mapOf(
             200 to "OK", 204 to "No Content", 206 to "Partial Content", 302 to "Found", 400 to "Bad Request",
             401 to "Unauthorized", 403 to "Forbidden", 404 to "Not Found", 405 to "Method Not Allowed",

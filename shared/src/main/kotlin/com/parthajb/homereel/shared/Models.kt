@@ -102,7 +102,39 @@ data class Movie(
     val episode: Int? = null,
     /** In the Private folder: only listed while the admin has it unlocked, and never looked up online. */
     val private: Boolean = false,
+    /** On the asking profile's My List. */
+    val inMyList: Boolean = false,
+    /** The admin's choice for kids profiles: [KidsSetting]. */
+    val kids: String = KidsSetting.AUTO,
+    /** Whether kids profiles see it, after applying [kids] to the age rating. */
+    val kidsOk: Boolean = false,
 )
+
+/** Whether a title shows on kids profiles: from its age rating, or the admin's yes or no. */
+object KidsSetting {
+    const val AUTO = "auto"
+    const val YES = "yes"
+    const val NO = "no"
+
+    fun valid(value: String?) = value == null || value == AUTO || value == YES || value == NO
+}
+
+/** A person (or a household) watching: their own progress, My List and Continue watching. */
+@Serializable
+data class Profile(val id: String, val name: String, val avatar: Int = 0, val kids: Boolean = false)
+
+@Serializable
+data class ProfileList(val profiles: List<Profile>, val pinSet: Boolean)
+
+@Serializable
+data class ProfileEdit(val name: String, val avatar: Int = 0, val kids: Boolean = false)
+
+/** A null [pin] clears it. */
+@Serializable
+data class PinUpdate(val pin: String? = null)
+
+@Serializable
+data class PinCheck(val pin: String)
 
 object Kind {
     const val MOVIE = "movie"
@@ -137,6 +169,9 @@ data class Show(
     val imdbId: String? = null,
     val match: String = MatchState.NONE,
     val locked: List<String> = emptyList(),
+    val inMyList: Boolean = false,
+    val kids: String = KidsSetting.AUTO,
+    val kidsOk: Boolean = false,
 )
 
 @Serializable
@@ -205,6 +240,8 @@ data class MovieEdit(
     val imdbRating: Double? = null,
     /** Fields to hand back to the online lookup: "title", "year", "description", "genres", "rating". */
     val reset: List<String> = emptyList(),
+    /** A [KidsSetting], or null to leave it as it is. */
+    val kids: String? = null,
 )
 
 @Serializable

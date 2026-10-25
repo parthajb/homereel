@@ -111,6 +111,28 @@ Anything without a season and episode is a film.
 - **On the admin page:** a **TV shows** tab. Each show has the same editing, Find on TMDB and thumbnail upload as a
   film, plus its list of episode files.
 
+## Family profiles
+
+- **Who's watching?** The TV asks when it opens, if there's more than one profile.
+- **Each profile has its own:** Continue watching, My List, and "Because you watched…" rows. Progress saved before
+  profiles existed belongs to the first profile, "Family".
+- **Kids profiles** only see titles rated for children: U, U/A 7+, G, PG, TV-Y, TV-Y7, TV-G, TV-PG.
+  - A title with no rating, like a home video, stays hidden unless you set **Kids profiles → Show on kids profiles**
+    in its editor. **Hide from kids profiles** works the other way.
+  - Private videos never show on a kids profile, even while Private is unlocked.
+  - The phone enforces this, not just the TV app: a kids profile asking for anything else gets "not found".
+- **Parent PIN:** set on the admin page (Settings → Family). Leaving a kids profile on the TV then asks for it, and
+  the phone checks it; five wrong tries lock it for a minute. A kids profile's Settings row only offers "Switch
+  profile".
+- **Managing profiles:** add, rename, mark as kids or delete them in Settings → Family.
+
+## Search and My List
+
+- **Search:** use **Search** at the top of the home screen (press Up from the first row), or the remote's search key.
+  It searches as you type across titles, actors, directors, creators, genres and years, for films and shows. It
+  only finds what the current profile can see.
+- **My List:** **♥ My List** on any film or show page adds it to the profile's My List row on the home screen.
+
 ## Private videos
 
 Personal videos go in a folder called **Private** at the top of the movie folder. Use **🔒 Upload into the Private
@@ -211,7 +233,8 @@ Everything goes over the home Wi-Fi.
 
 ## API
 
-All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin cookie).
+All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin cookie). The TV also sends
+`X-Profile: <profile id>`. Progress, My List and kids filtering follow it, and without it the first profile is used.
 
 | Method and path | Role | What it does |
 |---|---|---|
@@ -234,6 +257,9 @@ All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin co
 | `GET /shows/{id}/poster`, `…/backdrop` | viewer | A show's pictures |
 | `PATCH /shows/{id}`, `PUT`/`DELETE …/poster`, `POST …/match`, `DELETE …/match`, `POST …/refresh`, `POST …/skip` | admin | The same editing and lookup actions as films |
 | `GET /admin/tmdb/search?q=&year=&type=tv` | admin | Searches TMDB for shows |
+| `GET /profiles`; `POST`, `PATCH`, `DELETE /profiles/{id}` | viewer / admin | List profiles; add, change or remove one |
+| `POST /profiles/pin` `{pin}`; `PUT /admin/pin` `{pin}` | viewer / admin | Check the parent PIN (403, 429 after 5 wrong); set or clear it |
+| `GET /me/list`; `PUT` / `DELETE /me/list/{m:id or s:id}` | viewer | The asking profile's My List |
 | `GET` / `PUT /admin/private` `{unlock, minutes}` | admin | Whether Private is unlocked, and until when; unlocks or locks it |
 | `POST /movies/{id}/move` `{private}` | admin | Moves a film into or out of the Private folder, keeping its details and resume point |
 | `DELETE /movies/{id}` | admin | Deletes the file, its subtitles and poster |

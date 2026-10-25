@@ -32,6 +32,7 @@ class ShowActivity : FragmentActivity(), CardHost {
     private lateinit var credits: TextView
     private lateinit var primary: Button
     private lateinit var restart: Button
+    private lateinit var myList: Button
     private lateinit var seasons: LinearLayout
     private lateinit var episodeInfo: TextView
     private lateinit var episodes: RecyclerView
@@ -49,6 +50,7 @@ class ShowActivity : FragmentActivity(), CardHost {
         credits = findViewById(R.id.credits)
         primary = findViewById(R.id.play)
         restart = findViewById(R.id.restart)
+        myList = findViewById(R.id.my_list)
         seasons = findViewById(R.id.seasons)
         episodeInfo = findViewById(R.id.episode_info)
         episodes = findViewById(R.id.episodes)
@@ -60,7 +62,13 @@ class ShowActivity : FragmentActivity(), CardHost {
 
         primary.setOnClickListener { detail?.let { d -> (d.show.upNext ?: d.episodes.firstOrNull())?.let(::onPlay) } }
         restart.setOnClickListener { detail?.episodes?.firstOrNull()?.let { MainActivity.play(this, it, 0) } }
-        listOf(primary, restart).forEach { button ->
+        myList.setOnClickListener {
+            val d = detail ?: return@setOnClickListener
+            toggleMyList(this, store, worker, main, "s:${d.show.id}", !d.show.inMyList, myList) { on ->
+                detail = d.copy(show = d.show.copy(inMyList = on))
+            }
+        }
+        listOf(primary, restart, myList).forEach { button ->
             button.setOnFocusChangeListener { v, focused ->
                 v.animate().scaleX(if (focused) 1.06f else 1f).scaleY(if (focused) 1.06f else 1f).setDuration(120).start()
             }
@@ -107,6 +115,7 @@ class ShowActivity : FragmentActivity(), CardHost {
             else -> getString(R.string.play_episode, d.episodes.firstOrNull()?.let(Format::episodeCode) ?: "")
         }
         restart.visibility = if (next != null) View.VISIBLE else View.GONE
+        showMyList(myList, s.inMyList)
 
         // Open on the season of the episode to carry on with, the first time.
         if (season == null || season !in s.seasons) season = next?.season ?: s.seasons.firstOrNull()

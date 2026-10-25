@@ -72,6 +72,10 @@ class Prefs(context: Context) {
         get() = sp.getLong("privateUntil", 0)
         set(value) = sp.edit().putLong("privateUntil", value).apply()
 
+    var profilesJson: String?
+        get() = sp.getString("profiles", null)
+        set(value) = sp.edit().putString("profiles", value).apply()
+
     var playabilityJson: String?
         get() = sp.getString("playability", null)
         set(value) = sp.edit().putString("playability", value).apply()

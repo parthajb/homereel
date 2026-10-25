@@ -76,6 +76,21 @@
     <string name="watched_mark">✓ Watched</string>
     <string name="private_hint">Only visible while Private is unlocked on the admin page.</string>
 
+    <string name="whos_watching">Who\'s watching?</string>
+    <string name="kids">KIDS</string>
+    <string name="pin_title">Parent PIN</string>
+    <string name="pin_hint">PIN</string>
+    <string name="action_profile">Switch profile</string>
+    <string name="help_profile">Change who\'s watching. Leaving a kids profile asks for the parent PIN, if one is set on the admin page.</string>
+    <string name="search">Search</string>
+    <string name="search_hint">Titles, actors, genres…</string>
+    <string name="search_empty">Nothing matches “%1$s”.</string>
+    <string name="row_my_list">My List</string>
+    <string name="row_because">Because you watched %1$s</string>
+    <string name="my_list_add">My List</string>
+    <string name="my_list_remove">In My List</string>
+    <string name="row_movies">Movies</string>
+
     <string name="play">Play</string>
     <string name="play_from_start">Play from start</string>
     <string name="mark_watched">Mark as watched</string>

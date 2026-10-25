@@ -11,11 +11,14 @@ class ServerApp : Application() {
         private set
     lateinit var locks: ActivityLocks
         private set
+    lateinit var profiles: Profiles
+        private set
 
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
         auth = Auth(prefs)
+        profiles = Profiles(prefs)
         locks = ActivityLocks(this)
         library = Library(this, prefs)
     }

@@ -242,3 +242,61 @@ object EpisodeParser {
     /** A show's stable id, from its normalised name, so episodes in different folders still join up. */
     fun showId(show: String, year: Int?): String = MovieIds.of("show:" + Matching.normalise(show) + ":" + (year ?: ""))
 }
+
+object Certifications {
+    /** Indian, American and TV ratings fine for children, with spaces, slashes and dashes ignored. */
+    private val KIDS = setOf("U", "UA7+", "G", "PG", "TVY", "TVY7", "TVG", "TVPG", "0", "6", "7", "ALL")
+
+    /** No rating means no: home videos and unmatched files stay off kids profiles unless the admin says yes. */
+    fun kidsSafe(certification: String?): Boolean =
+        certification != null && certification.uppercase().replace(Regex("[\\s/\\-]"), "") in KIDS
+
+    fun kidsOk(setting: String, certification: String?, private: Boolean): Boolean = when {
+        private -> false
+        setting == KidsSetting.YES -> true
+        setting == KidsSetting.NO -> false
+        else -> kidsSafe(certification)
+    }
+}
+
+/** "Because you watched…": what a title has in common with another, weighted toward people over genres. */
+object Recommend {
+    data class Signals(val key: String, val genres: List<String>, val people: List<String>, val director: String?)
+
+    fun score(seed: Signals, other: Signals): Int {
+        if (seed.key == other.key) return 0
+        val genres = other.genres.count { it in seed.genres }
+        val people = other.people.count { it in seed.people }
+        val director = if (seed.director != null && seed.director == other.director) 1 else 0
+        // A shared genre alone is weak; two, or a shared actor or director, makes a real "because".
+        return genres + people * 3 + director * 4
+    }
+
+    fun similar(seed: Signals, all: List<Signals>, limit: Int = 15): List<String> =
+        all.map { it to score(seed, it) }.filter { it.second >= 2 }
+            .sortedByDescending { it.second }.take(limit).map { it.first.key }
+}
+
+/** Matching what's typed in search against a title's words: every typed word must start some word of it. */
+object Search {
+    fun words(text: String?): List<String> =
+        if (text == null) emptyList() else Matching.normalise(text).split(' ').filter { it.isNotEmpty() }
+
+    /** 0 for no match; higher for a title match than a match on cast or genre. */
+    fun score(query: String, title: String, other: List<String?>): Int {
+        val q = words(query)
+        if (q.isEmpty()) return 0
+        val titleWords = words(title)
+        val otherWords = other.flatMap { words(it) }
+        var score = 0
+        for (w in q) {
+            score += when {
+                titleWords.any { it.startsWith(w) } -> 3
+                otherWords.any { it.startsWith(w) } -> 1
+                else -> return 0
+            }
+        }
+        if (Matching.normalise(title).startsWith(q.joinToString(" "))) score += 5
+        return score
+    }
+}

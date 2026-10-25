@@ -16,6 +16,7 @@ import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.PlayabilityItem
 import com.parthajb.homereel.shared.PlayabilityReport
+import com.parthajb.homereel.shared.Recommend
 import com.parthajb.homereel.shared.Show
 import java.io.IOException
 import java.util.concurrent.Executors
@@ -34,6 +35,7 @@ class MainActivity : FragmentActivity(), CardHost {
     private var lastReport: List<PlayabilityItem>? = null
     private var movies: List<Movie> = emptyList()
     private var shows: List<Show> = emptyList()
+    private var myList: List<String> = emptyList()
     private var privateUntil: Long? = null
     private var loading = false
     private var firstLoad = true
@@ -55,6 +57,11 @@ class MainActivity : FragmentActivity(), CardHost {
             finish()
             return
         }
+        if (!Session.profileChosen) {
+            startActivity(Intent(this, ProfileActivity::class.java))
+            finish()
+            return
+        }
         setContentView(R.layout.activity_home)
         rows = findViewById(R.id.rows)
         title = findViewById(R.id.hero_title)
@@ -62,9 +69,14 @@ class MainActivity : FragmentActivity(), CardHost {
         genres = findViewById(R.id.hero_genres)
         description = findViewById(R.id.hero_description)
         backdrop = Backdrop(findViewById(R.id.backdrop_a), findViewById(R.id.backdrop_b)) { store.api() }
-        // "HomeReel on Redmi Note 9 Pro" reads "HOMEREEL · REDMI NOTE 9 PRO" in the brand line.
-        val phone = store.name?.removePrefix("HomeReel on ")?.trim()
-        findViewById<TextView>(R.id.brand).text = if (phone.isNullOrEmpty()) getString(R.string.app_name) else getString(R.string.brand_line, phone)
+        // "HOMEREEL · ANU": whose home screen this is.
+        val who = store.profileName ?: store.name?.removePrefix("HomeReel on ")?.trim()
+        findViewById<TextView>(R.id.brand).text = if (who.isNullOrEmpty()) getString(R.string.app_name) else getString(R.string.brand_line, who)
+        findViewById<View>(R.id.top_search).setOnClickListener { startActivity(Intent(this, SearchActivity::class.java)) }
+        findViewById<TextView>(R.id.top_profile).apply {
+            text = store.profileName ?: getString(R.string.action_profile)
+            setOnClickListener { switchProfile() }
+        }
 
         rows.layoutManager = StartAlignLayoutManager(this, RecyclerView.VERTICAL)
         rows.itemAnimator = null
@@ -87,6 +99,7 @@ class MainActivity : FragmentActivity(), CardHost {
             try {
                 val list = api.movies()
                 val showList = api.shows()
+                val listKeys = runCatching { api.myList() }.getOrDefault(emptyList())
                 val until = runCatching { api.info().privateUntil }.getOrNull()
                 val report = list.mapNotNull { m -> codecs.reason(m)?.let { PlayabilityItem(m.id, it) } }
                 main.post {
@@ -94,6 +107,7 @@ class MainActivity : FragmentActivity(), CardHost {
                     if (isDestroyed) return@post
                     movies = list
                     shows = showList
+                    myList = listKeys
                     privateUntil = until
                     cantPlayReasons = report.associate { it.id to it.reason }
                     show(list)
@@ -185,11 +199,15 @@ class MainActivity : FragmentActivity(), CardHost {
                 }
             }
         if (watching.isNotEmpty()) out += HomeRow(getString(R.string.row_continue), watching.sortedByDescending { it.first }.map { it.second })
+        val byKey: Map<String, HomeItem> = list.associate { "m:${it.id}" to MovieItem(it) } + shows.associate { "s:${it.id}" to ShowItem(it) }
+        val listed = myList.mapNotNull { byKey[it] }
+        if (listed.isNotEmpty()) out += HomeRow(getString(R.string.row_my_list), listed)
         val titles = list.map { Title(MovieItem(it), it.addedAt, it.imdbRating, it.genres, it.title) } +
             shows.map { Title(ShowItem(it), it.addedAt, it.imdbRating, it.genres, it.title) }
         if (titles.size > 4) {
             out += HomeRow(getString(R.string.row_recent), titles.sortedByDescending { it.addedAt }.take(20).map { it.item })
         }
+        out += becauseYouWatched(list, byKey)
         if (shows.isNotEmpty()) {
             out += HomeRow(getString(R.string.row_shows), shows.sortedByDescending { it.lastPlayedAt.coerceAtLeast(it.addedAt) }.map { ShowItem(it) })
         }
@@ -218,9 +236,15 @@ class MainActivity : FragmentActivity(), CardHost {
                 out += HomeRow(getString(R.string.row_letter, letter), group.map { MovieItem(it) })
             }
         }
+        // A kids profile only gets "Switch profile" (which asks for the PIN): nothing that could get round it.
+        if (store.profileKids) {
+            out += HomeRow(getString(R.string.row_settings), listOf(ActionItem(ACTION_PROFILE, getString(R.string.action_profile), R.drawable.ic_person)))
+            return out
+        }
         out += HomeRow(
             getString(R.string.row_settings),
             listOf(
+                ActionItem(ACTION_PROFILE, getString(R.string.action_profile), R.drawable.ic_person),
                 ActionItem(ACTION_REFRESH, getString(R.string.action_refresh), R.drawable.ic_refresh),
                 ActionItem(ACTION_RESCAN, getString(R.string.action_rescan), R.drawable.ic_folder),
                 ActionItem(ACTION_ABOUT, getString(R.string.action_about), R.drawable.ic_info),
@@ -228,6 +252,36 @@ class MainActivity : FragmentActivity(), CardHost {
             ),
         )
         return out
+    }
+
+    /**
+     * Up to two "Because you watched…" rows, from the last two titles this profile played: titles sharing actors,
+     * a director, or at least two genres with it.
+     */
+    private fun becauseYouWatched(list: List<Movie>, byKey: Map<String, HomeItem>): List<HomeRow> {
+        val signals = list.map { Recommend.Signals("m:${it.id}", it.genres, it.cast, it.director) } +
+            shows.map { Recommend.Signals("s:${it.id}", it.genres, it.cast, it.creators) }
+        val played = (list.filter { it.lastPlayedAt > 0 }.map { Triple("m:${it.id}", it.title, it.lastPlayedAt) } +
+            shows.filter { it.lastPlayedAt > 0 }.map { Triple("s:${it.id}", it.title, it.lastPlayedAt) })
+            .sortedByDescending { it.third }.take(2)
+        return played.mapNotNull { (key, title, _) ->
+            val seed = signals.firstOrNull { it.key == key } ?: return@mapNotNull null
+            val items = Recommend.similar(seed, signals).mapNotNull { byKey[it] }
+            if (items.size >= 2) HomeRow(getString(R.string.row_because, title), items) else null
+        }
+    }
+
+    private fun switchProfile() {
+        startActivity(Intent(this, ProfileActivity::class.java).putExtra(ProfileActivity.EXTRA_SWITCH, true))
+    }
+
+    /** The remote's search button opens search from anywhere on the home screen. */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_SEARCH) {
+            startActivity(Intent(this, SearchActivity::class.java))
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     // ---- Focus and the hero area ----
@@ -301,6 +355,7 @@ class MainActivity : FragmentActivity(), CardHost {
         ACTION_REFRESH -> getString(R.string.help_refresh)
         ACTION_RESCAN -> getString(R.string.help_rescan, "http://${store.host}:${store.port}/admin")
         ACTION_ABOUT -> getString(R.string.help_about)
+        ACTION_PROFILE -> getString(R.string.help_profile)
         else -> getString(R.string.help_switch)
     }
 
@@ -341,6 +396,7 @@ class MainActivity : FragmentActivity(), CardHost {
                 .setMessage(getString(R.string.about, "${store.host}:${store.port}", movies.size, cantPlayReasons.size, BuildConfig.VERSION_NAME))
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
+            ACTION_PROFILE -> switchProfile()
             ACTION_SWITCH -> {
                 store.forget()
                 startActivity(Intent(this, ConnectActivity::class.java))
@@ -373,6 +429,7 @@ class MainActivity : FragmentActivity(), CardHost {
         private const val ACTION_RESCAN = 2
         private const val ACTION_ABOUT = 3
         private const val ACTION_SWITCH = 4
+        private const val ACTION_PROFILE = 5
 
         /** Started but not finished: more than 15 seconds or 2% in, and not marked watched. */
         fun inProgress(m: Movie) = !m.watched && m.positionMs > 0 &&

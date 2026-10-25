@@ -38,6 +38,15 @@
             android:exported="false" />
 
         <activity
+            android:name=".ProfileActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".SearchActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustNothing|stateVisible" />
+
+        <activity
             android:name=".ShowActivity"
             android:exported="false" />
 

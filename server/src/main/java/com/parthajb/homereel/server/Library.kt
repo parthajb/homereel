@@ -8,6 +8,7 @@ import android.util.Log
 import com.parthajb.homereel.shared.AdminStatus
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.Genres
+import com.parthajb.homereel.shared.KidsSetting
 import com.parthajb.homereel.shared.MatchState
 import com.parthajb.homereel.shared.Matching
 import com.parthajb.homereel.shared.MetadataSettings
@@ -58,35 +59,53 @@ class Library(context: Context, private val prefs: Prefs) {
     fun count(): Int = catalog.size()
 
     /** Films (not episodes). Private ones only when [withPrivate]: for the admin, or while Private is unlocked. */
-    fun movies(withPrivate: Boolean): List<Movie> =
-        catalog.all().filter { !it.isEpisode && (withPrivate || !it.private) }.map { it.toMovie() }
+    /**
+     * Films (not episodes) as [viewer] sees them: private ones only when they may see Private, and only titles
+     * cleared for kids on a kids profile.
+     */
+    fun movies(viewer: Viewer): List<Movie> =
+        catalog.all().filter { !it.isEpisode && canSee(it, viewer) }.map { it.toMovie(viewer = viewer) }
 
-    fun movie(id: String, withPrivate: Boolean): Movie {
-        val e = visible(id, withPrivate)
-        return e.toMovie(e.showId?.let { catalog.show(it)?.title })
+    /** Every film, private ones included, for the phone's own screen. */
+    fun allMovies(): List<Movie> = catalog.all().filter { !it.isEpisode }.map { it.toMovie() }
+
+    fun movie(id: String, viewer: Viewer): Movie {
+        val e = visible(id, viewer)
+        val show = e.showId?.let { catalog.show(it) }
+        return e.toMovie(show?.title, viewer, show?.kidsOk == true)
     }
 
-    /** The entry, or 404 for one that doesn't exist or is private while Private is locked: both look the same. */
-    fun visible(id: String, withPrivate: Boolean): Entry {
+    /**
+     * The entry, or 404 for one that doesn't exist, is private while Private is locked, or isn't for kids on a
+     * kids profile: all three look the same from outside.
+     */
+    fun visible(id: String, viewer: Viewer): Entry {
         val e = entry(id)
-        if (e.private && !withPrivate) throw HttpError(404, "No such movie")
+        if (!canSee(e, viewer)) throw HttpError(404, "No such movie")
         return e
+    }
+
+    private fun canSee(e: Entry, viewer: Viewer): Boolean {
+        if (e.private && !viewer.seePrivate) return false
+        if (!viewer.kids) return true
+        return if (e.isEpisode) e.showId?.let { catalog.show(it) }?.kidsOk == true else e.kidsOk
     }
 
     private fun entry(id: String): Entry = catalog.get(id) ?: throw HttpError(404, "No such movie")
 
     // ---- Shows ----
 
-    fun shows(): List<Show> = catalog.shows().map { toShow(it) }
+    fun shows(viewer: Viewer): List<Show> =
+        catalog.shows().filter { !viewer.kids || it.kidsOk }.map { toShow(it, viewer = viewer) }
 
-    fun showDetail(id: String): ShowDetail {
-        val record = catalog.show(id) ?: throw HttpError(404, "No such show")
+    fun showDetail(id: String, viewer: Viewer): ShowDetail {
+        val record = catalog.show(id)?.takeIf { !viewer.kids || it.kidsOk } ?: throw HttpError(404, "No such show")
         val episodes = catalog.episodes(id)
-        return ShowDetail(toShow(record, episodes), episodes.map { it.toMovie(record.title) })
+        return ShowDetail(toShow(record, episodes, viewer), episodes.map { it.toMovie(record.title, viewer, record.kidsOk) })
     }
 
-    private fun toShow(record: ShowRecord, episodes: List<Entry> = catalog.episodes(record.id)): Show =
-        record.toShow(episodes, episodes.any { it.posterGenerated })
+    private fun toShow(record: ShowRecord, episodes: List<Entry> = catalog.episodes(record.id), viewer: Viewer? = null): Show =
+        record.toShow(episodes, episodes.any { it.posterGenerated }, viewer)
 
     /** A show's poster: an uploaded thumbnail, TMDB's, or the first episode's frame. */
     fun showPoster(id: String): Pair<InputStream, String>? {
@@ -136,6 +155,7 @@ class Library(context: Context, private val prefs: Prefs) {
         if (edit.imdbRating != null && Ratings.normalize(edit.imdbRating) == null) {
             throw HttpError(400, "An IMDb rating is between 0 and 10")
         }
+        if (!KidsSetting.valid(edit.kids)) throw HttpError(400, "Kids is auto, yes or no")
         val reset = edit.reset.toSet()
         val updated = catalog.updateShow(id) { r ->
             val shown = toShow(r)
@@ -169,7 +189,7 @@ class Library(context: Context, private val prefs: Prefs) {
                 rating == shown.imdbRating -> next
                 else -> next.copy(imdbRating = rating)
             }
-            next
+            next.copy(kids = edit.kids ?: next.kids)
         } ?: throw HttpError(404, "No such show")
         return toShow(updated)
     }
@@ -437,18 +457,22 @@ class Library(context: Context, private val prefs: Prefs) {
         return stream to (e.subtitles.getOrNull(index)?.mime ?: "application/x-subrip")
     }
 
-    fun setProgress(id: String, update: ProgressUpdate): Movie {
+    /** Saves [viewer]'s place in a video; past 95% counts as watched and goes back to the start. */
+    fun setProgress(id: String, update: ProgressUpdate, viewer: Viewer): Movie {
         val now = System.currentTimeMillis()
-        return (catalog.update(id) { e ->
+        val updated = catalog.update(id) { e ->
             val duration = if (update.durationMs > 0) update.durationMs else e.durationMs
             val watched = duration > 0 && update.positionMs >= duration * 95 / 100
-            e.copy(
+            val old = e.progressFor(viewer.pid)
+            val next = Progress(
                 positionMs = if (watched) 0 else update.positionMs.coerceAtLeast(0),
                 watched = watched,
-                durationMs = if (e.durationMs > 0) e.durationMs else duration,
-                lastPlayedAt = if (watched || update.positionMs > 0) now else e.lastPlayedAt,
+                lastPlayedAt = if (watched || update.positionMs > 0) now else old.lastPlayedAt,
             )
-        } ?: throw HttpError(404, "No such movie")).toMovie()
+            e.copy(progress = e.progress + (viewer.pid to next), durationMs = if (e.durationMs > 0) e.durationMs else duration)
+        } ?: throw HttpError(404, "No such movie")
+        val show = updated.showId?.let { catalog.show(it) }
+        return updated.toMovie(show?.title, viewer, show?.kidsOk == true)
     }
 
     /**
@@ -461,6 +485,7 @@ class Library(context: Context, private val prefs: Prefs) {
         if (edit.imdbRating != null && Ratings.normalize(edit.imdbRating) == null) {
             throw HttpError(400, "An IMDb rating is between 0 and 10")
         }
+        if (!KidsSetting.valid(edit.kids)) throw HttpError(400, "Kids is auto, yes or no")
         val reset = edit.reset.toSet()
         return (catalog.update(id) { e ->
             val shown = e.toMovie()
@@ -494,7 +519,7 @@ class Library(context: Context, private val prefs: Prefs) {
                 rating == shown.imdbRating -> next
                 else -> next.copy(imdbRating = rating)
             }
-            next
+            next.copy(kids = edit.kids ?: next.kids)
         } ?: throw HttpError(404, "No such movie")).toMovie()
     }
 
@@ -698,7 +723,7 @@ class Library(context: Context, private val prefs: Prefs) {
     fun cantPlay(): Pair<List<PlayabilityItem>, String> {
         val ids = catalog.all().map { it.id }.toSet()
         report?.let { r -> return r.items.filter { it.id in ids } to "tv" }
-        return movies(withPrivate = true).mapNotNull { m -> Playability.baseline(m)?.let { PlayabilityItem(m.id, it) } } to "guess"
+        return allMovies().mapNotNull { m -> Playability.baseline(m)?.let { PlayabilityItem(m.id, it) } } to "guess"
     }
 
     fun status(serverName: String): AdminStatus {

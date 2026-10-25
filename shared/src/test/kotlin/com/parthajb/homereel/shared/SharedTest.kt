@@ -179,3 +179,41 @@ class EpisodeParserTest {
     @Test fun resolutionIsNotNxN() = assertNull(p("Some Film 1920x1080.mkv"))
     @Test fun sameShowSameId() = assertEquals(EpisodeParser.showId("The Office", null), EpisodeParser.showId("Office", null))
 }
+
+class FamilyTest {
+    @Test fun indianU() = assertEquals(true, Certifications.kidsSafe("U"))
+    @Test fun indianUa7() = assertEquals(true, Certifications.kidsSafe("U/A 7+"))
+    @Test fun indianUa13() = assertEquals(false, Certifications.kidsSafe("UA 13+"))
+    @Test fun adult() = assertEquals(false, Certifications.kidsSafe("A"))
+    @Test fun usPg13() = assertEquals(false, Certifications.kidsSafe("PG-13"))
+    @Test fun tvY7() = assertEquals(true, Certifications.kidsSafe("TV-Y7"))
+    @Test fun unratedIsNo() = assertEquals(false, Certifications.kidsSafe(null))
+    @Test fun adminYesWins() = assertEquals(true, Certifications.kidsOk(KidsSetting.YES, "A", private = false))
+    @Test fun adminNoWins() = assertEquals(false, Certifications.kidsOk(KidsSetting.NO, "U", private = false))
+    @Test fun privateNeverForKids() = assertEquals(false, Certifications.kidsOk(KidsSetting.YES, "U", private = true))
+
+    private fun s(key: String, genres: List<String>, people: List<String> = emptyList(), director: String? = null) =
+        Recommend.Signals(key, genres, people, director)
+
+    @Test fun becauseYouWatched() {
+        val seed = s("a", listOf("Drama", "Sport"), listOf("Aamir"), "Nitesh")
+        val all = listOf(
+            seed,
+            s("b", listOf("Drama", "Sport")),
+            s("c", listOf("Comedy"), listOf("Aamir")),
+            s("d", listOf("Drama")),
+            s("e", listOf("Horror")),
+            s("f", listOf("Thriller"), director = "Nitesh"),
+        )
+        assertEquals(listOf("f", "c", "b"), Recommend.similar(seed, all))
+    }
+
+    @Test fun searchTitleBeatsCast() {
+        val title = Search.score("dang", "Dangal", listOf("Aamir Khan"))
+        val cast = Search.score("aamir", "Lagaan", listOf("Aamir Khan"))
+        assertEquals(true, title > cast && cast > 0)
+    }
+    @Test fun searchNeedsEveryWord() = assertEquals(0, Search.score("night shift", "Night Train", emptyList()))
+    @Test fun searchIgnoresAccentsAndCase() = assertEquals(true, Search.score("AMELIE", "Amélie", emptyList()) > 0)
+    @Test fun searchByGenre() = assertEquals(true, Search.score("comedy", "Coco", listOf("Animation", "Comedy")) > 0)
+}

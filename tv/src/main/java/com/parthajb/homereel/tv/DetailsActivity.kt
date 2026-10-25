@@ -37,6 +37,7 @@ class DetailsActivity : FragmentActivity(), CardHost {
     private lateinit var primary: Button
     private lateinit var restart: Button
     private lateinit var watched: Button
+    private lateinit var myList: Button
     private lateinit var more: RecyclerView
     private lateinit var backdrop: Backdrop
 
@@ -56,6 +57,7 @@ class DetailsActivity : FragmentActivity(), CardHost {
         primary = findViewById(R.id.play)
         restart = findViewById(R.id.restart)
         watched = findViewById(R.id.watched)
+        myList = findViewById(R.id.my_list)
         more = findViewById(R.id.more)
         backdrop = Backdrop(findViewById(R.id.backdrop_a), findViewById(R.id.backdrop_b)) { store.api() }
 
@@ -66,7 +68,11 @@ class DetailsActivity : FragmentActivity(), CardHost {
         primary.setOnClickListener { movie?.let { MainActivity.play(this, it, if (MainActivity.inProgress(it)) it.positionMs else 0) } }
         restart.setOnClickListener { movie?.let { MainActivity.play(this, it, 0) } }
         watched.setOnClickListener { toggleWatched() }
-        listOf(primary, restart, watched).forEach { button ->
+        myList.setOnClickListener {
+            val m = movie ?: return@setOnClickListener
+            toggleMyList(this, store, worker, main, "m:${m.id}", !m.inMyList, myList) { on -> movie = m.copy(inMyList = on) }
+        }
+        listOf(primary, restart, watched, myList).forEach { button ->
             button.setOnFocusChangeListener { v, focused ->
                 v.animate().scaleX(if (focused) 1.06f else 1f).scaleY(if (focused) 1.06f else 1f).setDuration(120).start()
             }
@@ -120,6 +126,7 @@ class DetailsActivity : FragmentActivity(), CardHost {
         primary.text = if (resuming) getString(R.string.resume_at, Format.clock(m.positionMs)) else getString(R.string.play)
         restart.visibility = if (resuming) View.VISIBLE else View.GONE
         watched.text = getString(if (m.watched) R.string.mark_unwatched else R.string.mark_watched)
+        showMyList(myList, m.inMyList)
 
         moreAdapter.submit(listOfNotNull(similar(m, all)?.let { HomeRow(getString(R.string.row_more_like_this), it) }))
         if (first) primary.requestFocus()
