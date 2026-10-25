@@ -120,7 +120,7 @@ The first time, Android asks to allow HomeReel to install apps (on the TV: Devic
 restrictions → Unknown sources → HomeReel). Google Play Protect may ask to scan the app, since it has never seen it.
 **Scan app** sends the APK to Google; **More details → Install without scanning** keeps it on the device.
 
-The version is set in `server/build.gradle` and `tv/build.gradle` (the `versionCode` default, now 2, and
+The version is set in `server/build.gradle` and `tv/build.gradle` (the `versionCode` default, now 3, and
 `versionName`): raise both for every update. `-PhomereelVersion=N` builds a copy with version N, for trying the update path.
 
 ## Adding and removing movies

@@ -3,7 +3,7 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
-## Unreleased
+## 0.3.0 (2026-10-25)
 
 - **Web app:** watch in any browser on the home Wi-Fi at `http://<phone ip>:8080`, on a laptop, phone or tablet,
   with profiles, the kids PIN, My List, search, shows, resume points, subtitle files, Skip intro and Next episode.
