@@ -176,6 +176,16 @@
   .marker-row input { padding: 7px 9px; }
   .marker-row label span { display: block; color: var(--muted); margin-bottom: 3px; }
   @media (max-width: 680px) { .marker-row { grid-template-columns: 1fr 1fr; } }
+  .health-grid { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 14px; margin: 6px 0 16px; }
+  .health-grid dt { color: var(--muted); }
+  .health-grid dd { margin: 0; }
+  .warnings { margin: 0 0 14px; padding: 0; list-style: none; }
+  .warnings li { background: var(--warn-bg); color: var(--warn); padding: 8px 12px; border-radius: 9px; margin-bottom: 6px; font-size: 14px; }
+  .events { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+  .events li { display: grid; grid-template-columns: 120px 1fr; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .events .warn { color: var(--warn); }
+  .events .error { color: var(--danger); font-weight: 600; }
+  .badge.offline { background: #6b7280; }
   footer.attrib { max-width: 1200px; margin: 0 auto; padding: 0 20px 30px; font-size: 12px; color: var(--muted); }
   footer.attrib a { color: inherit; }
 
@@ -219,6 +229,7 @@
       <input id="search" type="search" placeholder="Search titles, genres, files" aria-label="Search">
       <button id="uploadBtn" class="primary" type="button">＋ Add movies</button>
       <button id="rescan" type="button" title="Look for files copied to the phone another way">Rescan</button>
+      <button id="healthBtn" type="button" title="How the phone is doing">♥ Health</button>
       <button id="settingsBtn" type="button" title="Online movie info settings" aria-label="Settings">⚙︎ Settings</button>
     </div>
     <div class="tabs" role="group" aria-label="Filter">
@@ -373,12 +384,28 @@
       <input type="password" id="sPin" inputmode="numeric" maxlength="8" placeholder="4 to 8 digits" autocomplete="off"></label>
     <div class="muted small" style="margin:-8px 0 8px" id="sPinState"></div>
     <button type="button" id="savePin">Set PIN</button> <button type="button" class="ghost danger" id="clearPin">Clear PIN</button>
+
+    <h3 class="section">Backup</h3>
+    <p class="muted small" style="margin-top:0">One file with everything you've typed in or looked up, everyone's progress, profiles
+      and My Lists. Not the videos themselves, the keys or the PIN. Restore it on a new phone, or after resetting this one;
+      files are matched by name and size.</p>
+    <a href="/api/v1/admin/backup" download><button type="button">Download a backup</button></a>
+    <button type="button" id="restoreBtn">Restore from a backup…</button>
+    <input type="file" id="restoreFile" accept="application/json,.json" class="hidden">
   </form>
   <div class="ed-foot">
     <button type="button" id="sRun">Look up missing info now</button>
     <span class="grow"></span>
     <button type="button" class="primary" id="sSave">Save</button>
   </div>
+</aside>
+
+<aside id="healthPanel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="healthTitle" style="position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:21;background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column">
+  <div class="ed-head">
+    <h2 id="healthTitle">Health</h2>
+    <button class="ghost" type="button" id="healthClose" aria-label="Close">✕</button>
+  </div>
+  <div class="ed-body" style="display:block" id="healthBody"></div>
 </aside>
 
 <div id="toast" class="hidden" role="status" aria-live="polite"></div>
@@ -551,6 +578,7 @@ function renderGrid() {
     const badges = [
       isShow ? '<span class="badge show">TV show</span>' : '',
       m.private ? '<span class="badge lock">🔒 Private</span>' : '',
+      m.offline ? '<span class="badge offline" title="Its folder (a USB drive?) isn\'t available">Offline</span>' : '',
       cantPlay.has(m.id) ? `<span class="badge warn" title="${esc(cantPlay.get(m.id))}">Can't play on TV</span>` : '',
       m.watched ? '<span class="badge">Watched</span>' : '',
       m.optimizing != null ? `<span class="badge">${m.optimizing < 0 ? 'Copy waiting' : `Copying ${m.optimizing}%`}</span>`
@@ -999,6 +1027,51 @@ $('#clearPin').addEventListener('click', async () => {
   loadProfiles();
 });
 
+// ---- Health ----
+const fmtAgo = (t) => {
+  if (!t) return 'never';
+  const s = Math.round((Date.now() - t) / 1000);
+  return s < 90 ? `${s} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
+};
+const fmtUptime = (ms) => { const h = Math.floor(ms / 3600000); return h >= 48 ? `${Math.floor(h / 24)} days` : h >= 1 ? `${h} h ${Math.floor(ms / 60000) % 60} min` : `${Math.floor(ms / 60000)} min`; };
+async function openHealth() {
+  try {
+    const h = await api('GET', '/admin/health');
+    $('#healthBody').innerHTML = `
+      ${h.warnings.length ? `<ul class="warnings">${h.warnings.map((w) => `<li>⚠ ${esc(w)}</li>`).join('')}</ul>` : '<p>✓ Nothing needs attention.</p>'}
+      <dl class="health-grid">
+        <dt>Battery</dt><dd>${h.batteryPercent ?? '?'}%${h.batteryTempC != null ? `, ${h.batteryTempC.toFixed(0)}°C` : ''}${h.charging ? ', charging' : ', <strong>not charging</strong>'}</dd>
+        <dt>Wi-Fi</dt><dd>${h.wifiBand ? `${esc(h.wifiBand)}${h.wifiLinkMbps ? `, ${h.wifiLinkMbps} Mbps link` : ''}` : 'not connected'}</dd>
+        <dt>Server up</dt><dd>${fmtUptime(h.uptimeMs)} · HomeReel ${esc(h.version)}</dd>
+        <dt>Last scan</dt><dd>${fmtAgo(h.lastScanAt)}${h.lastScanMs ? ` (took ${(h.lastScanMs / 1000).toFixed(1)} s)` : ''}</dd>
+        <dt>Library</dt><dd>${h.movieCount} video${h.movieCount === 1 ? '' : 's'}, ${h.showCount} show${h.showCount === 1 ? '' : 's'}${h.optimizeQueue ? `, ${h.optimizeQueue} lighter copies to make` : ''}</dd>
+        ${h.folders.map((f) => `<dt>${f.main ? 'Main folder' : 'Extra folder'}</dt><dd>${esc(f.name)}: ${f.available ? `${f.movieCount} video${f.movieCount === 1 ? '' : 's'}${f.freeBytes != null ? `, ${fmtSize(f.freeBytes)} free` : ''}` : '<strong>not available</strong>'}</dd>`).join('')}
+      </dl>
+      <h3 class="section">Recent events</h3>
+      <ul class="events">${h.events.map((e) => `<li><span class="muted">${new Date(e.time).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+        <span class="${e.level}">${esc(e.text)}</span></li>`).join('') || '<li class="muted">Nothing yet.</li>'}</ul>
+      <p class="muted small">Extra folders (a USB drive) are added on the phone: HomeReel Server → Add another folder.</p>`;
+    $('#scrim').classList.remove('hidden');
+    $('#healthPanel').classList.remove('hidden');
+  } catch (err) { if (!err.quiet) toast(err.message, true); }
+}
+function closeHealth() { $('#healthPanel').classList.add('hidden'); if (!editing) $('#scrim').classList.add('hidden'); }
+$('#healthBtn').addEventListener('click', openHealth);
+$('#healthClose').addEventListener('click', closeHealth);
+
+$('#restoreBtn').addEventListener('click', () => $('#restoreFile').click());
+$('#restoreFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (!confirm('Restore this backup? Details, progress, profiles and My Lists in it replace what\'s here for the files it recognises.')) return;
+  try {
+    const r = await api('POST', '/admin/restore', undefined, new Blob([await file.text()], { type: 'application/json' }));
+    toast(`Restored ${r.films} of ${r.filmsInBackup} videos, ${r.shows} of ${r.showsInBackup} shows, ${r.profiles} profiles`);
+    load();
+  } catch (err) { if (!err.quiet) toast(err.message, true); }
+});
+
 // ---- Settings ----
 async function openSettings() {
   try {
@@ -1181,10 +1254,12 @@ $('#privateBar').addEventListener('click', async (e) => {
 $('#edClose').addEventListener('click', () => closeEditor());
 $('#edCancel').addEventListener('click', () => closeEditor());
 $('#scrim').addEventListener('click', () => {
-  if (!$('#settings').classList.contains('hidden')) closeSettings();
+  if (!$('#healthPanel').classList.contains('hidden')) closeHealth();
+  else if (!$('#settings').classList.contains('hidden')) closeSettings();
   else closeEditor();
 });
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#healthPanel').classList.contains('hidden')) { closeHealth(); return; }
   if (e.key === 'Escape' && !$('#settings').classList.contains('hidden')) { closeSettings(); return; }
   if (e.key === 'Escape' && editing) closeEditor();
   if ((e.metaKey || e.ctrlKey) && e.key === 's' && editing) { e.preventDefault(); save(); }

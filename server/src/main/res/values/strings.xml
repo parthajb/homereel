@@ -19,6 +19,11 @@
     <string name="admin_hint">Add or remove movies from any browser on your Wi-Fi: %1$s</string>
     <string name="choose_folder">Choose movie folder</string>
     <string name="rescan">Rescan now</string>
+    <string name="add_folder">Add another folder (e.g. a USB drive)</string>
+    <string name="remove_folder">Remove an extra folder</string>
+    <string name="extra_folder_line">Also: %1$s</string>
+    <string name="battery_line">Battery: %1$d%%, %2$s°C%3$s</string>
+    <string name="not_charging">, not charging</string>
     <string name="battery">Keep running in the background</string>
     <string name="new_code">New pairing code</string>
     <string name="forget">Forget paired devices</string>

@@ -44,15 +44,19 @@ class ServerService : Service() {
             stopSelf()
             return
         }
+        app.events.info("Server started")
+        startedAt = System.currentTimeMillis()
         app.library.requestScan()
         scheduler = Executors.newSingleThreadScheduledExecutor().also {
             it.scheduleWithFixedDelay({ app.library.requestScan() }, 15, 15, TimeUnit.MINUTES)
+            it.scheduleWithFixedDelay({ runCatching { app.health.check() } }, 1, 5, TimeUnit.MINUTES)
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
+        (application as ServerApp).events.info("Server stopped")
         running = false
         scheduler?.shutdownNow()
         registration?.let { runCatching { nsd().unregisterService(it) } }
@@ -113,6 +117,9 @@ class ServerService : Service() {
         private const val NOTIFICATION_ID = 1
 
         @Volatile var running = false
+            private set
+
+        @Volatile var startedAt = 0L
             private set
 
         @Volatile var error: String? = null

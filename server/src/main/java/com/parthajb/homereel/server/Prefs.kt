@@ -13,6 +13,11 @@ class Prefs(context: Context) {
         get() = sp.getString("tree", null)?.let(Uri::parse)
         set(value) = sp.edit().putString("tree", value?.toString()).apply()
 
+    /** More folders the library also reads, such as a USB drive. Uploads and Private stay in [treeUri]. */
+    var extraTrees: List<Uri>
+        get() = sp.getString("extraTrees", null)?.split('\n')?.filter { it.isNotBlank() }?.map(Uri::parse).orEmpty()
+        set(value) = sp.edit().putString("extraTrees", value.joinToString("\n")).apply()
+
     /** False after the person taps Stop, so a reboot doesn't start the server again. */
     var enabled: Boolean
         get() = sp.getBoolean("enabled", true)

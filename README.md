@@ -151,6 +151,28 @@ Anything without a season and episode is a film.
   - During the intro, the TV offers **Skip intro**.
   - When the credits start, it offers the next episode. **Cancel** lets the credits play.
 
+## Keeping it safe and running
+
+- **Health** (admin page): the phone's battery charge and temperature, whether it's charging, the Wi-Fi band and link
+  speed, uptime, the last scan, each folder's free space, and anything that needs attention.
+  - Warnings cover a battery at 42°C or more, the phone not charging, no Wi-Fi, a folder that isn't there, less
+    than 2 GB free, and a failed scan.
+  - The phone checks itself every five minutes and writes a hot battery into the event log once an hour.
+- **Event log:** the last 200 starts, stops, scans, failed lookups, failed copies and crashes, newest first on the
+  Health panel. A crash is written down before the server dies; Android then restarts the server by itself.
+- **More folders, such as a USB drive:** on the phone, tap **Add another folder (e.g. a USB drive)** and pick a
+  folder on the drive through a USB-C OTG adapter. Its videos join the library.
+  - When the drive is unplugged, its videos are hidden from the TV and marked **Offline** on the admin page. Their
+    details and resume points are kept, and come back when the drive does.
+  - **Remove an extra folder** takes it out of the library. The files stay on the drive.
+  - The Private folder is only ever the one in the main folder; files on an extra folder can't move to Private.
+  - Moving or renaming the picked folder on the phone takes away HomeReel's access to it. Remove it and add it again.
+- **Backup** (Settings): **Download a backup** saves one JSON file with everything typed in or looked up, everyone's
+  progress, profiles and My Lists. It doesn't include the videos, the lookup keys or the parent PIN.
+  - **Restore from a backup…** on a new phone, or after a reset, matches files by name and size and keeps whichever
+    resume point is newer.
+  - Pictures aren't in the backup: **Refresh info** fetches TMDB's again, and an uploaded thumbnail needs uploading again.
+
 ## Private videos
 
 Personal videos go in a folder called **Private** at the top of the movie folder. Use **🔒 Upload into the Private
@@ -284,6 +306,8 @@ All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin co
 | `GET` / `PUT /admin/private` `{unlock, minutes}` | admin | Whether Private is unlocked, and until when; unlocks or locks it |
 | `POST /movies/{id}/move` `{private}` | admin | Moves a film into or out of the Private folder, keeping its details and resume point |
 | `DELETE /movies/{id}` | admin | Deletes the file, its subtitles and poster |
+| `GET /admin/health` | admin | Battery, Wi-Fi, folders, warnings and the recent event log |
+| `GET /admin/backup`; `POST /admin/restore` | admin | Download a backup file; restore one (returns how many films, shows and profiles came back) |
 | `GET /admin/status` | admin | Folder, free space, scan state, what can't play |
 | `POST /admin/uploads` `{name, size, private}` | admin | Starts an upload (into Private if asked), or resumes one with the same name and size |
 | `GET` / `PUT ?offset=N` / `DELETE /admin/uploads/{id}` | admin | Upload state, next piece, cancel |
@@ -298,6 +322,7 @@ All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin co
 | Stutters in 4K | Wi-Fi bandwidth. Move the phone closer to the router or onto 5 GHz, or use a smaller copy. |
 | No poster | The phone couldn't decode a frame. Add `Movie Name.jpg` beside the file. |
 | "The app lost access to the folder" | Tap **Choose movie folder** and pick it again. |
+| "HomeReel lost access to the folder …" (an extra folder) | It was moved or renamed. **Remove an extra folder**, then add it again. |
 
 ## Layout
 

@@ -44,7 +44,7 @@ class Uploads(private val cr: ContentResolver, private val prefs: Prefs) {
         if (existing.any { it.name.equals(name, ignoreCase = true) }) {
             throw HttpError(409, "A file called $name is already in the library")
         }
-        val (free, _) = Saf.space(cr, tree)
+        val (free, _) = Saf.space(tree)
         if (free != null && free < request.size + 200L * 1024 * 1024) {
             throw HttpError(507, "Not enough space on the phone for $name")
         }

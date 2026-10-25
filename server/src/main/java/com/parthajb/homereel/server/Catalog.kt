@@ -75,6 +75,10 @@ data class Entry(
     val progress: Map<String, Progress> = emptyMap(),
     /** The admin's choice for kids profiles (films; episodes follow their show). */
     val kids: String = KidsSetting.AUTO,
+    /** The extra folder the file is in; null for the main folder. */
+    val treeUri: String? = null,
+    /** In an extra folder that couldn't be read at the last scan (a USB drive unplugged). */
+    val offline: Boolean = false,
     /** A lighter copy for the TV exists in app storage (see Optimizer). */
     val optimized: Boolean = false,
     val optimizeError: String? = null,
@@ -150,6 +154,7 @@ data class Entry(
         bitrateMbps = Bitrate.mbps(size, durationMs),
         optimized = optimized,
         optimizeError = optimizeError,
+        offline = offline,
     )
 
     /** An episode: its title from TMDB, the file name, or just its number; pictures are TMDB's still or a frame. */
@@ -188,6 +193,7 @@ data class Entry(
         introStartMs = marks.introStartMs,
         introEndMs = marks.introEndMs,
         creditsStartMs = marks.creditsStartMs,
+        offline = offline,
     )
     }
 }
@@ -370,8 +376,11 @@ class Catalog(private val file: File) {
 
     @Synchronized fun size(): Int = entries.size
 
-    /** The entries for [tree], or none if the catalog was built for another folder. */
+    /** The entries, or none if the catalog was built for another main folder. */
     @Synchronized fun forTree(tree: String): Map<String, Entry> = if (tree == treeUri) entries.toMap() else emptyMap()
+
+    /** Everything that's restorable from a backup: the entries and shows as they are now. */
+    @Synchronized fun snapshot(): Pair<List<Entry>, List<ShowRecord>> = entries.values.toList() to shows.values.toList()
 
     /**
      * Swaps in a new scan. Shows follow their episodes: a new show gets a record, a show whose last episode went

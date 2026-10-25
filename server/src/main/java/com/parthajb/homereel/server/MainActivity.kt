@@ -50,6 +50,25 @@ class MainActivity : Activity() {
 
         findViewById<Button>(R.id.choose_folder).setOnClickListener { chooseFolder() }
         findViewById<Button>(R.id.rescan).setOnClickListener { app.library.requestScan() }
+        findViewById<Button>(R.id.add_folder).setOnClickListener {
+            @Suppress("DEPRECATION")
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), REQUEST_EXTRA)
+        }
+        findViewById<Button>(R.id.remove_folder).setOnClickListener {
+            val extras = app.prefs.extraTrees
+            AlertDialog.Builder(this)
+                .setTitle(R.string.remove_folder)
+                .setItems(extras.map { Saf.folderName(it) }.toTypedArray()) { _, i ->
+                    val uri = extras[i]
+                    app.library.removeFolder(uri)
+                    runCatching {
+                        contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    }
+                    refresh()
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
         findViewById<Button>(R.id.new_code).setOnClickListener {
             app.prefs.newPairCode()
             refresh()
@@ -104,10 +123,18 @@ class MainActivity : Activity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         val uri = data?.data
-        if (requestCode != REQUEST_FOLDER || resultCode != RESULT_OK || uri == null) return
+        if (resultCode != RESULT_OK || uri == null) return
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        if (requestCode == REQUEST_EXTRA) {
+            contentResolver.takePersistableUriPermission(uri, flags)
+            app.library.addFolder(uri)
+            refresh()
+            return
+        }
+        if (requestCode != REQUEST_FOLDER) return
+        // A new main folder: let go of the old main folder's permission, but keep the extra folders'.
         contentResolver.persistedUriPermissions
-            .filter { it.uri != uri }
+            .filter { it.uri != uri && it.uri !in app.prefs.extraTrees }
             .forEach { runCatching { contentResolver.releasePersistableUriPermission(it.uri, flags) } }
         contentResolver.takePersistableUriPermission(uri, flags)
         app.library.setFolder(uri)
@@ -140,6 +167,14 @@ class MainActivity : Activity() {
         } else {
             getString(R.string.library_line, Saf.folderName(tree), library.count())
         }
+        app.prefs.extraTrees.takeIf { it.isNotEmpty() }?.let { extras ->
+            val missing = library.unavailable
+            lines += getString(R.string.extra_folder_line, extras.joinToString(", ") { Saf.folderName(it) + if (it.toString() in missing) " (not available)" else "" })
+        }
+        val health = app.health.report()
+        health.batteryPercent?.let { pct ->
+            lines += getString(R.string.battery_line, pct, health.batteryTempC?.let { "%.0f".format(it) } ?: "?", if (health.charging) "" else getString(R.string.not_charging))
+        }
         if (library.scanning) lines += getString(R.string.scanning)
         library.scanError?.let { lines += getString(R.string.scan_error, it) }
         val private = library.privateState()
@@ -156,6 +191,7 @@ class MainActivity : Activity() {
         code.text = app.prefs.pairCode.chunked(3).joinToString(" ")
         admin.text = if (ip != null) getString(R.string.admin_hint, "http://$ip:$port/admin") else ""
         startStop.setText(if (running) R.string.stop else R.string.start)
+        findViewById<Button>(R.id.remove_folder).visibility = if (app.prefs.extraTrees.isEmpty()) View.GONE else View.VISIBLE
         val power = getSystemService(PowerManager::class.java)
         battery.visibility = if (power.isIgnoringBatteryOptimizations(packageName)) View.GONE else View.VISIBLE
 
@@ -189,5 +225,6 @@ class MainActivity : Activity() {
 
     private companion object {
         const val REQUEST_FOLDER = 1
+        const val REQUEST_EXTRA = 2
     }
 }

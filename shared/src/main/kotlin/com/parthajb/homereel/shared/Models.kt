@@ -119,6 +119,8 @@ data class Movie(
     val introStartMs: Long? = null,
     val introEndMs: Long? = null,
     val creditsStartMs: Long? = null,
+    /** On an extra folder that isn't there right now (a USB drive unplugged): listed for the admin only. */
+    val offline: Boolean = false,
 )
 
 /** Where a season's intro sits, and how long its end credits run, for Skip intro and an early Next episode. */
@@ -344,3 +346,49 @@ data class AdminStatus(
 
 @Serializable
 data class ErrorBody(val error: String)
+
+/** Something the server wants the admin to know about: a crash, a failed scan, a hot battery. */
+@Serializable
+data class Event(val time: Long, val level: String, val text: String) {
+    companion object {
+        const val INFO = "info"
+        const val WARN = "warn"
+        const val ERROR = "error"
+    }
+}
+
+/** A folder the library reads: the main one (uploads and Private live there) or an extra one such as a USB drive. */
+@Serializable
+data class LibraryFolder(
+    val uri: String,
+    val name: String,
+    val main: Boolean,
+    val available: Boolean,
+    val freeBytes: Long? = null,
+    val totalBytes: Long? = null,
+    val movieCount: Int = 0,
+)
+
+@Serializable
+data class Health(
+    val serverName: String,
+    val version: String,
+    val batteryPercent: Int? = null,
+    val charging: Boolean = false,
+    val batteryTempC: Double? = null,
+    val uptimeMs: Long = 0,
+    val wifiBand: String? = null,
+    val wifiLinkMbps: Int? = null,
+    val folders: List<LibraryFolder> = emptyList(),
+    val lastScanAt: Long = 0,
+    val lastScanMs: Long = 0,
+    val movieCount: Int = 0,
+    val showCount: Int = 0,
+    val optimizeQueue: Int = 0,
+    /** Plain-language problems to fix now: a hot battery, a missing USB drive, a nearly full phone. */
+    val warnings: List<String> = emptyList(),
+    val events: List<Event> = emptyList(),
+)
+
+@Serializable
+data class RestoreSummary(val films: Int, val filmsInBackup: Int, val shows: Int, val showsInBackup: Int, val profiles: Int)

@@ -9,8 +9,11 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.UUID
 
-/** Who's asking: their profile, what's on their My List, and whether they may see private videos. */
-data class Viewer(val profile: Profile, val myList: Set<String>, val seePrivate: Boolean) {
+/**
+ * Who's asking: their profile, what's on their My List, whether they may see private videos, and whether it's the
+ * admin page (which also sees files on a missing USB drive).
+ */
+data class Viewer(val profile: Profile, val myList: Set<String>, val seePrivate: Boolean, val admin: Boolean = false) {
     val pid: String get() = profile.id
     val kids: Boolean get() = profile.kids
 }
@@ -80,6 +83,18 @@ class Profiles(private val prefs: Prefs) {
     }
 
     @Synchronized fun myList(pid: String): List<String> = data.myList[pid].orEmpty()
+
+    /** Profiles and My Lists for a backup; the PIN stays on the phone. */
+    @Synchronized fun exportJson(): String = ApiJson.encodeToString(ProfileData.serializer(), data.copy(pinSalt = null, pinHash = null))
+
+    /** Takes a backup's profiles and My Lists, keeping this phone's PIN. Returns how many profiles came back. */
+    @Synchronized fun importJson(json: String): Int {
+        val incoming = runCatching { ApiJson.decodeFromString(ProfileData.serializer(), json) }.getOrNull() ?: return 0
+        if (incoming.profiles.isEmpty()) return 0
+        data = incoming.copy(pinSalt = data.pinSalt, pinHash = data.pinHash)
+        save()
+        return incoming.profiles.size
+    }
 
     @Synchronized fun setInList(pid: String, key: String, on: Boolean) {
         if (!key.matches(Regex("[ms]:[0-9a-f]{16}"))) throw HttpError(400, "Not a movie or show")

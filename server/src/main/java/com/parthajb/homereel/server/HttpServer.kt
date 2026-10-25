@@ -12,12 +12,14 @@ import com.parthajb.homereel.shared.MetadataSettingsUpdate
 import com.parthajb.homereel.shared.MovieEdit
 import com.parthajb.homereel.shared.MoveRequest
 import com.parthajb.homereel.shared.MovieList
+import com.parthajb.homereel.shared.Health
 import com.parthajb.homereel.shared.PinCheck
 import com.parthajb.homereel.shared.PinUpdate
 import com.parthajb.homereel.shared.PrivateState
 import com.parthajb.homereel.shared.Profile
 import com.parthajb.homereel.shared.ProfileEdit
 import com.parthajb.homereel.shared.ProfileList
+import com.parthajb.homereel.shared.RestoreSummary
 import com.parthajb.homereel.shared.PrivateUpdate
 import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.ShowDetail
@@ -115,6 +117,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             profile,
             app.profiles.myList(profile.id).toSet(),
             seePrivate = (role == Api.ROLE_ADMIN || library.privateUnlocked) && !profile.kids,
+            admin = role == Api.ROLE_ADMIN,
         )
         if (p.size >= 2 && p[0] == "movies") library.visible(p[1], viewer)
 
@@ -206,6 +209,25 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             p.size == 3 && p[0] == "shows" && p[2] == "skip" && method == Method.POST -> {
                 requireAdmin()
                 json(200, Show.serializer(), library.unmatchShow(p[1], skip = true))
+            }
+            p == listOf("admin", "health") && method == Method.GET -> {
+                requireAdmin()
+                json(200, Health.serializer(), app.health.report())
+            }
+            p == listOf("admin", "backup") && method == Method.GET -> {
+                requireAdmin()
+                val stamp = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(java.util.Date())
+                newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", library.backup(app.profiles)).apply {
+                    addHeader("Content-Disposition", "attachment; filename=\"homereel-backup-$stamp.json\"")
+                }
+            }
+            p == listOf("admin", "restore") && method == Method.POST -> {
+                requireAdmin()
+                val length = s.headers["content-length"]?.toLongOrNull() ?: throw HttpError(411, "Content-Length is missing")
+                if (length > 50_000_000) throw HttpError(413, "That backup is too big")
+                val bytes = ByteArray(length.toInt())
+                DataInputStream(bodies.get()!!).readFully(bytes)
+                json(200, RestoreSummary.serializer(), library.restore(bytes.decodeToString(), app.profiles))
             }
             p == listOf("admin", "private") -> {
                 requireAdmin()

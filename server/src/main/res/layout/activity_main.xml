@@ -47,6 +47,18 @@
             android:text="@string/choose_folder" />
 
         <Button
+            android:id="@+id/add_folder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/add_folder" />
+
+        <Button
+            android:id="@+id/remove_folder"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/remove_folder" />
+
+        <Button
             android:id="@+id/rescan"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

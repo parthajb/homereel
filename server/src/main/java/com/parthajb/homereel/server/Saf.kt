@@ -6,7 +6,7 @@ import android.os.Environment
 import android.os.StatFs
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
-import android.provider.DocumentsContract.Root
+import java.io.File
 
 data class DocRow(val docId: String, val name: String, val mime: String, val size: Long, val modified: Long) {
     val isDir: Boolean get() = mime == Document.MIME_TYPE_DIR
@@ -61,29 +61,17 @@ object Saf {
         return path.trimEnd('/').substringAfterLast('/').ifEmpty { "Internal storage" }
     }
 
-    /** Free and total bytes on the volume that holds the folder, when the provider says. */
-    fun space(cr: ContentResolver, tree: Uri): Pair<Long?, Long?> {
-        val authority = tree.authority ?: return null to null
+    /**
+     * Free and total bytes where a folder lives: the phone's own storage, or a USB drive or SD card (mounted at
+     * /storage/<its id>). Apps can't list the storage provider's roots, so this reads the volume itself. Null for
+     * other providers.
+     */
+    fun space(tree: Uri): Pair<Long?, Long?> {
+        if (tree.authority != "com.android.externalstorage.documents") return null to null
         val rootId = rootDocId(tree).substringBefore(':')
-        runCatching {
-            cr.query(
-                DocumentsContract.buildRootsUri(authority),
-                arrayOf(Root.COLUMN_ROOT_ID, Root.COLUMN_AVAILABLE_BYTES, "capacity_bytes"), null, null, null,
-            )?.use { c ->
-                while (c.moveToNext()) {
-                    if (c.getString(0) == rootId) {
-                        val free = if (c.isNull(1)) null else c.getLong(1)
-                        val total = if (c.isNull(2)) null else c.getLong(2)
-                        if (free != null) return free to total
-                    }
-                }
-            }
-        }
-        if (authority == "com.android.externalstorage.documents" && rootId == "primary") {
-            @Suppress("DEPRECATION")
-            val stat = StatFs(Environment.getExternalStorageDirectory().path)
-            return stat.availableBytes to stat.totalBytes
-        }
-        return null to null
+        @Suppress("DEPRECATION")
+        val dir = if (rootId == "primary") Environment.getExternalStorageDirectory() else File("/storage", rootId)
+        val stat = runCatching { StatFs(dir.path) }.getOrNull() ?: return null to null
+        return stat.availableBytes to stat.totalBytes
     }
 }

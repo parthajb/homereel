@@ -32,7 +32,7 @@ import java.io.InputStream
 import java.util.concurrent.Executors
 
 /** The library as the HTTP server and the phone screen see it: the catalog, scans, uploads and deletes. */
-class Library(context: Context, private val prefs: Prefs, private val locks: ActivityLocks) {
+class Library(context: Context, private val prefs: Prefs, private val locks: ActivityLocks, private val events: EventLog) {
     private val cr = context.contentResolver
     private val posterDir = File(context.filesDir, "posters").apply { mkdirs() }
     private val catalog = Catalog(File(context.filesDir, "catalog.json"))
@@ -46,13 +46,14 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         File(context.filesDir, "optimized"),
         object : Optimizer.Callbacks {
             override fun source(id: String): Pair<Uri, Entry>? {
-                val e = catalog.get(id) ?: return null
-                val tree = tree ?: return null
+                val e = catalog.get(id)?.takeIf { !it.offline } ?: return null
+                val tree = treeOf(e) ?: return null
                 return Saf.docUri(tree, e.docId) to e
             }
 
             override fun finished(id: String, ok: Boolean, error: String?) {
-                catalog.update(id) { it.copy(optimized = ok, optimizeError = error) }
+                val e = catalog.update(id) { it.copy(optimized = ok, optimizeError = error) }
+                if (ok) events.info("Made a lighter copy of ${e?.fileName}") else events.warn("No lighter copy of ${e?.fileName}: $error")
             }
 
             override fun busy(on: Boolean) {
@@ -77,7 +78,48 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
 
     val tree: Uri? get() = prefs.treeUri
 
+    /** The folder an entry's file is in: its extra folder, or the main one. */
+    private fun treeOf(e: Entry): Uri? = e.treeUri?.let(Uri::parse) ?: tree
+
+    @Volatile var lastScanAt = 0L
+        private set
+
+    @Volatile var lastScanMs = 0L
+        private set
+
+    /** The main folder and any extra ones, with whether they could be read at the last scan. */
+    @Volatile var unavailable: Set<String> = emptySet()
+        private set
+
+    fun folders(): List<com.parthajb.homereel.shared.LibraryFolder> {
+        val all = catalog.all()
+        return listOfNotNull(tree?.let { it to true }) .plus(prefs.extraTrees.map { it to false }).map { (uri, main) ->
+            val key = uri.toString()
+            val (free, total) = runCatching { Saf.space(uri) }.getOrNull() ?: (null to null)
+            com.parthajb.homereel.shared.LibraryFolder(
+                uri = key, name = Saf.folderName(uri), main = main, available = key !in unavailable,
+                freeBytes = free, totalBytes = total,
+                movieCount = all.count { (it.treeUri ?: tree.toString()) == key },
+            )
+        }
+    }
+
+    fun addFolder(uri: Uri) {
+        if (uri == tree || uri in prefs.extraTrees) return
+        prefs.extraTrees = prefs.extraTrees + uri
+        events.info("Added the folder ${Saf.folderName(uri)}")
+        requestScan()
+    }
+
+    fun removeFolder(uri: Uri) {
+        prefs.extraTrees = prefs.extraTrees - uri
+        events.info("Removed the folder ${Saf.folderName(uri)}")
+        requestScan()
+    }
+
     fun count(): Int = catalog.size()
+
+    fun showCount(): Int = catalog.shows().size
 
     /** Films (not episodes). Private ones only when [withPrivate]: for the admin, or while Private is unlocked. */
     /**
@@ -111,6 +153,8 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
 
     private fun canSee(e: Entry, viewer: Viewer): Boolean {
         if (e.private && !viewer.seePrivate) return false
+        // Files on a missing USB drive can't play: only the admin page lists them, marked offline.
+        if (e.offline && !viewer.admin) return false
         if (!viewer.kids) return true
         return if (e.isEpisode) e.showId?.let { catalog.show(it) }?.kidsOk == true else e.kidsOk
     }
@@ -316,6 +360,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         val tree = requireTree()
         val e = entry(id)
         if (e.isEpisode) throw HttpError(400, "Episodes stay with their show")
+        if (e.treeUri != null) throw HttpError(400, "Only files in the main folder can move to Private")
         if (e.private == toPrivate) return e.toMovie()
         val target = if (toPrivate) privateFolder(tree, create = true)!! else Saf.rootDocId(tree)
         val source = Saf.docUri(tree, e.parentDocId)
@@ -376,9 +421,36 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
             synchronized(this) { scanQueued = false }
             val tree = prefs.treeUri ?: return@execute
             scanning = true
+            val started = System.currentTimeMillis()
             try {
-                val entries = scanner.scan(tree, catalog.forTree(tree.toString()))
+                val previous = catalog.forTree(tree.toString())
+                val entries = scanner.scan(tree, previous).toMutableList()
+                // Extra folders: one that can't be read (a USB drive unplugged) keeps its entries, marked offline,
+                // so progress and details survive until it's plugged back in.
+                val missing = HashSet<String>()
+                for (extra in prefs.extraTrees) {
+                    try {
+                        entries += scanner.scan(extra, previous, main = false)
+                    } catch (e: Exception) {
+                        missing += extra.toString()
+                        entries += previous.values.filter { it.treeUri == extra.toString() }.map { it.copy(offline = true) }
+                        if (extra.toString() !in unavailable) {
+                            Log.w(TAG, "Extra folder unavailable", e)
+                            val name = Saf.folderName(extra)
+                            // Moving or renaming a folder on the phone takes away the app's access to it.
+                            events.warn(
+                                if (e is SecurityException) "HomeReel lost access to the folder $name. Remove it and add it again."
+                                else "The folder $name isn't available (USB drive unplugged?)",
+                            )
+                        }
+                    }
+                }
+                unavailable = missing
+                val before = catalog.size()
                 catalog.replaceAll(tree.toString(), entries)
+                if (entries.size != before) events.info("Library scanned: ${entries.size} videos (was $before)")
+                lastScanAt = System.currentTimeMillis()
+                lastScanMs = lastScanAt - started
                 val showIds = entries.mapNotNull { it.showId }.toSet()
                 val keep = entries.flatMap {
                     listOf("${it.id}.jpg", "custom-${it.id}.jpg", "tmdb-p-${it.id}.jpg", "tmdb-b-${it.id}.jpg", "tmdb-es-${it.id}.jpg")
@@ -391,9 +463,11 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
                 autoOptimize()
             } catch (e: SecurityException) {
                 scanError = "The app lost access to the folder. Choose it again."
+                events.error(scanError!!)
                 Log.w(TAG, "Scan failed", e)
             } catch (e: Exception) {
                 scanError = e.message ?: e.javaClass.simpleName
+                events.error("Scan failed: $scanError")
                 Log.w(TAG, "Scan failed", e)
             } finally {
                 scanning = false
@@ -402,8 +476,9 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
     }
 
     fun open(id: String): Pair<Entry, ParcelFileDescriptor> {
-        val tree = requireTree()
         val e = entry(id)
+        if (e.offline) throw HttpError(404, "That file's folder isn't available right now")
+        val tree = treeOf(e) ?: requireTree()
         val pfd = try {
             cr.openFileDescriptor(Saf.docUri(tree, e.docId), "r")
         } catch (ex: Exception) {
@@ -448,7 +523,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
 
     private fun sidecarPoster(e: Entry): Pair<InputStream, String>? {
         val docId = e.posterDocId ?: return null
-        val tree = tree ?: return null
+        val tree = treeOf(e) ?: return null
         val mime = if (docId.endsWith(".png", ignoreCase = true)) "image/png" else "image/jpeg"
         return runCatching { cr.openInputStream(Saf.docUri(tree, docId)) }.getOrNull()?.let { it to mime }
     }
@@ -480,7 +555,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
     fun subtitle(id: String, index: Int): Pair<InputStream, String> {
         val e = entry(id)
         val docId = e.subtitleDocIds.getOrNull(index) ?: throw HttpError(404, "No such subtitle")
-        val stream = runCatching { cr.openInputStream(Saf.docUri(requireTree(), docId)) }.getOrNull()
+        val stream = runCatching { cr.openInputStream(Saf.docUri(treeOf(e) ?: requireTree(), docId)) }.getOrNull()
             ?: throw HttpError(404, "The subtitle file is gone")
         return stream to (e.subtitles.getOrNull(index)?.mime ?: "application/x-subrip")
     }
@@ -550,6 +625,79 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
             next.copy(kids = edit.kids ?: next.kids)
         } ?: throw HttpError(404, "No such movie")).toMovie()
     }
+
+    // ---- Backup and restore ----
+
+    /**
+     * Everything typed in, looked up or watched, as one JSON file: entries and shows (with their TMDB details,
+     * progress and settings), profiles and My Lists. Not the videos, keys, PIN or downloaded pictures; pictures come
+     * back with Refresh info, or by themselves for new lookups.
+     */
+    fun backup(profiles: Profiles): String {
+        val (entries, shows) = catalog.snapshot()
+        return ApiJson.encodeToString(
+            BackupFile.serializer(),
+            BackupFile(1, System.currentTimeMillis(), prefs.serverName, entries, shows, profiles.exportJson(), prefs.autoMatch, prefs.autoOptimize),
+        )
+    }
+
+    /**
+     * Puts a backup's details back on the files that are here now, matched by id (same folder) or by file name and
+     * size (a new phone or a new folder). File-level facts (where it is, its tracks) stay as scanned.
+     */
+    fun restore(json: String, profiles: Profiles): com.parthajb.homereel.shared.RestoreSummary {
+        val b = try {
+            ApiJson.decodeFromString(BackupFile.serializer(), json)
+        } catch (e: Exception) {
+            throw HttpError(400, "That isn't a HomeReel backup")
+        }
+        val current = catalog.all()
+        val byName = current.groupBy { it.fileName to it.size }
+        var films = 0
+        for (old in b.entries) {
+            val target = catalog.get(old.id) ?: byName[old.fileName to old.size]?.singleOrNull() ?: continue
+            catalog.update(target.id) {
+                it.copy(
+                    titleOverride = old.titleOverride, yearOverridden = old.yearOverridden, yearOverride = old.yearOverride,
+                    description = old.description, genres = old.genres, imdbRating = old.imdbRating, kids = old.kids,
+                    // Pictures aren't in the backup: keep the details and let Refresh fetch them again.
+                    tmdb = old.tmdb?.copy(poster = false, backdrop = false), match = old.match,
+                    episodeInfo = old.episodeInfo?.copy(still = false),
+                    progress = mergeProgress(it.progress, old.progress + legacy(old)),
+                    artVersion = System.currentTimeMillis(),
+                )
+            }
+            films++
+        }
+        var shows = 0
+        val showsByTitle = catalog.shows().associateBy { Matching.normalise(it.parsedTitle) }
+        for (old in b.shows) {
+            val target = catalog.show(old.id) ?: showsByTitle[Matching.normalise(old.parsedTitle)] ?: continue
+            catalog.updateShow(target.id) {
+                it.copy(
+                    titleOverride = old.titleOverride, yearOverridden = old.yearOverridden, yearOverride = old.yearOverride,
+                    description = old.description, genres = old.genres, imdbRating = old.imdbRating, kids = old.kids,
+                    tmdb = old.tmdb?.copy(poster = false, backdrop = false), match = old.match, markers = old.markers,
+                    artVersion = System.currentTimeMillis(),
+                )
+            }
+            shows++
+        }
+        val restoredProfiles = b.profiles?.let { profiles.importJson(it) } ?: 0
+        prefs.autoMatch = b.autoMatch
+        prefs.autoOptimize = b.autoOptimize
+        events.info("Restored a backup from ${java.text.DateFormat.getDateInstance().format(java.util.Date(b.exportedAt))}: $films films, $shows shows")
+        return com.parthajb.homereel.shared.RestoreSummary(films, b.entries.size, shows, b.shows.size, restoredProfiles)
+    }
+
+    private fun legacy(e: Entry): Map<String, Progress> =
+        if (e.lastPlayedAt > 0 && Profiles.MAIN !in e.progress) mapOf(Profiles.MAIN to Progress(e.positionMs, e.watched, e.lastPlayedAt)) else emptyMap()
+
+    /** For each profile, whichever was played last wins. */
+    private fun mergeProgress(now: Map<String, Progress>, old: Map<String, Progress>): Map<String, Progress> =
+        (now.keys + old.keys).associateWith { pid ->
+            listOfNotNull(now[pid], old[pid]).maxByOrNull { it.lastPlayedAt }!!
+        }
 
     // ---- Lighter copies ----
 
@@ -762,8 +910,9 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
 
     /** Deletes the video and the poster and subtitles that belong only to it. */
     fun delete(id: String) {
-        val tree = requireTree()
         val e = entry(id)
+        if (e.offline) throw HttpError(400, "That file's folder isn't available right now")
+        val tree = treeOf(e) ?: requireTree()
         // A folder's poster.jpg is only ever used for the folder's one movie, so it belongs to this movie too.
         val docs = listOf(e.docId) + e.subtitleDocIds + listOfNotNull(e.posterDocId)
         for (docId in docs) {
@@ -805,7 +954,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
 
     fun status(serverName: String): AdminStatus {
         val tree = tree
-        val (free, total) = tree?.let { runCatching { Saf.space(cr, it) }.getOrNull() } ?: (null to null)
+        val (free, total) = tree?.let { runCatching { Saf.space(it) }.getOrNull() } ?: (null to null)
         val (cantPlay, source) = cantPlay()
         return AdminStatus(
             serverName = serverName,
@@ -823,6 +972,18 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
             optimizeQueue = optimizer.queued(),
         )
     }
+
+    @kotlinx.serialization.Serializable
+    private class BackupFile(
+        val version: Int,
+        val exportedAt: Long,
+        val serverName: String,
+        val entries: List<Entry>,
+        val shows: List<ShowRecord>,
+        val profiles: String? = null,
+        val autoMatch: Boolean = true,
+        val autoOptimize: Boolean = true,
+    )
 
     private companion object {
         const val TAG = "HomeReel"

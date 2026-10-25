@@ -21,6 +21,7 @@ import com.parthajb.homereel.shared.Subtitle
 import com.parthajb.homereel.shared.TitleParser
 import com.parthajb.homereel.shared.VideoTrack
 import java.io.File
+import java.io.FileNotFoundException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -34,7 +35,11 @@ class Scanner(private val context: Context, private val posterDir: File) {
     /** A folder still to walk: its document id, the folder names from the top down to it, and whether it's private. */
     private class Dir(val docId: String, val path: List<String>, val private: Boolean)
 
-    fun scan(tree: Uri, previous: Map<String, Entry>): List<Entry> {
+    /** [main] is the main folder: only it has a Private folder. Entries from an extra folder remember it. */
+    fun scan(tree: Uri, previous: Map<String, Entry>, main: Boolean = true): List<Entry> {
+        // A folder that's gone (a USB drive unplugged, a folder renamed) must fail loudly: listing it just comes back
+        // empty, which would read as "every video was deleted" and throw their details away.
+        Saf.row(cr, tree, Saf.rootDocId(tree)) ?: throw FileNotFoundException("${Saf.folderName(tree)} isn't there")
         val result = ArrayList<Entry>()
         val pending = ArrayDeque<Dir>().apply { add(Dir(Saf.rootDocId(tree), emptyList(), false)) }
         while (pending.isNotEmpty()) {
@@ -44,7 +49,7 @@ class Scanner(private val context: Context, private val posterDir: File) {
             if (dir.private) hideFromGallery(tree, dir, rows)
             rows.filter { it.isDir && !it.name.startsWith(".") }.forEach {
                 // The Private folder is the one called Private at the top of the library, and everything inside it.
-                val private = dir.private || (dir.path.isEmpty() && it.name.equals(PRIVATE_FOLDER, ignoreCase = true))
+                val private = dir.private || (main && dir.path.isEmpty() && it.name.equals(PRIVATE_FOLDER, ignoreCase = true))
                 pending += Dir(it.docId, dir.path + it.name, private)
             }
             val files = rows.filter { !it.isDir && !it.name.startsWith(".") && !it.name.endsWith(".part") }
@@ -56,7 +61,8 @@ class Scanner(private val context: Context, private val posterDir: File) {
                 null
             }
             for (video in videos) {
-                result += entryFor(tree, dir, video, files, folderPoster, previous)
+                val e = entryFor(tree, dir, video, files, folderPoster, previous)
+                result += e.copy(treeUri = if (main) null else tree.toString(), offline = false)
             }
         }
         return result
