@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.serialization'
+}
+
+android {
+    namespace 'com.parthajb.homereel.server'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.parthajb.homereel.server'
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Sideloaded, never published: the debug key lets a release install over a debug build.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation project(':shared')
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    // Only for reading each file's tracks (MetadataRetriever): the phone never plays anything.
+    implementation 'androidx.media3:media3-exoplayer:1.4.1'
+}

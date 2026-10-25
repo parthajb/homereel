@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The phone serves plain HTTP on the home network. Android can't limit cleartext to private address ranges
+     here, so ApiClient refuses any address that isn't on the LAN instead. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

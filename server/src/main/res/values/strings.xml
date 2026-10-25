@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HomeReel Server</string>
+    <string name="channel_name">Movie server</string>
+    <string name="notification_title">Serving your movies</string>
+    <string name="notification_text">Your TV can play what\'s in the movie folder.</string>
+    <string name="status_running">● Running at %1$s</string>
+    <string name="status_no_wifi">● Running, but not on Wi-Fi</string>
+    <string name="status_stopped">○ Stopped</string>
+    <string name="wifi_line">Wi-Fi: %1$s, %2$d Mbps</string>
+    <string name="no_folder">No movie folder yet. Tap “Choose movie folder”.</string>
+    <string name="library_line">Folder: %1$s, %2$d movies</string>
+    <string name="scanning">Scanning the folder…</string>
+    <string name="scan_error">Last scan failed: %1$s</string>
+    <string name="private_locked">Private: locked (%1$d videos)</string>
+    <string name="private_unlocked">Private: unlocked on the TV until %1$s</string>
+    <string name="paired_devices">Paired devices: %1$d</string>
+    <string name="code_label">Pairing code (enter it on the TV, or in a browser for the admin page)</string>
+    <string name="admin_hint">Add or remove movies from any browser on your Wi-Fi: %1$s</string>
+    <string name="choose_folder">Choose movie folder</string>
+    <string name="rescan">Rescan now</string>
+    <string name="battery">Keep running in the background</string>
+    <string name="new_code">New pairing code</string>
+    <string name="forget">Forget paired devices</string>
+    <string name="forget_confirm">The TV and any browsers will need the pairing code again.</string>
+    <string name="start">Start server</string>
+    <string name="stop">Stop server</string>
+    <string name="cant_play_title">Files the TV may not play</string>
+    <string name="cant_play_none">None found.</string>
+    <string name="cant_play_tv">The TV checked these against its own decoders:</string>
+    <string name="cant_play_guess">A guess until the TV app connects:</string>
+</resources>

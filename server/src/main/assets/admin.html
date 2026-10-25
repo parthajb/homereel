@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeReel</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --raised: #ffffff; --fg: #16171b; --muted: #61656f; --line: #e2e4e9;
+    --accent: #c98a00; --accent-strong: #f5b301; --accent-fg: #1b1300; --warn: #a15c07; --warn-bg: #fff4dc;
+    --danger: #c0262d; --chip: #eef0f4; --shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 24px rgb(0 0 0 / 6%);
+    --scrim: rgb(10 10 14 / 45%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0f13; --surface: #16181e; --raised: #1c1f26; --fg: #ececf0; --muted: #9a9fab; --line: #2a2e37;
+      --accent: #f5b301; --accent-strong: #f5b301; --accent-fg: #1b1300; --warn: #fbbf24; --warn-bg: #3a2a07;
+      --danger: #f87171; --chip: #262a33; --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 10px 30px rgb(0 0 0 / 35%);
+      --scrim: rgb(0 0 0 / 60%);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button {
+    border: 1px solid var(--line); background: var(--surface); padding: 7px 14px; border-radius: 9px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  button:hover { border-color: var(--muted); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-fg); font-weight: 600; }
+  button.ghost { background: transparent; border-color: transparent; }
+  button.danger { color: var(--danger); }
+  input[type=text], input[type=number], input[type=search], input[type=password], textarea {
+    width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg);
+  }
+  textarea { resize: vertical; min-height: 110px; }
+  label.field { display: block; margin-bottom: 14px; }
+  label.field > span { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+
+  /* Pairing */
+  #pair { max-width: 380px; margin: 72px auto; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+  #pair input { font-size: 30px; letter-spacing: 8px; text-align: center; margin: 14px 0; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; }
+  .brand svg { flex: none; }
+  .bar .brand { min-width: 0; }
+  .bar .brand span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .err { color: var(--danger); }
+
+  /* Header */
+  header {
+    position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line);
+  }
+  .bar { max-width: 1200px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .bar .grow { flex: 1; min-width: 160px; }
+  #search { max-width: 340px; }
+  .tabs { max-width: 1200px; margin: 0 auto; padding: 0 20px 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tab { border-radius: 999px; padding: 5px 12px; font-size: 13px; background: var(--chip); border-color: transparent; }
+  .tab[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+  .tab .n { opacity: .7; margin-left: 2px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 18px 20px 60px; }
+
+  /* Uploads */
+  #drop {
+    border: 2px dashed var(--line); border-radius: 14px; padding: 22px; text-align: center; margin-bottom: 18px;
+    background: var(--surface);
+  }
+  #drop.over, body.dragging #drop { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+  #uploads:empty { display: none; }
+  #uploads { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 16px; margin-bottom: 18px; }
+  .up { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .up:last-child { border-bottom: 0; }
+  .up .name { overflow-wrap: anywhere; }
+  .up progress { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--accent-strong); }
+  .notice { padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; background: var(--warn-bg); color: var(--warn); font-size: 14px; }
+
+  /* Grid */
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 22px 18px; }
+  .card { cursor: pointer; border-radius: 12px; outline: none; }
+  .art { position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; background: linear-gradient(160deg, #2e2a6b, #151527); box-shadow: var(--shadow); }
+  .art img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .25s ease; }
+  .card:hover .art img { transform: scale(1.04); }
+  .art .placeholder { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; text-align: center; color: #fff; font-weight: 600; }
+  .art .overlay { position: absolute; inset: auto 0 0 0; padding: 30px 10px 10px; background: linear-gradient(transparent, rgb(0 0 0 / 75%)); opacity: 0; transition: opacity .2s; color: #fff; font-size: 13px; font-weight: 600; }
+  .card:hover .overlay, .card:focus-visible .overlay { opacity: 1; }
+  .badges { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+  .badge { font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 6px; background: rgb(0 0 0 / 70%); color: #fff; }
+  .badge.warn { background: #f5b301; color: #1b1300; }
+  .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgb(255 255 255 / 25%); }
+  .progress i { display: block; height: 100%; background: #e50914; }
+  .card h3 { font-size: 15px; margin: 9px 0 2px; line-height: 1.3; overflow-wrap: anywhere; }
+  .meta { font-size: 13px; color: var(--muted); }
+  .star { color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); }
+  .empty { text-align: center; padding: 50px 10px; color: var(--muted); }
+
+  /* Editor drawer */
+  #scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 20; }
+  #editor {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); z-index: 21; background: var(--surface);
+    box-shadow: var(--shadow); display: flex; flex-direction: column; animation: slide .18s ease-out;
+  }
+  @keyframes slide { from { transform: translateX(30px); opacity: .4; } }
+  .ed-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); gap: 10px; }
+  .ed-head h2 { margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+  .ed-body { overflow: auto; padding: 20px; display: grid; grid-template-columns: 200px 1fr; gap: 24px; }
+  .ed-art .art { box-shadow: none; }
+  .ed-art .actions { display: grid; gap: 8px; margin-top: 10px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rating { position: relative; }
+  .rating input { padding-left: 30px; }
+  .rating::before { content: "★"; position: absolute; left: 11px; top: 33px; color: var(--accent); }
+  .genre-box { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); }
+  .genre-box .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 10px; background: var(--chip); }
+  .genre-box .chip button { border: 0; background: transparent; padding: 0 4px; line-height: 1; }
+  .genre-box input { flex: 1; min-width: 120px; border: 0; background: transparent; padding: 5px; }
+  .genre-box input:focus-visible { outline: none; }
+  .suggest { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .suggest button { font-size: 12px; padding: 3px 9px; border-radius: 999px; }
+  .counter { text-align: right; font-size: 12px; color: var(--muted); margin-top: 3px; }
+  dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 13px; margin: 6px 0 0; }
+  dl.facts dt { color: var(--muted); }
+  dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+  details.tech { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+  details.tech summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+  .ed-foot { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); align-items: center; }
+  .ed-foot .grow { flex: 1; }
+
+  .lockline { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .lockline .lock { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .lockline .lock button { font-size: 12px; padding: 1px 8px; border-radius: 6px; margin-left: 4px; }
+  .pending-reset { opacity: .55; }
+  .info-box { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; background: var(--bg); }
+  .info-box .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
+  .info-box .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .info-box .actions button { font-size: 13px; padding: 5px 10px; }
+  .find { display: flex; gap: 8px; margin-top: 10px; }
+  .find input[type=text] { flex: 1; }
+  .find input[type=number] { width: 90px; }
+  .results { display: grid; gap: 8px; margin-top: 10px; max-height: 340px; overflow: auto; }
+  .result { display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center; padding: 6px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); }
+  .result img, .result .noimg { width: 46px; height: 69px; border-radius: 5px; object-fit: cover; background: var(--chip); }
+  .result .ov { font-size: 12px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .cert { display: inline-block; border: 1px solid var(--muted); border-radius: 4px; padding: 0 5px; font-size: 11px; line-height: 16px; margin-left: 4px; }
+  #settings .ed-body { display: block; }
+  .switch { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 16px; }
+  .switch input { margin-top: 4px; }
+  .private-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px;
+    margin-bottom: 16px; border: 1px solid var(--line); background: var(--surface); }
+  .private-bar.open { border-color: var(--accent); }
+  .private-bar .grow { flex: 1; min-width: 200px; }
+  .private-bar select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  .badge.lock { background: #111; }
+  .badge.show { background: #2563eb; }
+  .episodes { margin: 4px 0 0; padding-left: 0; list-style: none; font-size: 13px; max-height: 260px; overflow: auto; }
+  .episodes li { padding: 4px 0; border-bottom: 1px solid var(--line); display: flex; gap: 8px; }
+  .episodes .num { color: var(--muted); min-width: 52px; }
+  .up-private { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 14px; }
+  footer.attrib { max-width: 1200px; margin: 0 auto; padding: 0 20px 30px; font-size: 12px; color: var(--muted); }
+  footer.attrib a { color: inherit; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 40; background: var(--fg); color: var(--bg);
+    padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow); font-size: 14px; max-width: calc(100% - 32px);
+  }
+  #toast.err { background: var(--danger); color: #fff; }
+
+  @media (max-width: 680px) {
+    .bar { padding: 10px 16px; }
+    .tabs, main { padding-left: 16px; padding-right: 16px; }
+    #search { max-width: none; order: 3; flex-basis: 100%; }
+    #grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 18px 12px; }
+    .ed-body { grid-template-columns: 1fr; }
+    .ed-art { display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: start; }
+    .ed-art .actions { margin-top: 0; }
+    .row2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<section id="pair" class="hidden">
+  <div class="brand"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8l6 4-6 4z" fill="#f5b301"/></svg>HomeReel</div>
+  <p class="muted">Enter the 6-digit pairing code shown in the HomeReel Server app on the phone.</p>
+  <form id="pairForm">
+    <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required aria-label="Pairing code">
+    <button class="primary" type="submit" style="width:100%;justify-content:center">Pair this browser</button>
+  </form>
+  <p id="pairErr" class="err"></p>
+</section>
+
+<div id="app" class="hidden">
+  <header>
+    <div class="bar">
+      <div class="grow">
+        <div class="brand"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8l6 4-6 4z" fill="#f5b301"/></svg><span id="name">HomeReel</span></div>
+        <div id="stats" class="muted small"></div>
+      </div>
+      <input id="search" type="search" placeholder="Search titles, genres, files" aria-label="Search">
+      <button id="uploadBtn" class="primary" type="button">＋ Add movies</button>
+      <button id="rescan" type="button" title="Look for files copied to the phone another way">Rescan</button>
+      <button id="settingsBtn" type="button" title="Online movie info settings" aria-label="Settings">⚙︎ Settings</button>
+    </div>
+    <div class="tabs" role="group" aria-label="Filter">
+      <button class="tab" data-filter="all" aria-pressed="true">All <span class="n" id="n-all"></span></button>
+      <button class="tab" data-filter="movies" aria-pressed="false">Movies <span class="n" id="n-movies"></span></button>
+      <button class="tab" data-filter="shows" aria-pressed="false">TV shows <span class="n" id="n-shows"></span></button>
+      <button class="tab" data-filter="private" aria-pressed="false">🔒 Private <span class="n" id="n-private"></span></button>
+      <button class="tab" data-filter="match" aria-pressed="false">Needs a match <span class="n" id="n-match"></span></button>
+      <button class="tab" data-filter="details" aria-pressed="false">Needs details <span class="n" id="n-details"></span></button>
+      <button class="tab" data-filter="cantplay" aria-pressed="false">Can't play on TV <span class="n" id="n-cantplay"></span></button>
+      <button class="tab" data-filter="watching" aria-pressed="false">Watching <span class="n" id="n-watching"></span></button>
+    </div>
+  </header>
+
+  <main>
+    <div id="privateBar" class="private-bar"></div>
+    <div id="drop" class="hidden">
+      <strong>Drop movie files here</strong> <span class="muted">or</span>
+      <button id="pick" type="button">choose files</button>
+      <input id="files" type="file" multiple class="hidden" accept="video/*,.mkv,.avi,.m4v,.mov,.webm,.srt,.vtt">
+      <div class="muted small" style="margin-top:8px">
+        Video files, plus subtitles named like the movie (<code>Movie.en.srt</code>).
+        If the Wi-Fi drops, an upload carries on from where it stopped. You can add a thumbnail and details after.
+        For a TV series, name files like <code>Show Name S01E02.mkv</code>.
+      </div>
+      <label class="up-private"><input type="checkbox" id="upPrivate"> 🔒 Upload into the Private folder</label>
+    </div>
+    <div id="uploads"></div>
+    <div id="scanErr" class="notice hidden"></div>
+    <div id="metaNotice" class="notice hidden"></div>
+    <div id="grid"></div>
+  </main>
+  <footer class="attrib">
+    Movie details and pictures come from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a>,
+    and IMDb ratings from <a href="https://www.omdbapi.com/" target="_blank" rel="noopener">OMDb</a>, when you add keys in Settings.
+    This product uses the TMDB API but is not endorsed or certified by TMDB.
+  </footer>
+</div>
+
+<div id="scrim" class="hidden"></div>
+<aside id="editor" class="hidden" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+  <div class="ed-head">
+    <h2 id="edTitle">Edit movie</h2>
+    <button class="ghost" type="button" id="edClose" aria-label="Close">✕</button>
+  </div>
+  <form id="edForm" class="ed-body" autocomplete="off">
+    <div class="ed-art">
+      <div class="art" id="edArt"></div>
+      <div class="actions">
+        <button type="button" id="edPosterBtn">Upload thumbnail</button>
+        <input type="file" id="edPoster" accept="image/jpeg,image/png" class="hidden">
+        <button type="button" id="edPosterReset" class="hidden">Use a frame from the video</button>
+        <div class="muted small">A portrait picture works best (2:3, like a film poster).</div>
+      </div>
+    </div>
+    <div>
+      <div class="info-box" id="infoBox">
+        <div class="head"><div id="infoState"></div><div class="actions" id="infoActions"></div></div>
+        <div id="findPanel" class="hidden">
+          <div class="find">
+            <input type="text" id="findQ" placeholder="Title to search for" aria-label="Title to search for">
+            <input type="number" id="findYear" placeholder="Year" min="1870" max="2200" aria-label="Year">
+            <button type="button" class="primary" id="findGo">Search</button>
+          </div>
+          <div class="results" id="results"></div>
+        </div>
+      </div>
+      <label class="field"><span class="lockline" data-field="title">Title</span><input type="text" id="fTitle" maxlength="200" placeholder="Leave empty to use the file name"></label>
+      <div class="row2">
+        <label class="field"><span class="lockline" data-field="year">Year</span><input type="number" id="fYear" min="1870" max="2200" step="1" placeholder="e.g. 2019"></label>
+        <label class="field rating"><span class="lockline" data-field="rating">IMDb rating</span><input type="number" id="fRating" min="0" max="10" step="0.1" placeholder="e.g. 7.8"></label>
+      </div>
+      <div class="field">
+        <span class="lockline" data-field="genres" style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px">Genres (up to 5)</span>
+        <div class="genre-box" id="genreBox">
+          <input type="text" id="fGenre" placeholder="Type a genre and press Enter" list="genreList" aria-label="Add a genre">
+        </div>
+        <datalist id="genreList"></datalist>
+        <div class="suggest" id="genreSuggest"></div>
+      </div>
+      <label class="field"><span class="lockline" data-field="description">Description</span><textarea id="fDesc" maxlength="2000" placeholder="What's it about? Shown on the TV."></textarea><div class="counter" id="descCount"></div></label>
+      <details class="tech">
+        <summary>File details</summary>
+        <dl class="facts" id="facts"></dl>
+      </details>
+    </div>
+  </form>
+  <div class="ed-foot">
+    <button type="button" class="danger ghost" id="edDelete">Delete movie</button>
+    <button type="button" class="ghost" id="edMove">Move to Private</button>
+    <span class="grow"></span>
+    <button type="button" id="edCancel">Cancel</button>
+    <button type="button" class="primary" id="edSave">Save</button>
+  </div>
+</aside>
+
+<aside id="settings" class="hidden" role="dialog" aria-modal="true" aria-labelledby="setTitle" style="position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:21;background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column">
+  <div class="ed-head">
+    <h2 id="setTitle">Online movie info</h2>
+    <button class="ghost" type="button" id="setClose" aria-label="Close">✕</button>
+  </div>
+  <form id="setForm" class="ed-body" autocomplete="off">
+    <p class="muted small" style="margin-top:0">
+      With a free TMDB key, the phone fills in each movie's poster, backdrop, description, genres, cast, director and
+      age rating by itself. Add an OMDb key too for the real IMDb rating; without one, TMDB's own score is shown.
+      The TV never goes online: the phone fetches everything once and keeps it.
+    </p>
+    <label class="field"><span>TMDB API key or read access token</span>
+      <input type="password" id="sTmdb" placeholder="Paste your key" autocomplete="off" spellcheck="false"></label>
+    <div class="muted small" style="margin:-8px 0 14px" id="sTmdbState"></div>
+    <label class="field"><span>OMDb API key (optional, for IMDb ratings)</span>
+      <input type="password" id="sOmdb" placeholder="Paste your key" autocomplete="off" spellcheck="false"></label>
+    <div class="muted small" style="margin:-8px 0 14px" id="sOmdbState"></div>
+    <label class="switch"><input type="checkbox" id="sAuto"><span>Look up new movies automatically<br>
+      <span class="muted small">Only confident matches are filled in. Others wait under “Needs a match”. Camera clips
+      (DJI_, VID_, PXL_…) and anything in a “Home videos” folder are never looked up.</span></span></label>
+    <div id="sTest" class="hidden">
+      <label class="field"><span>Test hook: TMDB base URL (debug builds only)</span><input type="text" id="sBase"></label>
+      <label class="field"><span>Test hook: image base URL</span><input type="text" id="sImg"></label>
+      <label class="field"><span>Test hook: OMDb base URL</span><input type="text" id="sOmdbBase"></label>
+    </div>
+    <p class="muted small"><strong>Privacy:</strong> movie titles and years are sent to TMDB, and IMDb ids to OMDb,
+      to find their details. Nothing else leaves the phone. The keys stay on the phone; this page can only see whether
+      they're set.</p>
+    <p class="small"><a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Get a free TMDB key</a> ·
+      <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">Get a free OMDb key</a></p>
+  </form>
+  <div class="ed-foot">
+    <button type="button" id="sRun">Look up missing info now</button>
+    <span class="grow"></span>
+    <button type="button" class="primary" id="sSave">Save</button>
+  </div>
+</aside>
+
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+const API = '/api/v1';
+const CHUNK = 8 * 1024 * 1024;
+const COMMON_GENRES = ['Action', 'Adventure', 'Animation', 'Biography', 'Comedy', 'Crime', 'Documentary', 'Drama',
+  'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Sport', 'Thriller',
+  'War', 'Western', 'Home video'];
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fmtSize = (b) => b == null ? '' : b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB';
+const fmtDur = (ms) => {
+  if (!ms) return '';
+  const m = Math.max(1, Math.round(ms / 60000));
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m} min`;
+};
+const describe = (mime) => ({
+  'video/avc': 'H.264', 'video/hevc': 'HEVC (H.265)', 'video/x-vnd.on2.vp9': 'VP9', 'video/av01': 'AV1',
+  'video/mp4v-es': 'MPEG-4', 'audio/mp4a-latm': 'AAC', 'audio/mpeg': 'MP3', 'audio/ac3': 'Dolby Digital',
+  'audio/eac3': 'Dolby Digital Plus', 'audio/eac3-joc': 'Dolby Atmos', 'audio/true-hd': 'Dolby TrueHD',
+  'audio/vnd.dts': 'DTS', 'audio/vnd.dts.hd': 'DTS-HD', 'audio/opus': 'Opus', 'audio/flac': 'FLAC',
+}[mime] || (mime || '').split('/').pop());
+/** Films and shows share the grid and the editor; their API paths differ. */
+const itemPath = (m) => `${m._type === 'show' ? '/shows/' : '/movies/'}${encodeURIComponent(m.id)}`;
+const posterUrl = (m) => `${API}${itemPath(m)}/poster?v=${m.artVersion || 0}`;
+const tag = (type) => (m) => Object.assign(m, { _type: type, _key: (type === 'show' ? 's:' : 'm:') + m.id });
+
+let movies = [];
+let byId = new Map();
+let cantPlay = new Map();
+let filter = 'all';
+let query = '';
+let uploading = false;
+let reloadTimer = null;
+
+function toast(text, isError) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.className = isError ? 'err' : '';
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.add('hidden'), isError ? 6000 : 2600);
+}
+
+async function api(method, path, body, raw) {
+  const opts = { method, credentials: 'same-origin', headers: { 'X-HomeReel': '1' } };
+  if (raw) {
+    opts.headers['Content-Type'] = raw.type || 'application/octet-stream';
+    opts.body = raw;
+  } else if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(API + path, opts);
+  const text = await r.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch (_) { /* not JSON */ }
+  if (r.status === 401) { showPair(); throw Object.assign(new Error('Not paired'), { quiet: true }); }
+  if (!r.ok) throw Object.assign(new Error(data.error || r.statusText), { status: r.status, data });
+  return data;
+}
+
+function showPair() {
+  $('#app').classList.add('hidden');
+  $('#pair').classList.remove('hidden');
+  $('#code').focus();
+}
+
+$('#pairForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('#pairErr').textContent = '';
+  try {
+    await api('POST', '/pair', { code: $('#code').value.replace(/\s/g, ''), client: 'Browser: ' + navigator.userAgent.slice(0, 60), role: 'admin' });
+    $('#pair').classList.add('hidden');
+    load();
+  } catch (err) {
+    $('#pairErr').textContent = err.message;
+  }
+});
+
+async function load() {
+  clearTimeout(reloadTimer);
+  try {
+    const [status, list, showList, priv] = await Promise.all([
+      api('GET', '/admin/status'), api('GET', '/movies'), api('GET', '/shows'), api('GET', '/admin/private'),
+    ]);
+    $('#app').classList.remove('hidden');
+    applyStatus(status);
+    renderPrivate(priv);
+    movies = [...list.movies.map(tag('movie')), ...showList.shows.map(tag('show'))]
+      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+    byId = new Map(movies.map((m) => [m._key, m]));
+    renderGrid();
+    if (status.scanning || metaBusy) reloadTimer = setTimeout(load, status.scanning ? 2000 : 4000);
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+}
+
+function applyStatus(st) {
+  $('#name').textContent = st.serverName;
+  document.title = st.serverName;
+  const parts = [`${st.movieCount} movie${st.movieCount === 1 ? '' : 's'}`];
+  parts.push(st.libraryName ? `folder “${st.libraryName}”` : 'no folder chosen on the phone yet');
+  if (st.freeBytes != null) parts.push(`${fmtSize(st.freeBytes)} free`);
+  if (st.scanning) parts.push('scanning…');
+  $('#stats').textContent = parts.join(' · ');
+  $('#scanErr').textContent = st.scanError ? 'Last scan failed: ' + st.scanError : '';
+  $('#scanErr').classList.toggle('hidden', !st.scanError);
+  cantPlay = new Map(st.cantPlay.map((i) => [i.id, i.reason]));
+  cantPlay.source = st.cantPlaySource;
+  const note = $('#metaNotice');
+  let html = '';
+  if (st.metadataError) html = `${esc(st.metadataError)} <button type="button" data-open-settings>Settings</button>`;
+  else if (st.metadataQueue > 0) html = `Looking up ${st.metadataQueue} title${st.metadataQueue === 1 ? '' : 's'} on TMDB…`;
+  else if (!st.metadataEnabled) html = 'Want posters, descriptions, cast and ratings filled in by themselves? <button type="button" data-open-settings>Add a free TMDB key</button>';
+  note.innerHTML = html;
+  note.classList.toggle('hidden', !html);
+  metaBusy = st.metadataQueue > 0;
+}
+let metaBusy = false;
+document.addEventListener('click', (e) => { if (e.target.closest('[data-open-settings]')) openSettings(); });
+
+const needsDetails = (m) => !m.private && (!m.description || !m.genres.length || m.imdbRating == null);
+const watching = (m) => m._type === 'show' ? !!m.upNext : m.positionMs > 0 && !m.watched;
+
+function matches(m) {
+  if (filter === 'movies' && (m._type !== 'movie' || m.private)) return false;
+  if (filter === 'shows' && m._type !== 'show') return false;
+  if (filter === 'private' && !m.private) return false;
+  if (filter === 'details' && !needsDetails(m)) return false;
+  if (filter === 'match' && m.match !== 'needs-match') return false;
+  if (filter === 'cantplay' && !cantPlay.has(m.id)) return false;
+  if (filter === 'watching' && !watching(m)) return false;
+  if (!query) return true;
+  const hay = [m.title, m.fileName, m.year, ...(m.genres || []), m.description, ...(m.cast || []), m.director, m.creators].join(' ').toLowerCase();
+  return query.split(/\s+/).every((w) => hay.includes(w));
+}
+
+function renderGrid() {
+  $('#n-all').textContent = movies.length;
+  $('#n-movies').textContent = movies.filter((m) => m._type === 'movie' && !m.private).length;
+  $('#n-shows').textContent = movies.filter((m) => m._type === 'show').length;
+  $('#n-private').textContent = movies.filter((m) => m.private).length;
+  $('#n-details').textContent = movies.filter(needsDetails).length;
+  $('#n-match').textContent = movies.filter((m) => m.match === 'needs-match').length;
+  $('#n-cantplay').textContent = movies.filter((m) => cantPlay.has(m.id)).length;
+  $('#n-watching').textContent = movies.filter(watching).length;
+  const shown = movies.filter(matches);
+  const grid = $('#grid');
+  if (!movies.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><p><strong>No movies yet.</strong></p><p>Click “Add movies” or drop video files anywhere on this page.</p></div>';
+    $('#drop').classList.remove('hidden');
+    return;
+  }
+  if (!shown.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">Nothing matches.</div>';
+    return;
+  }
+  grid.innerHTML = shown.map((m) => {
+    const isShow = m._type === 'show';
+    const years = isShow && m.year ? (m.endYear && m.endYear !== m.year ? `${m.year}–${m.endYear}` : `${m.year}`) : m.year;
+    const length = isShow ? `${m.seasons.length} season${m.seasons.length === 1 ? '' : 's'} · ${m.episodeCount} ep` : fmtDur(m.durationMs);
+    const meta = [years, m.imdbRating != null ? `<span class="star">★</span> ${m.imdbRating.toFixed(1)}` : null, length]
+      .filter(Boolean).join(' · ') + (m.certification ? `<span class="cert">${esc(m.certification)}</span>` : '');
+    const badges = [
+      isShow ? '<span class="badge show">TV show</span>' : '',
+      m.private ? '<span class="badge lock">🔒 Private</span>' : '',
+      cantPlay.has(m.id) ? `<span class="badge warn" title="${esc(cantPlay.get(m.id))}">Can't play on TV</span>` : '',
+      m.watched ? '<span class="badge">Watched</span>' : '',
+    ].join('');
+    const pct = !isShow && watching(m) && m.durationMs ? Math.min(100, Math.round(m.positionMs * 100 / m.durationMs)) : 0;
+    return `<div class="card" tabindex="0" role="button" data-id="${esc(m._key)}" aria-label="Edit ${esc(m.title)}">
+      <div class="art">
+        ${m.hasPoster ? `<img loading="lazy" alt="" src="${posterUrl(m)}">` : `<div class="placeholder">${esc(m.title)}</div>`}
+        <div class="badges">${badges}</div>
+        <div class="overlay">✎ Edit details</div>
+        ${pct ? `<div class="progress"><i style="width:${pct}%"></i></div>` : ''}
+      </div>
+      <h3>${esc(m.title)}</h3>
+      <div class="meta">${meta || '&nbsp;'}</div>
+      <div class="chips">${(m.genres || []).slice(0, 3).map((g) => `<span class="chip">${esc(g)}</span>`).join('')}
+        ${m.match === 'needs-match' ? '<span class="chip muted">Needs a match</span>' : needsDetails(m) ? '<span class="chip muted">Needs details</span>' : ''}
+        ${isShow && m.upNext ? `<span class="chip">Up next: S${m.upNext.season}:E${m.upNext.episode}</span>` : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+$('#grid').addEventListener('click', (e) => {
+  const card = e.target.closest('.card');
+  if (card) openEditor(card.dataset.id);
+});
+$('#grid').addEventListener('keydown', (e) => {
+  const card = e.target.closest('.card');
+  if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEditor(card.dataset.id); }
+});
+$('#search').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderGrid(); });
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+  filter = t.dataset.filter;
+  document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-pressed', String(x === t)));
+  renderGrid();
+}));
+$('#rescan').addEventListener('click', async () => {
+  try { await api('POST', '/rescan'); toast('Rescanning the folder…'); } catch (err) { if (!err.quiet) toast(err.message, true); }
+  setTimeout(load, 1500);
+});
+
+// ---- Editor ----
+let editing = null;
+let genres = [];
+let dirty = false;
+
+function openEditor(id) {
+  const m = byId.get(id);
+  if (!m) return;
+  editing = m;
+  genres = [...(m.genres || [])];
+  $('#edTitle').textContent = m.title;
+  $('#fTitle').value = m.title;
+  $('#fYear').value = m.year ?? '';
+  $('#fRating').value = m.imdbRating ?? '';
+  $('#fDesc').value = m.description ?? '';
+  updateCounter();
+  renderGenres();
+  renderArt(m);
+  renderFacts(m);
+  renderInfo(m);
+  const isShow = m._type === 'show';
+  $('#edDelete').classList.toggle('hidden', isShow);
+  $('#edMove').classList.toggle('hidden', isShow);
+  $('#edMove').textContent = m.private ? 'Move out of Private' : '🔒 Move to Private';
+  $('#infoBox').classList.toggle('hidden', !!m.private);
+  if (isShow) loadEpisodes(m);
+  resets = new Set();
+  renderLocks(m);
+  dirty = false;
+  $('#scrim').classList.remove('hidden');
+  $('#editor').classList.remove('hidden');
+  setTimeout(() => $('#fTitle').focus(), 30);
+}
+
+function closeEditor(force) {
+  if (!force && dirty && !confirm('Discard your changes?')) return;
+  $('#scrim').classList.add('hidden');
+  $('#editor').classList.add('hidden');
+  const card = editing && document.querySelector(`.card[data-id="${CSS.escape(editing._key)}"]`);
+  editing = null;
+  if (card) card.focus();
+}
+
+function renderArt(m) {
+  $('#edArt').innerHTML = m.hasPoster
+    ? `<img alt="Thumbnail" src="${posterUrl(m)}">`
+    : `<div class="placeholder">${esc(m.title)}</div>`;
+  $('#edPosterReset').classList.toggle('hidden', !m.customPoster);
+}
+
+function renderFacts(m) {
+  if (m._type === 'show') {
+    const rows = [
+      ...(m.creators ? [['Created by', m.creators]] : []),
+      ...(m.cast && m.cast.length ? [['Starring', m.cast.join(', ')]] : []),
+      ...(m.certification ? [['Age rating', m.certification]] : []),
+      ...(m.ratingSource ? [['Rating from', m.ratingSource]] : []),
+      ['Seasons', m.seasons.join(', ')],
+      ['Episodes', String(m.episodeCount)],
+      ['Up next', m.upNext ? `S${m.upNext.season}:E${m.upNext.episode} ${m.upNext.title}` : 'Not started, or all watched'],
+    ];
+    $('#facts').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('') +
+      '<dt>Files</dt><dd><ul class="episodes" id="episodeList"><li class="muted">Loading…</li></ul></dd>';
+    return;
+  }
+  const rows = [
+    ...(m.director ? [['Director', m.director]] : []),
+    ...(m.cast && m.cast.length ? [['Starring', m.cast.join(', ')]] : []),
+    ...(m.certification ? [['Age rating', m.certification]] : []),
+    ...(m.collection ? [['Collection', m.collection]] : []),
+    ...(m.ratingSource ? [['Rating from', m.ratingSource]] : []),
+    ['File', m.fileName],
+    ['Size', fmtSize(m.size)],
+    ['Length', fmtDur(m.durationMs)],
+    ['Video', m.video ? `${describe(m.video.mime)}${m.video.width ? ` · ${m.video.width}×${m.video.height}` : ''}` : 'None found'],
+    ['Audio', m.audio.length ? m.audio.map((a) => describe(a.mime) + (a.language ? ` (${a.language})` : '')).join(', ') : 'None'],
+    ['Subtitles', m.subtitles.length ? m.subtitles.map((s) => s.label).join(', ') : 'None'],
+    ['Progress', m.watched ? 'Watched' : m.positionMs ? `Stopped at ${fmtDur(m.positionMs)}` : 'Not started'],
+  ];
+  if (cantPlay.has(m.id)) rows.push([cantPlay.source === 'tv' ? 'TV says' : 'May not play', cantPlay.get(m.id)]);
+  if (m.probeError) rows.push(['Problem', m.probeError]);
+  $('#facts').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
+}
+
+function renderGenres() {
+  const box = $('#genreBox');
+  box.querySelectorAll('.chip').forEach((c) => c.remove());
+  const input = $('#fGenre');
+  genres.forEach((g, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${esc(g)}<button type="button" aria-label="Remove ${esc(g)}" data-i="${i}">×</button>`;
+    box.insertBefore(chip, input);
+  });
+  input.disabled = genres.length >= 5;
+  input.placeholder = genres.length >= 5 ? 'Up to 5 genres' : 'Type a genre and press Enter';
+  const known = [...new Set([...COMMON_GENRES, ...movies.flatMap((m) => m.genres || [])])];
+  const lower = genres.map((g) => g.toLowerCase());
+  $('#genreList').innerHTML = known.map((g) => `<option value="${esc(g)}">`).join('');
+  $('#genreSuggest').innerHTML = genres.length >= 5 ? '' : known.filter((g) => !lower.includes(g.toLowerCase())).slice(0, 12)
+    .map((g) => `<button type="button" data-g="${esc(g)}">+ ${esc(g)}</button>`).join('');
+}
+
+function addGenre(raw) {
+  const g = raw.trim().replace(/\s+/g, ' ').slice(0, 30);
+  if (!g || genres.length >= 5) return;
+  const common = COMMON_GENRES.find((c) => c.toLowerCase() === g.toLowerCase());
+  const value = common || g.charAt(0).toUpperCase() + g.slice(1);
+  if (genres.some((x) => x.toLowerCase() === value.toLowerCase())) return;
+  genres.push(value);
+  dirty = true;
+  renderGenres();
+}
+
+$('#fGenre').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    addGenre(e.target.value);
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && genres.length) {
+    genres.pop();
+    dirty = true;
+    renderGenres();
+  }
+});
+$('#fGenre').addEventListener('change', (e) => {
+  // Picking from the datalist fires change without Enter.
+  if (COMMON_GENRES.concat(movies.flatMap((m) => m.genres || [])).some((g) => g.toLowerCase() === e.target.value.trim().toLowerCase())) {
+    addGenre(e.target.value);
+    e.target.value = '';
+  }
+});
+$('#genreBox').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-i]');
+  if (b) { genres.splice(Number(b.dataset.i), 1); dirty = true; renderGenres(); $('#fGenre').focus(); }
+  else if (e.target === e.currentTarget) $('#fGenre').focus();
+});
+$('#genreSuggest').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-g]');
+  if (b) addGenre(b.dataset.g);
+});
+['#fTitle', '#fYear', '#fRating', '#fDesc'].forEach((s) => $(s).addEventListener('input', () => { dirty = true; }));
+function updateCounter() { $('#descCount').textContent = `${$('#fDesc').value.length} / 2000`; }
+$('#fDesc').addEventListener('input', updateCounter);
+
+async function loadEpisodes(show) {
+  try {
+    const d = await api('GET', itemPath(show));
+    if (editing !== show) return;
+    $('#episodeList').innerHTML = d.episodes.map((e) => `<li><span class="num">S${String(e.season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}</span>
+      <span>${esc(e.title)}${e.watched ? ' <span class="muted">· watched</span>' : ''}<br><span class="muted">${esc(e.fileName)}</span></span></li>`).join('');
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+}
+
+// ---- Online info in the editor ----
+let resets = new Set();
+const matchLabel = {
+  matched: 'Matched on TMDB', 'needs-match': 'Not matched yet: no result was certain enough',
+  skipped: "Not looked up (home video)", none: 'Not looked up yet',
+};
+
+function renderInfo(m) {
+  const tmdbLink = m.tmdbId ? ` · <a href="https://www.themoviedb.org/${m._type === 'show' ? 'tv' : 'movie'}/${m.tmdbId}" target="_blank" rel="noopener">TMDB</a>` : '';
+  const imdbLink = m.imdbId ? ` · <a href="https://www.imdb.com/title/${encodeURIComponent(m.imdbId)}/" target="_blank" rel="noopener">IMDb</a>` : '';
+  $('#infoState').innerHTML = `<strong>${esc(matchLabel[m.match] || m.match)}</strong>${tmdbLink}${imdbLink}`;
+  const buttons = [];
+  buttons.push(`<button type="button" data-info="find">${m.match === 'matched' ? 'Wrong film? Find another' : 'Find on TMDB'}</button>`);
+  if (m.match === 'matched') buttons.push('<button type="button" data-info="refresh">Refresh info</button>', '<button type="button" data-info="unmatch">Unmatch</button>');
+  if (m.match !== 'skipped') buttons.push(`<button type="button" data-info="skip">Don't look up</button>`);
+  else buttons.push('<button type="button" data-info="refresh">Look it up</button>');
+  $('#infoActions').innerHTML = buttons.join('');
+  $('#findPanel').classList.toggle('hidden', m.match !== 'needs-match');
+  $('#findQ').value = m.title;
+  $('#findYear').value = m.year ?? '';
+  $('#results').innerHTML = '';
+}
+
+function renderLocks(m) {
+  document.querySelectorAll('.lockline').forEach((el) => {
+    const field = el.dataset.field;
+    const label = el.firstChild && el.firstChild.nodeType === 3 ? el.firstChild.textContent : el.textContent;
+    el.innerHTML = esc(label.trim());
+    if ((m.locked || []).includes(field) && m.tmdbId) {
+      const pending = resets.has(field);
+      el.insertAdjacentHTML('beforeend', pending
+        ? `<span class="lock">Will use TMDB's on save <button type="button" data-keep="${field}">Undo</button></span>`
+        : `<span class="lock" title="You typed this in, so Refresh won't change it">✎ yours <button type="button" data-reset="${field}">Use TMDB's</button></span>`);
+    }
+  });
+}
+
+$('#edForm').addEventListener('click', (e) => {
+  const reset = e.target.closest('[data-reset]');
+  const keep = e.target.closest('[data-keep]');
+  if (reset) { e.preventDefault(); resets.add(reset.dataset.reset); dirty = true; renderLocks(editing); }
+  if (keep) { e.preventDefault(); resets.delete(keep.dataset.keep); renderLocks(editing); }
+});
+
+$('#infoActions').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-info]');
+  if (!b || !editing) return;
+  const path = itemPath(editing);
+  if (b.dataset.info === 'find') {
+    $('#findPanel').classList.remove('hidden');
+    $('#findQ').focus();
+    return;
+  }
+  b.disabled = true;
+  try {
+    const m = b.dataset.info === 'refresh' ? await api('POST', `${path}/refresh`)
+      : b.dataset.info === 'unmatch' ? await api('DELETE', `${path}/match`)
+      : await api('POST', `${path}/skip`);
+    afterMatch(m, b.dataset.info === 'refresh' ? (m.match === 'matched' ? 'Info refreshed' : 'No confident match; search for it below') : 'Done');
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  } finally {
+    b.disabled = false;
+  }
+});
+
+async function find() {
+  const q = $('#findQ').value.trim();
+  if (!q) return;
+  const year = $('#findYear').value.trim();
+  $('#results').innerHTML = '<div class="muted small">Searching…</div>';
+  try {
+    const type = editing && editing._type === 'show' ? '&type=tv' : '';
+    const list = await api('GET', `/admin/tmdb/search?q=${encodeURIComponent(q)}${year ? `&year=${encodeURIComponent(year)}` : ''}${type}`);
+    $('#results').innerHTML = list.length ? list.map((r) => `
+      <div class="result">
+        ${r.posterUrl ? `<img alt="" src="${esc(r.posterUrl)}" referrerpolicy="no-referrer">` : '<div class="noimg"></div>'}
+        <div><strong>${esc(r.title)}</strong> <span class="muted">${r.year ?? ''}</span><div class="ov">${esc(r.overview || '')}</div></div>
+        <button type="button" data-tmdb="${r.tmdbId}">Use this</button>
+      </div>`).join('') : '<div class="muted small">Nothing found. Try fewer words, or without the year.</div>';
+  } catch (err) {
+    $('#results').innerHTML = '';
+    if (!err.quiet) toast(err.message, true);
+  }
+}
+$('#findGo').addEventListener('click', find);
+['#findQ', '#findYear'].forEach((s) => $(s).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); find(); } }));
+$('#results').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-tmdb]');
+  if (!b || !editing) return;
+  b.disabled = true;
+  b.textContent = 'Fetching…';
+  try {
+    const m = await api('POST', `${itemPath(editing)}/match`, { tmdbId: Number(b.dataset.tmdb) });
+    afterMatch(m, `Matched to “${m.title}”`);
+  } catch (err) {
+    b.disabled = false;
+    b.textContent = 'Use this';
+    if (!err.quiet) toast(err.message, true);
+  }
+});
+
+/** A match changes many fields at once: reopen the editor on the new values. */
+function afterMatch(m, message) {
+  const wasDirty = dirty;
+  replaceMovie(m);
+  dirty = false;
+  openEditor(m._key);
+  if (wasDirty) toast(message + '. Unsaved edits were replaced by the new info.');
+  else toast(message);
+}
+
+// ---- Settings ----
+async function openSettings() {
+  try {
+    const st = await api('GET', '/admin/settings');
+    $('#sTmdb').value = '';
+    $('#sOmdb').value = '';
+    $('#sTmdbState').textContent = st.tmdbKeySet ? 'A key is set. Leave this empty to keep it, or paste a new one.' : 'No key yet.';
+    $('#sOmdbState').textContent = st.omdbKeySet ? 'A key is set. Leave this empty to keep it.' : 'No key: TMDB scores are shown instead.';
+    $('#sAuto').checked = st.autoMatch;
+    $('#sTest').classList.toggle('hidden', !st.testHooks);
+    $('#scrim').classList.remove('hidden');
+    $('#settings').classList.remove('hidden');
+    $('#sTmdb').focus();
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+}
+function closeSettings() {
+  $('#settings').classList.add('hidden');
+  if (!editing) $('#scrim').classList.add('hidden');
+}
+$('#settingsBtn').addEventListener('click', openSettings);
+$('#setClose').addEventListener('click', closeSettings);
+$('#sSave').addEventListener('click', async () => {
+  const body = { autoMatch: $('#sAuto').checked };
+  if ($('#sTmdb').value.trim()) body.tmdbKey = $('#sTmdb').value.trim();
+  if ($('#sOmdb').value.trim()) body.omdbKey = $('#sOmdb').value.trim();
+  if (!$('#sTest').classList.contains('hidden')) {
+    if ($('#sBase').value.trim()) body.tmdbBaseUrl = $('#sBase').value.trim();
+    if ($('#sImg').value.trim()) body.tmdbImageBaseUrl = $('#sImg').value.trim();
+    if ($('#sOmdbBase').value.trim()) body.omdbBaseUrl = $('#sOmdbBase').value.trim();
+  }
+  const button = $('#sSave');
+  button.disabled = true;
+  button.textContent = 'Checking…';
+  try {
+    await api('PUT', '/admin/settings', body);
+    closeSettings();
+    toast(body.tmdbKey ? 'Key works. Looking up your movies…' : 'Saved');
+    setTimeout(load, 800);
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Save';
+  }
+});
+$('#sRun').addEventListener('click', async () => {
+  try { await api('POST', '/admin/metadata/run'); toast('Looking up titles that have no info yet…'); setTimeout(load, 1500); }
+  catch (err) { if (!err.quiet) toast(err.message, true); }
+});
+
+$('#edSave').addEventListener('click', save);
+$('#edForm').addEventListener('submit', (e) => { e.preventDefault(); save(); });
+async function save() {
+  if (!editing) return;
+  const pending = $('#fGenre').value.trim();
+  if (pending) { addGenre(pending); $('#fGenre').value = ''; }
+  const yearText = $('#fYear').value.trim();
+  const ratingText = $('#fRating').value.trim();
+  const year = yearText ? Number(yearText) : null;
+  const rating = ratingText ? Number(ratingText) : null;
+  if (year !== null && !(Number.isInteger(year) && year >= 1870 && year <= 2200)) { toast("That year doesn't look right.", true); $('#fYear').focus(); return; }
+  if (rating !== null && !(rating >= 0 && rating <= 10)) { toast('An IMDb rating is between 0 and 10.', true); $('#fRating').focus(); return; }
+  const button = $('#edSave');
+  button.disabled = true;
+  try {
+    const m = await api('PATCH', itemPath(editing), {
+      title: $('#fTitle').value.trim(), year, imdbRating: rating, genres, description: $('#fDesc').value.trim() || null,
+      reset: [...resets],
+    });
+    replaceMovie(m);
+    dirty = false;
+    closeEditor(true);
+    toast(`Saved “${m.title}”`);
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/** Puts an updated film or show (fresh from the API) back in the grid, keeping its type. */
+function replaceMovie(m) {
+  tag(editing ? editing._type : (m.episodeCount != null ? 'show' : 'movie'))(m);
+  const i = movies.findIndex((x) => x._key === m._key);
+  if (i >= 0) movies[i] = m;
+  movies.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+  byId = new Map(movies.map((x) => [x._key, x]));
+  renderGrid();
+}
+
+$('#edPosterBtn').addEventListener('click', () => $('#edPoster').click());
+$('#edPoster').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !editing) return;
+  if (file.size > 15e6) { toast('Pictures are at most 15 MB.', true); return; }
+  try {
+    const m = await api('PUT', `${itemPath(editing)}/poster`, undefined, file);
+    editing = Object.assign(editing, { artVersion: m.artVersion, hasPoster: m.hasPoster, customPoster: m.customPoster });
+    replaceMovie(m);
+    renderArt(editing);
+    toast('Thumbnail updated');
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+});
+$('#edPosterReset').addEventListener('click', async () => {
+  if (!editing) return;
+  try {
+    const m = await api('DELETE', `${itemPath(editing)}/poster`);
+    editing = Object.assign(editing, { artVersion: m.artVersion, hasPoster: m.hasPoster, customPoster: m.customPoster });
+    replaceMovie(m);
+    renderArt(editing);
+    toast('Back to the picture from the video');
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+});
+
+$('#edDelete').addEventListener('click', async () => {
+  const m = editing;
+  if (!m || !confirm(`Delete “${m.title}” from the phone?\n\n${m.fileName}, its subtitles and thumbnail will be removed for good.`)) return;
+  try {
+    await api('DELETE', itemPath(m));
+    closeEditor(true);
+    toast(`Deleted “${m.title}”`);
+    load();
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+});
+$('#edMove').addEventListener('click', async () => {
+  const m = editing;
+  if (!m || m._type !== 'movie') return;
+  const toPrivate = !m.private;
+  if (toPrivate && !confirm(`Move “${m.title}” into the Private folder?\n\nThe TV will only show it while you've unlocked Private here. It won't be looked up online.`)) return;
+  try {
+    await api('POST', `${itemPath(m)}/move`, { private: toPrivate });
+    closeEditor(true);
+    toast(toPrivate ? 'Moved to Private' : 'Moved out of Private');
+    setTimeout(load, 1500);
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+});
+
+// ---- Private ----
+function renderPrivate(p) {
+  const bar = $('#privateBar');
+  bar.classList.toggle('open', p.unlocked);
+  const until = p.until ? new Date(p.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  bar.innerHTML = p.unlocked
+    ? `<span class="grow">🔓 <strong>Private is unlocked</strong> on the TV until ${esc(until)} (${p.count} video${p.count === 1 ? '' : 's'}).</span>
+       <button type="button" class="primary" data-private="lock">Lock now</button>`
+    : `<span class="grow">🔒 <strong>Private is locked.</strong> ${p.count ? `${p.count} video${p.count === 1 ? '' : 's'} hidden from the TV.` : 'Upload into Private, or move a movie there, to hide it from the TV.'}</span>
+       <select id="privateMinutes" aria-label="Unlock for"><option value="30">for 30 minutes</option><option value="60">for 1 hour</option>
+       <option value="120" selected>for 2 hours</option><option value="240">for 4 hours</option></select>
+       <button type="button" data-private="unlock">Unlock on the TV</button>`;
+  clearTimeout(renderPrivate.timer);
+  if (p.unlocked && p.until) renderPrivate.timer = setTimeout(load, Math.max(1000, p.until - Date.now() + 1000));
+}
+$('#privateBar').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-private]');
+  if (!b) return;
+  const unlock = b.dataset.private === 'unlock';
+  try {
+    const p = await api('PUT', '/admin/private', { unlock, minutes: unlock ? Number($('#privateMinutes').value) : 0 });
+    renderPrivate(p);
+    toast(unlock ? 'Private unlocked on the TV. Refresh the TV to see it.' : 'Private locked');
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+});
+
+$('#edClose').addEventListener('click', () => closeEditor());
+$('#edCancel').addEventListener('click', () => closeEditor());
+$('#scrim').addEventListener('click', () => {
+  if (!$('#settings').classList.contains('hidden')) closeSettings();
+  else closeEditor();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#settings').classList.contains('hidden')) { closeSettings(); return; }
+  if (e.key === 'Escape' && editing) closeEditor();
+  if ((e.metaKey || e.ctrlKey) && e.key === 's' && editing) { e.preventDefault(); save(); }
+});
+
+// ---- Uploads: one file at a time, 8 MB per request. The server's offset is the truth. ----
+const queue = [];
+$('#uploadBtn').addEventListener('click', () => {
+  $('#drop').classList.remove('hidden');
+  $('#files').click();
+});
+$('#pick').addEventListener('click', () => $('#files').click());
+$('#files').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => {
+  if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+  dragDepth++;
+  document.body.classList.add('dragging');
+  $('#drop').classList.remove('hidden');
+});
+window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('dragging');
+  if (e.dataTransfer && e.dataTransfer.files.length && !editing) addFiles(e.dataTransfer.files);
+});
+
+function addFiles(files) {
+  for (const file of files) {
+    const row = document.createElement('div');
+    row.className = 'up';
+    row.innerHTML = `<span class="name">${esc(file.name)} <span class="muted small">${fmtSize(file.size)}</span></span>
+      <span class="state muted small">Waiting</span><progress max="${Math.max(file.size, 1)}" value="0"></progress>`;
+    $('#uploads').append(row);
+    file.homereelPrivate = $('#upPrivate').checked;
+    if (file.homereelPrivate) row.querySelector('.name').insertAdjacentHTML('afterbegin', '🔒 ');
+    queue.push({ file, row });
+  }
+  runQueue();
+}
+
+async function runQueue() {
+  if (uploading) return;
+  uploading = true;
+  let done = 0;
+  while (queue.length) {
+    const job = queue.shift();
+    const state = job.row.querySelector('.state');
+    try {
+      await upload(job.file, state, job.row.querySelector('progress'));
+      state.textContent = 'Done ✓';
+      done++;
+      setTimeout(() => job.row.remove(), 4000);
+    } catch (err) {
+      state.textContent = err.message;
+      state.className = 'state err small';
+    }
+  }
+  uploading = false;
+  if (done) toast(`${done} file${done === 1 ? '' : 's'} added. Click a movie to add its details.`);
+  setTimeout(load, 1500);
+}
+
+function putChunk(id, offset, blob, onProgress) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', `${API}/admin/uploads/${encodeURIComponent(id)}?offset=${offset}`);
+    x.setRequestHeader('X-HomeReel', '1');
+    x.setRequestHeader('Content-Type', 'application/octet-stream');
+    x.timeout = 120000;
+    x.upload.onprogress = (e) => onProgress(e.loaded);
+    x.onload = () => {
+      let data = {};
+      try { data = JSON.parse(x.responseText); } catch (_) { /* not JSON */ }
+      if (x.status >= 200 && x.status < 300) resolve(data);
+      else reject(Object.assign(new Error(data.error || 'HTTP ' + x.status), { status: x.status, data }));
+    };
+    x.onerror = x.ontimeout = () => reject(Object.assign(new Error('Connection lost'), { retry: true }));
+    x.send(blob);
+  });
+}
+
+async function upload(file, stateEl, bar) {
+  let s = await api('POST', '/admin/uploads', { name: file.name, size: file.size, private: file.homereelPrivate === true });
+  const started = Date.now();
+  const startOffset = s.offset;
+  let wait = 1000;
+  while (!s.done) {
+    const end = Math.min(s.offset + CHUNK, file.size);
+    const at = s.offset;
+    try {
+      s = await putChunk(s.uploadId, at, file.slice(at, end), (sent) => {
+        const done = at + sent;
+        bar.value = done;
+        const secs = (Date.now() - started) / 1000;
+        const rate = secs > 1 ? (done - startOffset) / secs : 0;
+        const left = rate ? Math.round((file.size - done) / rate) : 0;
+        stateEl.textContent = `${Math.floor(done * 100 / file.size)}%` +
+          (rate ? ` · ${(rate / 1e6).toFixed(1)} MB/s` : '') + (left > 5 ? ` · ${left > 90 ? Math.round(left / 60) + ' min' : left + ' s'} left` : '');
+      });
+      wait = 1000;
+    } catch (err) {
+      if (err.status === 409 && err.data && err.data.offset != null) { s = { ...s, ...err.data }; continue; }
+      if (!err.retry && err.status && err.status < 500) throw err;
+      stateEl.textContent = 'Connection lost, retrying…';
+      await sleep(wait);
+      wait = Math.min(wait * 2, 30000);
+      try { s = await api('GET', '/admin/uploads/' + encodeURIComponent(s.uploadId)); } catch (_) { /* still offline */ }
+    }
+  }
+  bar.value = file.size;
+}
+window.addEventListener('beforeunload', (e) => { if (uploading || dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+load();
+</script>
+</body>
+</html>

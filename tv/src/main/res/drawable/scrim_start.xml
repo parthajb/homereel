@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark on the left, where the title and description sit, clear by two thirds across. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="0"
+        android:centerColor="#990B0B0F"
+        android:centerX="0.38"
+        android:endColor="#000B0B0F"
+        android:startColor="#F20B0B0F" />
+</shape>

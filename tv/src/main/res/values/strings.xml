@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HomeReel</string>
+
+    <string name="connect_title">Connect to your movie phone</string>
+    <string name="connect_searching">Looking for HomeReel Server on your Wi-Fi… Open the app on the phone if nothing shows up.</string>
+    <string name="connect_found">Pick your phone:</string>
+    <string name="connect_checking">Checking that address…</string>
+    <string name="connect_pairing">Pairing…</string>
+    <string name="connect_server">%1$s  (%2$s)</string>
+    <string name="connect_type_address">Or type the address the phone shows:</string>
+    <string name="connect_address_hint">192.168.1.20:8080</string>
+    <string name="connect_use">Use</string>
+    <string name="connect_code">Enter the 6-digit code shown on %1$s</string>
+    <string name="connect_code_hint">000000</string>
+    <string name="connect_pair">Pair</string>
+    <string name="connect_six_digits">The code has 6 digits.</string>
+    <string name="connect_unreachable">Couldn\'t reach a HomeReel server at %1$s. %2$s</string>
+
+    <string name="row_continue">Continue watching</string>
+    <string name="row_recent">Recently added</string>
+    <string name="row_all">All movies</string>
+    <string name="row_settings">Settings</string>
+    <string name="row_offline">Can\'t reach the phone</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_retry">Try again</string>
+    <string name="action_rescan">Rescan the phone\'s folder</string>
+    <string name="action_about">About</string>
+    <string name="action_switch">Connect to another phone</string>
+    <string name="pair_again">The phone forgot this TV. Pair it again.</string>
+    <string name="rescan_started">The phone is rescanning. New files appear in a moment.</string>
+    <string name="rescan_failed">The phone didn\'t answer.</string>
+    <string name="about">Address: %1$s\nMovies: %2$d\nThis TV can\'t play: %3$d\n\nHomeReel %4$s\n\nMovie details and pictures from TMDB (themoviedb.org), looked up by the phone. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
+
+    <string name="brand_line">HomeReel  ·  %1$s</string>
+    <string name="loading">Loading your movies…</string>
+    <string name="empty_title">No movies yet</string>
+    <string name="empty_body">Add movies from any computer or phone on your Wi-Fi: open %1$s in a browser and drop video files in.</string>
+    <string name="offline_title">Can\'t reach %1$s</string>
+    <string name="offline_body">Is the phone switched on, with HomeReel Server running, on this Wi-Fi? %1$s</string>
+    <string name="row_top_rated">Top rated on IMDb</string>
+    <string name="row_letter">Movies · %1$s</string>
+    <string name="row_more_like_this">More like this</string>
+    <string name="cant_play_line">⚠ This TV can\'t play this file: %1$s</string>
+    <string name="cant_play_badge">This TV can\'t play this file</string>
+    <string name="resume_line">You stopped at %1$s.</string>
+    <string name="resume_at">Resume %1$s</string>
+    <string name="movie_gone">That movie is no longer on the phone.</string>
+    <string name="subtitles_list">Subtitles: %1$s</string>
+    <string name="help_refresh">Fetch the list from the phone again.</string>
+    <string name="help_rescan">Ask the phone to look through its movie folder for new files. Files uploaded from %1$s show up by themselves.</string>
+    <string name="help_about">The phone\'s address, how many movies it has, and what this TV can\'t play.</string>
+    <string name="help_switch">Forget this phone and pair with another one.</string>
+
+    <string name="starring">Starring %1$s</string>
+    <string name="director">Director %1$s</string>
+    <string name="part_of">Part of the %1$s</string>
+    <string name="tmdb_notice">Movie details and pictures from TMDB (themoviedb.org), looked up by the phone. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
+
+    <plurals name="seasons">
+        <item quantity="one">%1$d Season</item>
+        <item quantity="other">%1$d Seasons</item>
+    </plurals>
+    <string name="row_shows">TV shows</string>
+    <string name="row_private">🔒 Private · until %1$s</string>
+    <string name="episode_caption">%1$s · %2$s</string>
+    <string name="resume_episode">Resume %1$s</string>
+    <string name="play_episode">Play %1$s</string>
+    <string name="season_n">Season %1$d</string>
+    <string name="next_episode">Next episode</string>
+    <string name="next_in">%1$s\nStarting in %2$d…</string>
+    <string name="play_now">Play now</string>
+    <string name="cancel">Cancel</string>
+    <string name="play_from_first">Play from episode 1</string>
+    <string name="created_by">Created by %1$s</string>
+    <string name="watched_mark">✓ Watched</string>
+    <string name="private_hint">Only visible while Private is unlocked on the admin page.</string>
+
+    <string name="play">Play</string>
+    <string name="play_from_start">Play from start</string>
+    <string name="mark_watched">Mark as watched</string>
+    <string name="mark_unwatched">Mark as unwatched</string>
+
+    <string name="audio_track">Audio track</string>
+    <string name="no_subtitles">This movie has no subtitles</string>
+    <string name="one_audio_track">This movie has one audio track</string>
+    <string name="subtitles_off">Subtitles off</string>
+    <string name="track_number">Track %1$d</string>
+    <string name="error_network">Lost the connection to %1$s. Check that the phone is on and on this Wi-Fi.</string>
+    <string name="error_http">The phone refused the file. It may have been moved or deleted; try Refresh.</string>
+    <string name="error_codec">This TV can\'t decode this file\'s video or audio. Converting it to H.264 video with AAC audio fixes that.</string>
+    <string name="error_container">This TV can\'t read this kind of file, or the file is damaged.</string>
+    <string name="error_other">The movie stopped (%1$s).</string>
+</resources>
