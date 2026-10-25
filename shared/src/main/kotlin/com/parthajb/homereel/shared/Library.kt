@@ -300,3 +300,46 @@ object Search {
         return score
     }
 }
+
+object Bitrate {
+    /** Above this, a stream can outrun an old phone's Wi-Fi (a 90 Mbps drone clip stuttered; 30 Mbps played fine). */
+    const val HEAVY_MBPS = 60.0
+
+    fun mbps(sizeBytes: Long, durationMs: Long): Double? =
+        if (sizeBytes <= 0 || durationMs <= 0) null else Math.round(sizeBytes * 8.0 / durationMs / 100.0) / 10.0
+
+    fun heavy(mbps: Double?) = mbps != null && mbps > HEAVY_MBPS
+
+    /** The video bitrate for a lighter copy: plenty for the size, well under what Wi-Fi carries smoothly. */
+    fun target(width: Int, height: Int): Int {
+        val lines = minOf(width, height).takeIf { it > 0 } ?: 1080
+        return when {
+            lines >= 2000 -> 24_000_000
+            lines >= 1400 -> 14_000_000
+            lines >= 1000 -> 10_000_000
+            else -> 6_000_000
+        }
+    }
+}
+
+object Markers {
+    data class Times(val introStartMs: Long?, val introEndMs: Long?, val creditsStartMs: Long?)
+
+    /** Applies a season's markers to one episode; nonsense (an intro ending before it starts) is dropped. */
+    fun forEpisode(m: SeasonMarkers?, durationMs: Long): Times {
+        if (m == null) return Times(null, null, null)
+        val introOk = m.introStartMs != null && m.introEndMs != null && m.introEndMs > m.introStartMs &&
+            (durationMs <= 0 || m.introEndMs < durationMs)
+        val credits = m.creditsMs?.takeIf { it > 0 && durationMs > it }?.let { durationMs - it }
+        return Times(if (introOk) m.introStartMs else null, if (introOk) m.introEndMs else null, credits)
+    }
+
+    /** "1:05" or "1:02:03" to milliseconds; null for anything else. */
+    fun parse(text: String?): Long? {
+        val parts = text?.trim()?.takeIf { it.isNotEmpty() }?.split(':') ?: return null
+        if (parts.size !in 2..3 || parts.any { it.toIntOrNull() == null || it.toInt() < 0 }) return null
+        val n = parts.map { it.toLong() }
+        if (n.drop(1).any { it > 59 }) return null
+        return n.fold(0L) { acc, v -> acc * 60 + v } * 1000
+    }
+}

@@ -67,6 +67,10 @@ class Prefs(context: Context) {
         get() = sp.getString("omdbBase", null) ?: "https://www.omdbapi.com/"
         set(value) = sp.edit().putString("omdbBase", value).apply()
 
+    var autoOptimize: Boolean
+        get() = sp.getBoolean("autoOptimize", true)
+        set(value) = sp.edit().putBoolean("autoOptimize", value).apply()
+
     /** When the Private folder locks itself again; 0 when locked. */
     var privateUntil: Long
         get() = sp.getLong("privateUntil", 0)

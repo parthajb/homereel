@@ -91,6 +91,12 @@
     <string name="my_list_remove">In My List</string>
     <string name="row_movies">Movies</string>
 
+    <string name="heavy_line">⚠ %1$d Mbps: this file may stutter over Wi-Fi. A lighter copy can be made on the admin page.</string>
+    <string name="action_framerate_on">Match frame rate: On</string>
+    <string name="action_framerate_off">Match frame rate: Off</string>
+    <string name="help_framerate">Switches the TV to each film\'s frame rate (24p for most films) so camera pans don\'t judder. The screen may go dark for a second when a film starts.</string>
+    <string name="skip_intro">Skip intro</string>
+
     <string name="play">Play</string>
     <string name="play_from_start">Play from start</string>
     <string name="mark_watched">Mark as watched</string>

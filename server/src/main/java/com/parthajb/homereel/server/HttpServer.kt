@@ -28,6 +28,7 @@ import com.parthajb.homereel.shared.PlayabilityReport
 import com.parthajb.homereel.shared.ProgressUpdate
 import com.parthajb.homereel.shared.RangeResult
 import com.parthajb.homereel.shared.ByteRange
+import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.ServerInfo
 import com.parthajb.homereel.shared.TmdbResult
 import com.parthajb.homereel.shared.UploadRequest
@@ -215,6 +216,19 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 }
                 json(200, PrivateState.serializer(), state)
             }
+            p.size == 3 && p[0] == "movies" && p[2] == "optimize" -> {
+                requireAdmin()
+                val movie = when (method) {
+                    Method.POST -> library.optimize(p[1])
+                    Method.DELETE -> library.removeOptimized(p[1])
+                    else -> throw HttpError(405, "Method not allowed")
+                }
+                json(200, com.parthajb.homereel.shared.Movie.serializer(), movie)
+            }
+            p.size == 3 && p[0] == "shows" && p[2] == "markers" && method == Method.PUT -> {
+                requireAdmin()
+                json(200, Show.serializer(), library.setMarkers(p[1], readJson(s, SeasonMarkers.serializer())))
+            }
             p.size == 3 && p[0] == "movies" && p[2] == "move" && method == Method.POST -> {
                 requireAdmin()
                 json(200, com.parthajb.homereel.shared.Movie.serializer(), library.move(p[1], readJson(s, MoveRequest.serializer()).private))
@@ -359,10 +373,21 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
         }
     }
 
+    /**
+     * The video, or its lighter copy when there is one (?original=1 asks for the original). Seeking works the same
+     * either way.
+     */
     private fun stream(s: IHTTPSession, id: String): Response {
-        val (entry, pfd) = library.open(id)
+        val (entry, original) = library.open(id)
+        val copy = if (s.parameters["original"] == null) library.optimizedFile(entry) else null
+        val pfd = if (copy != null) {
+            original.close()
+            ParcelFileDescriptor.open(copy, ParcelFileDescriptor.MODE_READ_ONLY)
+        } else {
+            original
+        }
         val size = pfd.statSize.takeIf { it >= 0 } ?: entry.size
-        val mime = MediaFiles.videoMime(entry.fileName)
+        val mime = if (copy != null) "video/mp4" else MediaFiles.videoMime(entry.fileName)
         val (status, start, length) = when (val range = ByteRange.parse(s.headers["range"], size)) {
             RangeResult.Full -> Triple(200, 0L, size)
             is RangeResult.Partial -> Triple(206, range.start, range.length)

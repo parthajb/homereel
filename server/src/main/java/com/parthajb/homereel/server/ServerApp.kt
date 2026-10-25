@@ -20,6 +20,6 @@ class ServerApp : Application() {
         auth = Auth(prefs)
         profiles = Profiles(prefs)
         locks = ActivityLocks(this)
-        library = Library(this, prefs)
+        library = Library(this, prefs, locks)
     }
 }

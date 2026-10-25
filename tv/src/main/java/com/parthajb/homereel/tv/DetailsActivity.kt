@@ -10,6 +10,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
+import com.parthajb.homereel.shared.Bitrate
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.Playability
 import java.util.Locale
@@ -117,8 +118,10 @@ class DetailsActivity : FragmentActivity(), CardHost {
         credits.text = creditLines
         credits.visibility = if (creditLines == null) View.GONE else View.VISIBLE
         val reason = reasons[m.id]
+        val heavy = Bitrate.heavy(m.bitrateMbps) && !m.optimized
         warning.text = reason?.let { getString(R.string.cant_play_line, it) }
-        warning.visibility = if (reason == null) View.GONE else View.VISIBLE
+            ?: if (heavy) getString(R.string.heavy_line, m.bitrateMbps!!.toInt()) else null
+        warning.visibility = if (reason == null && !heavy) View.GONE else View.VISIBLE
         tech.text = techLine(m)
         backdrop.show(m)
 

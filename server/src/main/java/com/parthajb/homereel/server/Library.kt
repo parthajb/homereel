@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import android.util.Log
 import com.parthajb.homereel.shared.AdminStatus
+import com.parthajb.homereel.shared.Bitrate
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.Genres
 import com.parthajb.homereel.shared.KidsSetting
@@ -22,6 +23,7 @@ import com.parthajb.homereel.shared.ProgressUpdate
 import com.parthajb.homereel.shared.PrivateState
 import com.parthajb.homereel.shared.PrivateUpdate
 import com.parthajb.homereel.shared.Ratings
+import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.ShowDetail
 import com.parthajb.homereel.shared.TmdbResult
@@ -30,7 +32,7 @@ import java.io.InputStream
 import java.util.concurrent.Executors
 
 /** The library as the HTTP server and the phone screen see it: the catalog, scans, uploads and deletes. */
-class Library(context: Context, private val prefs: Prefs) {
+class Library(context: Context, private val prefs: Prefs, private val locks: ActivityLocks) {
     private val cr = context.contentResolver
     private val posterDir = File(context.filesDir, "posters").apply { mkdirs() }
     private val catalog = Catalog(File(context.filesDir, "catalog.json"))
@@ -39,6 +41,25 @@ class Library(context: Context, private val prefs: Prefs) {
     private val worker = Executors.newSingleThreadExecutor()
     private var scanQueued = false
     val metadata = Metadata(prefs)
+    val optimizer = Optimizer(
+        context,
+        File(context.filesDir, "optimized"),
+        object : Optimizer.Callbacks {
+            override fun source(id: String): Pair<Uri, Entry>? {
+                val e = catalog.get(id) ?: return null
+                val tree = tree ?: return null
+                return Saf.docUri(tree, e.docId) to e
+            }
+
+            override fun finished(id: String, ok: Boolean, error: String?) {
+                catalog.update(id) { it.copy(optimized = ok, optimizeError = error) }
+            }
+
+            override fun busy(on: Boolean) {
+                if (on) locks.begin() else locks.end()
+            }
+        },
+    )
     private val lookups = Executors.newSingleThreadExecutor()
     private val lookupQueue = LinkedHashSet<String>()
 
@@ -64,7 +85,10 @@ class Library(context: Context, private val prefs: Prefs) {
      * cleared for kids on a kids profile.
      */
     fun movies(viewer: Viewer): List<Movie> =
-        catalog.all().filter { !it.isEpisode && canSee(it, viewer) }.map { it.toMovie(viewer = viewer) }
+        catalog.all().filter { !it.isEpisode && canSee(it, viewer) }.map { withJob(it.toMovie(viewer = viewer)) }
+
+    /** Adds where the phone is with making a lighter copy, for the admin page. */
+    private fun withJob(m: Movie): Movie = optimizer.status(m.id)?.let { m.copy(optimizing = it) } ?: m
 
     /** Every film, private ones included, for the phone's own screen. */
     fun allMovies(): List<Movie> = catalog.all().filter { !it.isEpisode }.map { it.toMovie() }
@@ -72,7 +96,7 @@ class Library(context: Context, private val prefs: Prefs) {
     fun movie(id: String, viewer: Viewer): Movie {
         val e = visible(id, viewer)
         val show = e.showId?.let { catalog.show(it) }
-        return e.toMovie(show?.title, viewer, show?.kidsOk == true)
+        return withJob(e.toMovie(show, viewer))
     }
 
     /**
@@ -101,7 +125,7 @@ class Library(context: Context, private val prefs: Prefs) {
     fun showDetail(id: String, viewer: Viewer): ShowDetail {
         val record = catalog.show(id)?.takeIf { !viewer.kids || it.kidsOk } ?: throw HttpError(404, "No such show")
         val episodes = catalog.episodes(id)
-        return ShowDetail(toShow(record, episodes, viewer), episodes.map { it.toMovie(record.title, viewer, record.kidsOk) })
+        return ShowDetail(toShow(record, episodes, viewer), episodes.map { it.toMovie(record, viewer) })
     }
 
     private fun toShow(record: ShowRecord, episodes: List<Entry> = catalog.episodes(record.id), viewer: Viewer? = null): Show =
@@ -307,7 +331,8 @@ class Library(context: Context, private val prefs: Prefs) {
         val docId = DocumentsContract.getDocumentId(moved)
         val newId = com.parthajb.homereel.shared.MovieIds.of(Saf.docUri(tree, docId).toString())
         for ((from, to) in listOf(scanner.frameFile(id) to scanner.frameFile(newId), scanner.customPosterFile(id) to scanner.customPosterFile(newId),
-            tmdbFile(id, true) to tmdbFile(newId, true), tmdbFile(id, false) to tmdbFile(newId, false))) {
+            tmdbFile(id, true) to tmdbFile(newId, true), tmdbFile(id, false) to tmdbFile(newId, false),
+            optimizer.file(id) to optimizer.file(newId))) {
             if (from.exists()) from.renameTo(to)
         }
         catalog.remove(id)
@@ -360,7 +385,10 @@ class Library(context: Context, private val prefs: Prefs) {
                 }.toSet() + showIds.flatMap { listOf("custom-show-$it.jpg", "tmdb-sp-$it.jpg", "tmdb-sb-$it.jpg") }
                 posterDir.listFiles()?.filter { it.name !in keep }?.forEach { it.delete() }
                 scanError = null
+                val keepCopies = entries.filter { it.optimized }.map { "${it.id}.mp4" }.toSet()
+                optimizer.file("x").parentFile?.listFiles()?.filter { it.name.endsWith(".mp4") && it.name !in keepCopies }?.forEach { it.delete() }
                 requestMetadata()
+                autoOptimize()
             } catch (e: SecurityException) {
                 scanError = "The app lost access to the folder. Choose it again."
                 Log.w(TAG, "Scan failed", e)
@@ -472,7 +500,7 @@ class Library(context: Context, private val prefs: Prefs) {
             e.copy(progress = e.progress + (viewer.pid to next), durationMs = if (e.durationMs > 0) e.durationMs else duration)
         } ?: throw HttpError(404, "No such movie")
         val show = updated.showId?.let { catalog.show(it) }
-        return updated.toMovie(show?.title, viewer, show?.kidsOk == true)
+        return updated.toMovie(show, viewer)
     }
 
     /**
@@ -521,6 +549,48 @@ class Library(context: Context, private val prefs: Prefs) {
             }
             next.copy(kids = edit.kids ?: next.kids)
         } ?: throw HttpError(404, "No such movie")).toMovie()
+    }
+
+    // ---- Lighter copies ----
+
+    /** The lighter copy to stream instead of the original, if there is one. */
+    fun optimizedFile(e: Entry): File? = optimizer.file(e.id).takeIf { e.optimized && it.exists() }
+
+    fun optimize(id: String): Movie {
+        val e = entry(id)
+        if (e.optimized) return e.toMovie()
+        catalog.update(id) { it.copy(optimizeError = null) }
+        optimizer.enqueue(id)
+        return withJob(entry(id).toMovie())
+    }
+
+    fun removeOptimized(id: String): Movie {
+        optimizer.cancel(id)
+        optimizer.file(id).delete()
+        return (catalog.update(id) { it.copy(optimized = false, optimizeError = null) } ?: throw HttpError(404, "No such movie")).toMovie()
+    }
+
+    /** While charging, queues every very heavy file that has no lighter copy yet (and hasn't failed before). */
+    private fun autoOptimize() {
+        if (!prefs.autoOptimize || !optimizer.charging) return
+        catalog.all()
+            .filter { !it.optimized && it.optimizeError == null && Bitrate.heavy(Bitrate.mbps(it.size, it.durationMs)) }
+            .forEach { optimizer.enqueue(it.id) }
+    }
+
+    // ---- Skip intro and credits ----
+
+    fun setMarkers(showId: String, m: SeasonMarkers): Show {
+        val start = m.introStartMs
+        val end = m.introEndMs
+        if (start != null && end != null && end <= start) {
+            throw HttpError(400, "The intro has to end after it starts")
+        }
+        val empty = m.introStartMs == null && m.introEndMs == null && m.creditsMs == null
+        val updated = catalog.updateShow(showId) { r ->
+            r.copy(markers = (r.markers.filter { it.season != m.season } + listOfNotNull(m.takeIf { !empty })).sortedBy { it.season })
+        } ?: throw HttpError(404, "No such show")
+        return toShow(updated)
     }
 
     // ---- Online lookups ----
@@ -655,6 +725,7 @@ class Library(context: Context, private val prefs: Prefs) {
         omdbKeySet = !prefs.omdbKey.isNullOrBlank(),
         autoMatch = prefs.autoMatch,
         testHooks = BuildConfig.DEBUG,
+        autoOptimize = prefs.autoOptimize,
     )
 
     /** Saves the settings; a new TMDB key is tried first, so a typo is caught at once instead of on every lookup. */
@@ -671,6 +742,10 @@ class Library(context: Context, private val prefs: Prefs) {
         }
         update.omdbKey?.trim()?.let { prefs.omdbKey = it }
         update.autoMatch?.let { prefs.autoMatch = it }
+        update.autoOptimize?.let {
+            prefs.autoOptimize = it
+            if (it) autoOptimize()
+        }
         requestMetadata(force = true)
         return settings()
     }
@@ -705,6 +780,8 @@ class Library(context: Context, private val prefs: Prefs) {
         tmdbFile(id, true).delete()
         tmdbFile(id, false).delete()
         stillFile(id).delete()
+        optimizer.cancel(id)
+        optimizer.file(id).delete()
         catalog.remove(id)
     }
 
@@ -743,6 +820,7 @@ class Library(context: Context, private val prefs: Prefs) {
             metadataEnabled = metadata.configured && prefs.autoMatch,
             metadataQueue = lookupQueueSize(),
             metadataError = metadataError,
+            optimizeQueue = optimizer.queued(),
         )
     }
 

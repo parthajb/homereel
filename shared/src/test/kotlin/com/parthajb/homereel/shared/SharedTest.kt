@@ -217,3 +217,25 @@ class FamilyTest {
     @Test fun searchIgnoresAccentsAndCase() = assertEquals(true, Search.score("AMELIE", "Amélie", emptyList()) > 0)
     @Test fun searchByGenre() = assertEquals(true, Search.score("comedy", "Coco", listOf("Animation", "Comedy")) > 0)
 }
+
+class PlaybackTest {
+    @Test fun droneClipIsHeavy() = assertEquals(true, Bitrate.heavy(Bitrate.mbps(306_353_291, 26_326)))
+    @Test fun droneClipMbps() = assertEquals(93.1, Bitrate.mbps(306_353_291, 26_326)!!, 0.05)
+    @Test fun normalFilmIsNot() = assertEquals(false, Bitrate.heavy(Bitrate.mbps(2_000_000_000, 2 * 3600_000L)))
+    @Test fun unknownDuration() = assertNull(Bitrate.mbps(100, 0))
+    @Test fun portrait4kTarget() = assertEquals(24_000_000, Bitrate.target(2160, 3840))
+    @Test fun hdTarget() = assertEquals(10_000_000, Bitrate.target(1920, 1080))
+
+    @Test fun markers() = assertEquals(
+        Markers.Times(30_000, 90_000, 1_740_000),
+        Markers.forEpisode(SeasonMarkers(1, 30_000, 90_000, 60_000), 1_800_000),
+    )
+    @Test fun backwardsIntroDropped() = assertEquals(
+        Markers.Times(null, null, null), Markers.forEpisode(SeasonMarkers(1, 90_000, 30_000), 1_800_000),
+    )
+    @Test fun creditsLongerThanEpisodeDropped() = assertNull(Markers.forEpisode(SeasonMarkers(1, creditsMs = 99_000), 60_000).creditsStartMs)
+    @Test fun parseMinutes() = assertEquals(65_000L, Markers.parse("1:05"))
+    @Test fun parseHours() = assertEquals(3_723_000L, Markers.parse("1:02:03"))
+    @Test fun parseNonsense() = assertNull(Markers.parse("1:75"))
+    @Test fun parseEmpty() = assertNull(Markers.parse(" "))
+}

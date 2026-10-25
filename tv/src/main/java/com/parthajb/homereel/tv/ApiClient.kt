@@ -197,3 +197,13 @@ class ServerStore(context: Context) {
         sp.edit().clear().apply()
     }
 }
+
+/** Settings that belong to this TV rather than the phone. */
+class TvPrefs(context: Context) {
+    private val sp = context.getSharedPreferences("tv", Context.MODE_PRIVATE)
+
+    /** Switch the TV to the film's frame rate (24p for most films), so pans don't judder. */
+    var matchFrameRate: Boolean
+        get() = sp.getBoolean("matchFrameRate", true)
+        set(value) = sp.edit().putBoolean("matchFrameRate", value).apply()
+}

@@ -108,6 +108,27 @@ data class Movie(
     val kids: String = KidsSetting.AUTO,
     /** Whether kids profiles see it, after applying [kids] to the age rating. */
     val kidsOk: Boolean = false,
+    /** The file's average bitrate; over [Bitrate.HEAVY_MBPS] it may stutter over Wi-Fi. */
+    val bitrateMbps: Double? = null,
+    /** A lighter copy made by the phone exists and is what the TV streams. */
+    val optimized: Boolean = false,
+    /** 0–100 while the phone is making that copy; -1 while it's waiting its turn. */
+    val optimizing: Int? = null,
+    val optimizeError: String? = null,
+    /** Episodes: where the intro is, and where the credits start, from the show's per-season markers. */
+    val introStartMs: Long? = null,
+    val introEndMs: Long? = null,
+    val creditsStartMs: Long? = null,
+)
+
+/** Where a season's intro sits, and how long its end credits run, for Skip intro and an early Next episode. */
+@Serializable
+data class SeasonMarkers(
+    val season: Int,
+    val introStartMs: Long? = null,
+    val introEndMs: Long? = null,
+    /** The length of the end credits, counted back from each episode's end. */
+    val creditsMs: Long? = null,
 )
 
 /** Whether a title shows on kids profiles: from its age rating, or the admin's yes or no. */
@@ -172,6 +193,7 @@ data class Show(
     val inMyList: Boolean = false,
     val kids: String = KidsSetting.AUTO,
     val kidsOk: Boolean = false,
+    val markers: List<SeasonMarkers> = emptyList(),
 )
 
 @Serializable
@@ -264,6 +286,8 @@ data class MetadataSettings(
     val autoMatch: Boolean,
     /** Debug builds only: where to send lookups, for tests against a fake TMDB. */
     val testHooks: Boolean = false,
+    /** Make lighter copies of very heavy files by themselves, while the phone is charging. */
+    val autoOptimize: Boolean = true,
 )
 
 /** A null field is left as it is; an empty key clears it. */
@@ -272,6 +296,7 @@ data class MetadataSettingsUpdate(
     val tmdbKey: String? = null,
     val omdbKey: String? = null,
     val autoMatch: Boolean? = null,
+    val autoOptimize: Boolean? = null,
     val tmdbBaseUrl: String? = null,
     val tmdbImageBaseUrl: String? = null,
     val omdbBaseUrl: String? = null,
@@ -313,6 +338,8 @@ data class AdminStatus(
     /** Titles waiting to be looked up. */
     val metadataQueue: Int = 0,
     val metadataError: String? = null,
+    /** Files waiting for, or being made into, a lighter copy. */
+    val optimizeQueue: Int = 0,
 )
 
 @Serializable

@@ -133,6 +133,24 @@ Anything without a season and episode is a film.
   only finds what the current profile can see.
 - **My List:** **♥ My List** on any film or show page adds it to the profile's My List row on the home screen.
 
+## Smooth playback
+
+- **Lighter copies:** files over 60 Mbps, like 4K drone footage, can stutter over Wi-Fi. A 90 Mbps clip did on this
+  setup; 30 Mbps played fine.
+  - The admin page marks them **Heavy · 90 Mbps**, and **Make a lighter copy** has the phone re-encode the file with
+    its hardware encoder: the same resolution at about 24 Mbps for 4K, 10 for 1080p.
+  - The copy lives in the app's own storage, the original is never touched, and the TV plays the copy.
+  - **Use the original** removes it.
+  - With **Settings → Make lighter copies of very heavy files** on (the default), the phone does this by itself
+    while it's charging.
+  - DTS and TrueHD audio can't be decoded on the phone. Convert those on a computer (see Troubleshooting).
+- **Match frame rate** (TV Settings row, on by default): switches the TV to the film's frame rate (24p, or 50 Hz
+  for 25 fps) so pans don't judder. The screen may go dark for a moment as it switches.
+- **Skip intro and credits:** in a show's editor on the admin page, set each season's intro start and end, and how
+  long the credits run.
+  - During the intro, the TV offers **Skip intro**.
+  - When the credits start, it offers the next episode. **Cancel** lets the credits play.
+
 ## Private videos
 
 Personal videos go in a folder called **Private** at the top of the movie folder. Use **🔒 Upload into the Private
@@ -260,6 +278,9 @@ All under `/api/v1`, JSON, with `Authorization: Bearer <token>` (or the admin co
 | `GET /profiles`; `POST`, `PATCH`, `DELETE /profiles/{id}` | viewer / admin | List profiles; add, change or remove one |
 | `POST /profiles/pin` `{pin}`; `PUT /admin/pin` `{pin}` | viewer / admin | Check the parent PIN (403, 429 after 5 wrong); set or clear it |
 | `GET /me/list`; `PUT` / `DELETE /me/list/{m:id or s:id}` | viewer | The asking profile's My List |
+| `POST` / `DELETE /movies/{id}/optimize` | admin | Make a lighter copy for the TV, or go back to the original |
+| `GET /movies/{id}/stream?original=1` | viewer | The original even when a lighter copy exists |
+| `PUT /shows/{id}/markers` `{season, introStartMs, introEndMs, creditsMs}` | admin | A season's skip-intro and credits times |
 | `GET` / `PUT /admin/private` `{unlock, minutes}` | admin | Whether Private is unlocked, and until when; unlocks or locks it |
 | `POST /movies/{id}/move` `{private}` | admin | Moves a film into or out of the Private folder, keeping its details and resume point |
 | `DELETE /movies/{id}` | admin | Deletes the file, its subtitles and poster |

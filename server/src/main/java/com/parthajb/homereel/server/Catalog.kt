@@ -3,12 +3,15 @@ package com.parthajb.homereel.server
 import android.util.Log
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.AudioTrack
+import com.parthajb.homereel.shared.Bitrate
 import com.parthajb.homereel.shared.Certifications
 import com.parthajb.homereel.shared.KidsSetting
 import com.parthajb.homereel.shared.Kind
+import com.parthajb.homereel.shared.Markers
 import com.parthajb.homereel.shared.MatchState
 import com.parthajb.homereel.shared.MediaFiles
 import com.parthajb.homereel.shared.Movie
+import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.Subtitle
 import com.parthajb.homereel.shared.VideoTrack
@@ -72,6 +75,9 @@ data class Entry(
     val progress: Map<String, Progress> = emptyMap(),
     /** The admin's choice for kids profiles (films; episodes follow their show). */
     val kids: String = KidsSetting.AUTO,
+    /** A lighter copy for the TV exists in app storage (see Optimizer). */
+    val optimized: Boolean = false,
+    val optimizeError: String? = null,
 ) {
     val isEpisode: Boolean get() = kind == Kind.EPISODE
 
@@ -87,9 +93,10 @@ data class Entry(
     val folderName: String? get() = parentDocId.substringAfter(':', "").trimEnd('/').substringAfterLast('/').ifEmpty { null }
 
     /** As [viewer] sees it: their progress and My List. Null is the first profile, for the admin page. */
-    fun toMovie(showTitle: String? = null, viewer: Viewer? = null, showKidsOk: Boolean = false): Movie {
+    /** [show] is the episode's show, for its title, kids setting and skip markers. */
+    fun toMovie(show: ShowRecord? = null, viewer: Viewer? = null): Movie {
         val p = progressFor(viewer?.pid ?: Profiles.MAIN)
-        return if (isEpisode) toEpisode(showTitle, p, showKidsOk) else toFilm(p, viewer)
+        return if (isEpisode) toEpisode(show, p) else toFilm(p, viewer)
     }
 
     private fun toFilm(p: Progress, viewer: Viewer?) = Movie(
@@ -140,10 +147,15 @@ data class Entry(
         inMyList = viewer?.myList?.contains("m:$id") == true,
         kids = kids,
         kidsOk = kidsOk,
+        bitrateMbps = Bitrate.mbps(size, durationMs),
+        optimized = optimized,
+        optimizeError = optimizeError,
     )
 
     /** An episode: its title from TMDB, the file name, or just its number; pictures are TMDB's still or a frame. */
-    private fun toEpisode(showTitle: String?, p: Progress, showKidsOk: Boolean) = Movie(
+    private fun toEpisode(show: ShowRecord?, p: Progress): Movie {
+        val marks = Markers.forEpisode(show?.markers?.firstOrNull { it.season == season }, durationMs)
+        return Movie(
         id = id,
         title = episodeInfo?.title ?: episodeTitle ?: "Episode $episode",
         year = episodeInfo?.year,
@@ -165,12 +177,19 @@ data class Entry(
         description = episodeInfo?.overview,
         kind = Kind.EPISODE,
         showId = showId,
-        showTitle = showTitle ?: showName,
+        showTitle = show?.title ?: showName,
         season = season,
         episode = episode,
         match = MatchState.SKIPPED,
-        kidsOk = showKidsOk,
+        kidsOk = show?.kidsOk == true,
+        bitrateMbps = Bitrate.mbps(size, durationMs),
+        optimized = optimized,
+        optimizeError = optimizeError,
+        introStartMs = marks.introStartMs,
+        introEndMs = marks.introEndMs,
+        creditsStartMs = marks.creditsStartMs,
     )
+    }
 }
 
 /** Where one profile is in one video. */
@@ -205,6 +224,8 @@ data class ShowRecord(
     val match: String = MatchState.NONE,
     val matchFailedAt: Long = 0,
     val kids: String = KidsSetting.AUTO,
+    /** Per season: where the intro is and how long the credits run. */
+    val markers: List<SeasonMarkers> = emptyList(),
 ) {
     val title: String get() = titleOverride ?: tmdb?.title ?: parsedTitle
     val kidsOk: Boolean get() = Certifications.kidsOk(kids, tmdb?.certification, private = false)
@@ -235,7 +256,7 @@ data class ShowRecord(
             episodeCount = ordered.size,
             addedAt = ordered.maxOfOrNull { it.addedAt } ?: 0,
             lastPlayedAt = ordered.maxOfOrNull { it.progressFor(pid).lastPlayedAt } ?: 0,
-            upNext = upNext(ordered, pid)?.toMovie(title, viewer, kidsOk),
+            upNext = upNext(ordered, pid)?.toMovie(this, viewer),
             hasPoster = customPoster || tmdb?.poster == true || frameFallback,
             hasBackdrop = tmdb?.backdrop == true || frameFallback || customPoster,
             customPoster = customPoster,
@@ -254,6 +275,7 @@ data class ShowRecord(
             inMyList = viewer?.myList?.contains("s:$id") == true,
             kids = kids,
             kidsOk = kidsOk,
+            markers = markers,
         )
     }
 

@@ -117,6 +117,8 @@ class Scanner(private val context: Context, private val posterDir: File) {
                 parsedTitle = parsed.title, parsedYear = parsed.year,
                 durationMs = probe.durationMs, video = probe.video, audio = probe.audio, probeError = probe.error,
                 frameFailed = false,
+                // A changed file needs a new lighter copy; the old one is removed after the scan.
+                optimized = false, optimizeError = null,
             )
         }
         if (entry.posterDocId != poster?.docId) entry = entry.copy(artVersion = System.currentTimeMillis())

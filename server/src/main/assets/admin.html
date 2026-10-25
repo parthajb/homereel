@@ -168,6 +168,14 @@
   .profile-row label { font-size: 13px; display: inline-flex; gap: 4px; align-items: center; white-space: nowrap; }
   h3.section { font-size: 15px; margin: 22px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); }
   select.field-select { font: inherit; width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  .play-box { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; background: var(--bg); font-size: 14px; }
+  .play-box .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  .play-box progress { width: 100%; height: 6px; accent-color: var(--accent-strong); margin-top: 8px; }
+  .markers { display: grid; gap: 10px; }
+  .marker-row { display: grid; grid-template-columns: 80px 1fr 1fr 1fr auto; gap: 8px; align-items: end; font-size: 13px; }
+  .marker-row input { padding: 7px 9px; }
+  .marker-row label span { display: block; color: var(--muted); margin-bottom: 3px; }
+  @media (max-width: 680px) { .marker-row { grid-template-columns: 1fr 1fr; } }
   footer.attrib { max-width: 1200px; margin: 0 auto; padding: 0 20px 30px; font-size: 12px; color: var(--muted); }
   footer.attrib a { color: inherit; }
 
@@ -278,6 +286,13 @@
           <div class="results" id="results"></div>
         </div>
       </div>
+      <div class="play-box hidden" id="playBox"></div>
+      <div class="play-box hidden" id="markerBox">
+        <strong>Skip intro and credits</strong>
+        <div class="muted small" style="margin:2px 0 10px">Times are the same for every episode of a season. The TV offers
+          <em>Skip intro</em> during the intro, and the next episode as soon as the credits start.</div>
+        <div class="markers" id="markers"></div>
+      </div>
       <label class="field"><span class="lockline" data-field="title">Title</span><input type="text" id="fTitle" maxlength="200" placeholder="Leave empty to use the file name"></label>
       <div class="row2">
         <label class="field"><span class="lockline" data-field="year">Year</span><input type="number" id="fYear" min="1870" max="2200" step="1" placeholder="e.g. 2019"></label>
@@ -334,6 +349,10 @@
     <label class="switch"><input type="checkbox" id="sAuto"><span>Look up new movies automatically<br>
       <span class="muted small">Only confident matches are filled in. Others wait under “Needs a match”. Camera clips
       (DJI_, VID_, PXL_…) and anything in a “Home videos” folder are never looked up.</span></span></label>
+    <label class="switch"><input type="checkbox" id="sOpt"><span>Make lighter copies of very heavy files by themselves<br>
+      <span class="muted small">Files over 60 Mbps (like 4K drone footage) can stutter over Wi-Fi. While the phone is
+      charging, it makes a lighter copy of each one with its hardware encoder and the TV plays that instead. The
+      originals are never changed.</span></span></label>
     <div id="sTest" class="hidden">
       <label class="field"><span>Test hook: TMDB base URL (debug builds only)</span><input type="text" id="sBase"></label>
       <label class="field"><span>Test hook: image base URL</span><input type="text" id="sImg"></label>
@@ -478,10 +497,11 @@ function applyStatus(st) {
   let html = '';
   if (st.metadataError) html = `${esc(st.metadataError)} <button type="button" data-open-settings>Settings</button>`;
   else if (st.metadataQueue > 0) html = `Looking up ${st.metadataQueue} title${st.metadataQueue === 1 ? '' : 's'} on TMDB…`;
+  else if (st.optimizeQueue > 0) html = `Making lighter copies of ${st.optimizeQueue} heavy file${st.optimizeQueue === 1 ? '' : 's'}…`;
   else if (!st.metadataEnabled) html = 'Want posters, descriptions, cast and ratings filled in by themselves? <button type="button" data-open-settings>Add a free TMDB key</button>';
   note.innerHTML = html;
   note.classList.toggle('hidden', !html);
-  metaBusy = st.metadataQueue > 0;
+  metaBusy = st.metadataQueue > 0 || st.optimizeQueue > 0;
 }
 let metaBusy = false;
 document.addEventListener('click', (e) => { if (e.target.closest('[data-open-settings]')) openSettings(); });
@@ -533,6 +553,8 @@ function renderGrid() {
       m.private ? '<span class="badge lock">🔒 Private</span>' : '',
       cantPlay.has(m.id) ? `<span class="badge warn" title="${esc(cantPlay.get(m.id))}">Can't play on TV</span>` : '',
       m.watched ? '<span class="badge">Watched</span>' : '',
+      m.optimizing != null ? `<span class="badge">${m.optimizing < 0 ? 'Copy waiting' : `Copying ${m.optimizing}%`}</span>`
+        : !m.optimized && m.bitrateMbps > 60 ? `<span class="badge warn" title="May stutter over Wi-Fi">Heavy · ${Math.round(m.bitrateMbps)} Mbps</span>` : '',
     ].join('');
     const pct = !isShow && watching(m) && m.durationMs ? Math.min(100, Math.round(m.positionMs * 100 / m.durationMs)) : 0;
     return `<div class="card" tabindex="0" role="button" data-id="${esc(m._key)}" aria-label="Edit ${esc(m.title)}">
@@ -599,6 +621,8 @@ function openEditor(id) {
   $('#edMove').textContent = m.private ? 'Move out of Private' : '🔒 Move to Private';
   $('#infoBox').classList.toggle('hidden', !!m.private);
   if (isShow) loadEpisodes(m);
+  renderPlayBox(m);
+  renderMarkers(m);
   resets = new Set();
   renderLocks(m);
   dirty = false;
@@ -728,6 +752,85 @@ async function loadEpisodes(show) {
     if (!err.quiet) toast(err.message, true);
   }
 }
+
+// ---- Playback: lighter copies and skip markers ----
+function renderPlayBox(m) {
+  const box = $('#playBox');
+  if (m._type === 'show' || m.bitrateMbps == null) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const mbps = Math.round(m.bitrateMbps);
+  let html;
+  if (m.optimizing != null) {
+    html = `<div class="row"><span>${m.optimizing < 0 ? 'Waiting to make a lighter copy…' : `Making a lighter copy: ${m.optimizing}%`}</span>
+      <button type="button" data-copy="remove">Cancel</button></div>${m.optimizing >= 0 ? `<progress max="100" value="${m.optimizing}"></progress>` : ''}`;
+  } else if (m.optimized) {
+    html = `<div class="row"><span>✓ The TV plays a lighter copy made by the phone (the original is ${mbps} Mbps).</span>
+      <button type="button" data-copy="remove">Use the original</button></div>`;
+  } else if (mbps > 60) {
+    html = `<div class="row"><span>⚠ <strong>${mbps} Mbps</strong>: may stutter over Wi-Fi.</span>
+      <button type="button" class="primary" data-copy="make">Make a lighter copy</button></div>
+      ${m.optimizeError ? `<div class="err small" style="margin-top:6px">Last try: ${esc(m.optimizeError)}</div>` : ''}`;
+  } else {
+    html = `<div class="row"><span class="muted">${mbps} Mbps: fine over Wi-Fi.</span>
+      <button type="button" data-copy="make">Make a lighter copy anyway</button></div>`;
+  }
+  box.innerHTML = html;
+}
+$('#playBox').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-copy]');
+  if (!b || !editing) return;
+  try {
+    const m = await api(b.dataset.copy === 'make' ? 'POST' : 'DELETE', `${itemPath(editing)}/optimize`);
+    replaceMovie(m);
+    editing = byId.get(m._key);
+    renderPlayBox(editing);
+    toast(b.dataset.copy === 'make' ? 'The phone is making a lighter copy' : 'Back to the original');
+    setTimeout(load, 3000);
+  } catch (err) { if (!err.quiet) toast(err.message, true); }
+});
+
+const fmtClock = (ms) => {
+  if (ms == null) return '';
+  const s = Math.round(ms / 1000);
+  return s >= 3600 ? `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+    : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+const parseClock = (t) => {
+  const parts = (t || '').trim().split(':');
+  if (!t || !t.trim()) return null;
+  if (parts.length < 2 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return NaN;
+  return parts.reduce((a, p) => a * 60 + Number(p), 0) * 1000;
+};
+function renderMarkers(m) {
+  const box = $('#markerBox');
+  if (m._type !== 'show') { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  $('#markers').innerHTML = m.seasons.map((n) => {
+    const k = (m.markers || []).find((x) => x.season === n) || {};
+    return `<div class="marker-row" data-season="${n}">
+      <strong>Season ${n}</strong>
+      <label><span>Intro starts</span><input type="text" placeholder="0:30" value="${fmtClock(k.introStartMs)}"></label>
+      <label><span>Intro ends</span><input type="text" placeholder="1:45" value="${fmtClock(k.introEndMs)}"></label>
+      <label><span>Credits last</span><input type="text" placeholder="1:20" value="${fmtClock(k.creditsMs)}"></label>
+      <button type="button" data-save-markers>Save</button>
+    </div>`;
+  }).join('');
+}
+$('#markers').addEventListener('click', async (e) => {
+  const b = e.target.closest('button[data-save-markers]');
+  if (!b || !editing) return;
+  const row = b.closest('.marker-row');
+  const [a, z, c] = [...row.querySelectorAll('input')].map((i) => parseClock(i.value));
+  if ([a, z, c].some(Number.isNaN)) { toast('Use minutes:seconds, like 1:05', true); return; }
+  try {
+    const show = await api('PUT', `${itemPath(editing)}/markers`, {
+      season: Number(row.dataset.season), introStartMs: a, introEndMs: z, creditsMs: c,
+    });
+    replaceMovie(show);
+    editing = byId.get(show._key);
+    toast(`Season ${row.dataset.season} saved`);
+  } catch (err) { if (!err.quiet) toast(err.message, true); }
+});
 
 // ---- Online info in the editor ----
 let resets = new Set();
@@ -905,6 +1008,7 @@ async function openSettings() {
     $('#sTmdbState').textContent = st.tmdbKeySet ? 'A key is set. Leave this empty to keep it, or paste a new one.' : 'No key yet.';
     $('#sOmdbState').textContent = st.omdbKeySet ? 'A key is set. Leave this empty to keep it.' : 'No key: TMDB scores are shown instead.';
     $('#sAuto').checked = st.autoMatch;
+    $('#sOpt').checked = st.autoOptimize;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
     await loadProfiles();
     $('#scrim').classList.remove('hidden');
@@ -921,7 +1025,7 @@ function closeSettings() {
 $('#settingsBtn').addEventListener('click', openSettings);
 $('#setClose').addEventListener('click', closeSettings);
 $('#sSave').addEventListener('click', async () => {
-  const body = { autoMatch: $('#sAuto').checked };
+  const body = { autoMatch: $('#sAuto').checked, autoOptimize: $('#sOpt').checked };
   if ($('#sTmdb').value.trim()) body.tmdbKey = $('#sTmdb').value.trim();
   if ($('#sOmdb').value.trim()) body.omdbKey = $('#sOmdb').value.trim();
   if (!$('#sTest').classList.contains('hidden')) {

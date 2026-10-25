@@ -75,6 +75,21 @@ class PlaybackFragment : VideoSupportFragment() {
     /** For an episode: the episodes after it, loaded from its show, for "Next episode". */
     private var upcoming: List<Movie> = emptyList()
     private var nextDialog: android.app.Dialog? = null
+    private var skipDialog: android.app.Dialog? = null
+    private var introOffered = false
+    private var creditsOffered = false
+
+    /** Cancel during the credits means "let me watch them": don't offer again, and stop at the end. */
+    private var nextDeclined = false
+    private var frameRateMatched = false
+
+    /** Twice a second: Skip intro while inside the intro, Next episode once the credits start. */
+    private val markerTick = object : Runnable {
+        override fun run() {
+            checkMarkers()
+            main.postDelayed(this, 500)
+        }
+    }
     private var player: ExoPlayer? = null
     private var glue: MovieGlue? = null
     private var subtitleView: SubtitleView? = null
@@ -123,12 +138,19 @@ class PlaybackFragment : VideoSupportFragment() {
                     ended = true
                     saveProgress(atEnd = true)
                     val next = upcoming.firstOrNull()
-                    if (next != null) offerNext(next) else activity?.finish()
+                    when {
+                        next != null && !nextDeclined && nextDialog == null -> offerNext(next, duringCredits = false)
+                        nextDialog == null -> activity?.finish()
+                    }
                 }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (!isPlaying) saveProgress()
+            }
+
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                player?.videoFormat?.frameRate?.takeIf { it > 0 }?.let(::matchFrameRate)
             }
 
             override fun onCues(cueGroup: CueGroup) {
@@ -145,6 +167,7 @@ class PlaybackFragment : VideoSupportFragment() {
             playWhenPrepared()
         }
         main.postDelayed(tick, 10_000)
+        main.postDelayed(markerTick, 500)
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -171,7 +194,9 @@ class PlaybackFragment : VideoSupportFragment() {
 
     override fun onDestroy() {
         nextDialog?.dismiss()
+        skipDialog?.dismiss()
         main.removeCallbacks(tick)
+        main.removeCallbacks(markerTick)
         player?.release()
         player = null
         worker.shutdown()
@@ -233,7 +258,72 @@ class PlaybackFragment : VideoSupportFragment() {
      * The "Next episode" countdown, in a small dialog of its own: the player's controls take every D-pad press,
      * a separate window keeps Play now and Cancel reachable.
      */
-    private fun offerNext(next: Movie) {
+    private fun checkMarkers() {
+        val p = player ?: return
+        if (!p.isPlaying) return
+        val pos = p.currentPosition
+        val start = movie.introStartMs
+        val end = movie.introEndMs
+        val inIntro = start != null && end != null && pos >= start && pos < end - 2000
+        if (inIntro && !introOffered) {
+            introOffered = true
+            offerSkipIntro(end!!)
+        } else if (!inIntro && skipDialog != null) {
+            skipDialog?.dismiss()
+            skipDialog = null
+        }
+        val credits = movie.creditsStartMs
+        val next = upcoming.firstOrNull()
+        if (credits != null && next != null && pos >= credits && !creditsOffered && !nextDeclined && nextDialog == null) {
+            creditsOffered = true
+            offerNext(next, duringCredits = true)
+        }
+    }
+
+    /** A small "Skip intro" button, in its own window like the Next episode panel, so the remote reaches it. */
+    private fun offerSkipIntro(introEnd: Long) {
+        val context = context ?: return
+        val view = LayoutInflater.from(context).inflate(R.layout.skip_intro, null)
+        val dialog = android.app.Dialog(context).apply {
+            requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+            setContentView(view)
+            window?.setBackgroundDrawableResource(android.R.color.transparent)
+            window?.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.END)
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        }
+        view.findViewById<Button>(R.id.skip_intro).setOnClickListener {
+            player?.seekTo(introEnd)
+            dialog.dismiss()
+            skipDialog = null
+        }
+        skipDialog = dialog
+        dialog.show()
+        view.findViewById<Button>(R.id.skip_intro).requestFocus()
+    }
+
+    /**
+     * Switches the TV to the video's frame rate, or a whole multiple of it (25 fps on a 50 Hz mode), at the same
+     * resolution, so films don't judder. The TV goes back to its usual mode when the player closes.
+     */
+    @Suppress("DEPRECATION")
+    private fun matchFrameRate(fps: Float) {
+        if (frameRateMatched || !TvPrefs(requireContext()).matchFrameRate) return
+        frameRateMatched = true
+        val window = activity?.window ?: return
+        val display = if (android.os.Build.VERSION.SDK_INT >= 30) activity?.display else window.windowManager.defaultDisplay
+        display ?: return
+        val current = display.mode
+        val sameSize = display.supportedModes.filter {
+            it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight
+        }
+        val best = sameSize.firstOrNull { kotlin.math.abs(it.refreshRate - fps) < 0.05f }
+            ?: sameSize.firstOrNull { kotlin.math.abs(it.refreshRate - 2 * fps) < 0.1f }
+            ?: return
+        if (best.modeId == current.modeId) return
+        window.attributes = window.attributes.apply { preferredDisplayModeId = best.modeId }
+    }
+
+    private fun offerNext(next: Movie, duringCredits: Boolean) {
         val context = context ?: return
         val view = LayoutInflater.from(context).inflate(R.layout.next_episode, null)
         val text = view.findViewById<TextView>(R.id.next_text)
@@ -243,7 +333,7 @@ class PlaybackFragment : VideoSupportFragment() {
             window?.setBackgroundDrawableResource(android.R.color.transparent)
             window?.setGravity(android.view.Gravity.BOTTOM or android.view.Gravity.END)
             window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            setOnCancelListener { activity?.finish() }
+            setOnCancelListener { if (duringCredits) declineNext() else activity?.finish() }
         }
         var left = 10
         val label = "${Format.episodeCode(next)}  ${next.title}"
@@ -257,7 +347,7 @@ class PlaybackFragment : VideoSupportFragment() {
         view.findViewById<Button>(R.id.next_play).setOnClickListener { playNext(next) }
         view.findViewById<Button>(R.id.next_cancel).setOnClickListener {
             dialog.dismiss()
-            activity?.finish()
+            if (duringCredits) declineNext() else activity?.finish()
         }
         nextDialog = dialog
         dialog.show()
@@ -265,9 +355,20 @@ class PlaybackFragment : VideoSupportFragment() {
         main.post(countdown)
     }
 
+    private fun declineNext() {
+        nextDialog = null
+        nextDeclined = true
+        if (ended) activity?.finish()
+    }
+
     private fun playNext(next: Movie) {
         nextDialog?.dismiss()
         nextDialog = null
+        skipDialog?.dismiss()
+        skipDialog = null
+        introOffered = false
+        creditsOffered = false
+        nextDeclined = false
         val p = player ?: return
         movie = next
         upcoming = upcoming.drop(1)

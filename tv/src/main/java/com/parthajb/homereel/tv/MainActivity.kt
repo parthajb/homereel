@@ -247,6 +247,11 @@ class MainActivity : FragmentActivity(), CardHost {
                 ActionItem(ACTION_PROFILE, getString(R.string.action_profile), R.drawable.ic_person),
                 ActionItem(ACTION_REFRESH, getString(R.string.action_refresh), R.drawable.ic_refresh),
                 ActionItem(ACTION_RESCAN, getString(R.string.action_rescan), R.drawable.ic_folder),
+                ActionItem(
+                    ACTION_FRAMERATE,
+                    getString(if (TvPrefs(this).matchFrameRate) R.string.action_framerate_on else R.string.action_framerate_off),
+                    R.drawable.ic_framerate,
+                ),
                 ActionItem(ACTION_ABOUT, getString(R.string.action_about), R.drawable.ic_info),
                 ActionItem(ACTION_SWITCH, getString(R.string.action_switch), R.drawable.ic_phone),
             ),
@@ -356,6 +361,7 @@ class MainActivity : FragmentActivity(), CardHost {
         ACTION_RESCAN -> getString(R.string.help_rescan, "http://${store.host}:${store.port}/admin")
         ACTION_ABOUT -> getString(R.string.help_about)
         ACTION_PROFILE -> getString(R.string.help_profile)
+        ACTION_FRAMERATE -> getString(R.string.help_framerate)
         else -> getString(R.string.help_switch)
     }
 
@@ -397,6 +403,11 @@ class MainActivity : FragmentActivity(), CardHost {
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
             ACTION_PROFILE -> switchProfile()
+            ACTION_FRAMERATE -> {
+                val prefs = TvPrefs(this)
+                prefs.matchFrameRate = !prefs.matchFrameRate
+                show(movies)
+            }
             ACTION_SWITCH -> {
                 store.forget()
                 startActivity(Intent(this, ConnectActivity::class.java))
@@ -430,6 +441,7 @@ class MainActivity : FragmentActivity(), CardHost {
         private const val ACTION_ABOUT = 3
         private const val ACTION_SWITCH = 4
         private const val ACTION_PROFILE = 5
+        private const val ACTION_FRAMERATE = 6
 
         /** Started but not finished: more than 15 seconds or 2% in, and not marked watched. */
         fun inProgress(m: Movie) = !m.watched && m.positionMs > 0 &&
