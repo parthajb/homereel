@@ -22,6 +22,8 @@ class ServerApp : Application() {
         private set
     lateinit var torrents: TorrentManager
         private set
+    lateinit var torrentSearch: TorrentSearch
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -40,5 +42,6 @@ class ServerApp : Application() {
         health = HealthMonitor(this, prefs, library, events)
         updates = AppUpdates(this, events)
         torrents = TorrentManager(this, prefs, library, locks, events)
+        torrentSearch = TorrentSearch(prefs, torrents)
     }
 }

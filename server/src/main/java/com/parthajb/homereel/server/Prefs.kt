@@ -89,6 +89,25 @@ class Prefs(context: Context) {
         get() = sp.getString("torrentSettings", null)
         set(value) = sp.edit().putString("torrentSettings", value).apply()
 
+    /** A Torznab indexer for torrent search, such as https://www.searchmagnetlink.com. */
+    var indexerUrl: String?
+        get() = sp.getString("indexerUrl", null)
+        set(value) = sp.edit().putString("indexerUrl", value).apply()
+
+    /** Never sent to the admin page; the API only says whether it's set. */
+    var indexerKey: String?
+        get() = sp.getString("indexerKey", null)
+        set(value) = sp.edit().putString("indexerKey", value?.ifBlank { null }).apply()
+
+    /** When each indexer request was made in the last day, so the budget survives a restart. */
+    var indexerRequests: List<Long>
+        get() = sp.getString("indexerRequests", null)?.split(',')?.mapNotNull { it.toLongOrNull() }.orEmpty()
+        set(value) = sp.edit().putString("indexerRequests", value.joinToString(",")).apply()
+
+    var indexerCooldownUntil: Long
+        get() = sp.getLong("indexerCooldown", 0)
+        set(value) = sp.edit().putLong("indexerCooldown", value).apply()
+
     var playabilityJson: String?
         get() = sp.getString("playability", null)
         set(value) = sp.edit().putString("playability", value).apply()
