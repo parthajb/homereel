@@ -89,29 +89,23 @@ class Prefs(context: Context) {
         get() = sp.getString("torrentSettings", null)
         set(value) = sp.edit().putString("torrentSettings", value).apply()
 
-    /** What [indexerUrl] is: Prowlarr, Jackett, or any other Torznab feed (see IndexerKind). */
-    var indexerKind: String
-        get() = sp.getString("indexerKind", null) ?: "torznab"
-        set(value) = sp.edit().putString("indexerKind", value).apply()
+    /** Torrent search's feeds, keys included (see TorrentSearch). Never sent to the admin page as they are. */
+    var searchFeedsJson: String?
+        get() = sp.getString("searchFeeds", null)
+        set(value) = sp.edit().putString("searchFeeds", value).apply()
 
-    /** Where torrent search asks: Prowlarr's or Jackett's address, or a Torznab feed's. */
-    var indexerUrl: String?
-        get() = sp.getString("indexerUrl", null)
-        set(value) = sp.edit().putString("indexerUrl", value).apply()
+    /** When each feed was asked in the last day, and any wait it asked for, so the limits survive a restart. */
+    var feedBudgetsJson: String?
+        get() = sp.getString("feedBudgets", null)
+        set(value) = sp.edit().putString("feedBudgets", value).apply()
 
-    /** Never sent to the admin page; the API only says whether it's set. */
-    var indexerKey: String?
-        get() = sp.getString("indexerKey", null)
-        set(value) = sp.edit().putString("indexerKey", value?.ifBlank { null }).apply()
-
-    /** When each indexer request was made in the last day, so the budget survives a restart. */
-    var indexerRequests: List<Long>
-        get() = sp.getString("indexerRequests", null)?.split(',')?.mapNotNull { it.toLongOrNull() }.orEmpty()
-        set(value) = sp.edit().putString("indexerRequests", value.joinToString(",")).apply()
-
-    var indexerCooldownUntil: Long
-        get() = sp.getLong("indexerCooldown", 0)
-        set(value) = sp.edit().putLong("indexerCooldown", value).apply()
+    /** 0.6's single indexer, read once to become the first feed, then removed. */
+    fun takeOldIndexer(): Triple<String, String, String?>? {
+        val url = sp.getString("indexerUrl", null) ?: return null
+        val old = Triple(sp.getString("indexerKind", null) ?: "torznab", url, sp.getString("indexerKey", null))
+        sp.edit().remove("indexerUrl").remove("indexerKind").remove("indexerKey").remove("indexerRequests").remove("indexerCooldown").apply()
+        return old
+    }
 
     var playabilityJson: String?
         get() = sp.getString("playability", null)

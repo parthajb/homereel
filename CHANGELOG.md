@@ -3,6 +3,15 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## Unreleased
+
+- **Several search feeds, searched together:** torrent search keeps a list of feeds instead of one indexer: Torznab
+  sites, Prowlarr and Jackett, each with a name, on or off, Edit, Remove and Test connection. A search asks every feed
+  that's on at once and merges the results: the same torrent shows once, most seeders first, labelled with who found
+  it. A feed that is slow or fails is listed without spoiling the rest. Each feed has its own request limits.
+- **Torznab feeds without a key:** the API key is optional for a Torznab feed, for sites whose Torznab search is open.
+- The indexer set up in 0.6 becomes the first feed.
+
 ## 0.6.1 (2026-10-26)
 
 - **Torrent search with Prowlarr or Jackett:** Settings → Downloads asks what to search with. Prowlarr uses its own

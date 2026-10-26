@@ -26,28 +26,54 @@ data class TorrentSearchResult(
     val inDownloads: Boolean = false,
     /** Which of Prowlarr's or Jackett's indexers found it. */
     val indexer: String? = null,
+    /** The search feeds that found it, most seeders first (one torrent found by several shows once). */
+    val sources: List<String> = emptyList(),
 )
 
 @Serializable
 data class TorrentSearchPage(
     val query: String,
     val items: List<TorrentSearchResult>,
-    val offset: Int,
-    /** Whether asking for the next page may find more. */
-    val more: Boolean,
     /** Results left out because HomeReel couldn't add them: no info hash and no download link from the indexer. */
     val skipped: Int = 0,
+    /** Feeds that didn't answer, each as "Name: why"; the others' results are still shown. */
+    val failed: List<String> = emptyList(),
+    /** How many feeds were asked. */
+    val feeds: Int = 0,
 )
 
 /**
- * Where torrent search looks: [IndexerKind.PROWLARR] or [IndexerKind.JACKETT] search every indexer set up in them; any
- * other Torznab feed searches just that one. The key is never sent back.
+ * One place torrent search asks. [IndexerKind.PROWLARR] or [IndexerKind.JACKETT] ask every indexer set up in them; a
+ * Torznab feed is one site's own search, with or without a key. A search asks every feed that is on, together. The
+ * key is never sent back.
  */
 @Serializable
-data class IndexerSettings(val kind: String = IndexerKind.TORZNAB, val url: String? = null, val keySet: Boolean = false)
+data class SearchFeed(
+    val id: String,
+    val kind: String = IndexerKind.TORZNAB,
+    val name: String,
+    val url: String,
+    val keySet: Boolean = false,
+    val enabled: Boolean = true,
+)
 
 @Serializable
-data class IndexerUpdate(val kind: String? = null, val url: String? = null, val apiKey: String? = null, val clearKey: Boolean = false)
+data class FeedList(val feeds: List<SearchFeed>)
+
+/**
+ * Adds or changes a feed; null leaves a field as it is. Test connection sends the same, with [id] to fall back on
+ * that feed's saved address and key.
+ */
+@Serializable
+data class FeedEdit(
+    val id: String? = null,
+    val kind: String? = null,
+    val name: String? = null,
+    val url: String? = null,
+    val apiKey: String? = null,
+    val clearKey: Boolean = false,
+    val enabled: Boolean? = null,
+)
 
 object IndexerKind {
     const val PROWLARR = "prowlarr"
@@ -87,6 +113,24 @@ object Torznab {
     }
 
     data class Parsed(val items: List<Item>, val skipped: Int, val error: String?)
+
+    /** A result as one feed gave it. */
+    data class Found(val feedId: String, val feedName: String, val item: Item)
+
+    /** A torrent after merging: the best copy of it (a magnet if any feed had one, then most seeders), and who found it. */
+    data class Merged(val best: Found, val sources: List<String>)
+
+    /**
+     * Merges several feeds' results: the same info hash shows once, keeping the copy with a magnet and the most
+     * seeders. Results known only by a download link can't be matched, so they stay apart. Most seeders first.
+     */
+    fun merge(found: List<Found>): List<Merged> =
+        found.groupBy { it.item.infoHash ?: "${it.feedId}|${it.item.id}" }.values.map { copies ->
+            val ranked = copies.sortedWith(compareByDescending<Found> { it.item.seeders ?: -1 })
+            val best = ranked.firstOrNull { it.item.magnet != null } ?: ranked.first()
+            val most = ranked.mapNotNull { it.item.seeders }.maxOrNull()
+            Merged(best.copy(item = best.item.copy(seeders = most ?: best.item.seeders)), ranked.map { it.feedName }.distinct())
+        }.sortedByDescending { it.best.item.seeders ?: -1 }
 
     private val HEX40 = Regex("^[0-9a-fA-F]{40}$")
     private val BASE32 = Regex("^[A-Za-z2-7]{32}$")
