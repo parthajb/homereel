@@ -12,9 +12,9 @@ android {
         applicationId 'com.parthajb.homereel.server'
         minSdk 26
         targetSdk 34
-        // -PhomereelVersion=6 builds a "newer" copy, for trying an update without ADB.
-        versionCode((project.findProperty('homereelVersion') ?: '5') as int)
-        versionName project.hasProperty('homereelVersion') ? "0.3.${project.findProperty('homereelVersion')}" : '0.4.1'
+        // -PhomereelVersion=7 builds a "newer" copy, for trying an update without ADB.
+        versionCode((project.findProperty('homereelVersion') ?: '6') as int)
+        versionName project.hasProperty('homereelVersion') ? "0.3.${project.findProperty('homereelVersion')}" : '0.5.0'
     }
 
     buildTypes {
@@ -46,4 +46,9 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.4.1'
     // Lighter copies of very heavy files, with the phone's hardware encoder (Optimizer).
     implementation 'androidx.media3:media3-transformer:1.4.1'
+    // Torrent downloads (off until turned on in Settings): libtorrent, as LibreTorrent uses it. Native code for
+    // 64-bit and 32-bit ARM phones.
+    implementation 'org.libtorrent4j:libtorrent4j:2.1.0-39'
+    implementation 'org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39'
+    implementation 'org.libtorrent4j:libtorrent4j-android-arm:2.1.0-39'
 }

@@ -72,6 +72,16 @@
   }
   #drop.over, body.dragging #drop { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
   #uploads:empty { display: none; }
+  #downloads { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; margin-bottom: 18px; }
+  #downloads h3 { margin: 0 0 4px; font-size: 15px; }
+  .dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+  .dl:first-of-type { border-top: 0; }
+  .dl .name { font-weight: 600; overflow-wrap: anywhere; }
+  .dl progress { grid-column: 1 / -1; width: 100%; height: 6px; }
+  .dl .actions { display: flex; gap: 6px; }
+  .dl .state.err { color: var(--danger, #b91c1c); }
+  #magnetRow { display: flex; gap: 8px; margin-top: 10px; }
+  #magnetRow input { flex: 1; min-width: 0; }
   #uploads { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 16px; margin-bottom: 18px; }
   .up { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .up:last-child { border-bottom: 0; }
@@ -255,15 +265,26 @@
     <div id="drop" class="hidden">
       <strong>Drop movie files here</strong> <span class="muted">or</span>
       <button id="pick" type="button">choose files</button>
-      <input id="files" type="file" multiple class="hidden" accept="video/*,.mkv,.avi,.m4v,.mov,.webm,.srt,.vtt">
+      <input id="files" type="file" multiple class="hidden" accept="video/*,.mkv,.avi,.m4v,.mov,.webm,.srt,.vtt,.torrent,application/x-bittorrent">
       <div class="muted small" style="margin-top:8px">
         Video files, plus subtitles named like the movie (<code>Movie.en.srt</code>).
         If the Wi-Fi drops, an upload carries on from where it stopped. You can add a thumbnail and details after.
         For a TV series, name files like <code>Show Name S01E02.mkv</code>.
+        <span id="torrentHint" class="hidden">A <code>.torrent</code> file goes to Downloads, and the phone fetches its
+          videos in its own time.</span>
+      </div>
+      <div id="magnetRow" class="hidden">
+        <input type="text" id="magnet" placeholder="Or paste a magnet link" aria-label="Magnet link" autocomplete="off" spellcheck="false">
+        <button type="button" id="magnetAdd">Add</button>
       </div>
       <label class="up-private hidden" id="upPrivateLabel"><input type="checkbox" id="upPrivate"> 🔒 Upload into the Private folder</label>
     </div>
     <div id="uploads"></div>
+    <section id="downloads" class="hidden" aria-labelledby="dlTitle">
+      <h3 id="dlTitle">Downloads</h3>
+      <div class="muted small" id="dlWaiting"></div>
+      <div id="dlRows"></div>
+    </section>
     <div id="scanErr" class="notice hidden"></div>
     <div id="metaNotice" class="notice hidden"></div>
     <div id="grid"></div>
@@ -398,6 +419,42 @@
     <div id="privateBar" class="private-bar"></div>
     <button type="button" id="openPrivate">🔒 Open Private videos</button>
 
+    <h3 class="section">Torrent downloads</h3>
+    <label class="switch"><input type="checkbox" id="tOn"><span>Download from .torrent files and magnet links<br>
+      <span class="muted small">Drop a .torrent file where you add movies, or paste a magnet link there. The phone downloads
+      it in its own time, keeps only the videos and subtitles, and adds them to the library when they're complete.</span></span></label>
+    <div id="tOpts">
+      <label class="switch"><input type="checkbox" id="tCharging"><span>Only while the phone is charging</span></label>
+      <label class="switch"><input type="checkbox" id="tWatch"><span>Slow down while someone is watching<br>
+        <span class="muted small">So the film on the TV doesn't stutter while the phone downloads.</span></span></label>
+      <label class="field"><span>When</span><select id="tHours" class="field-select">
+        <option value="">Any time</option>
+        <option value="0-7">Overnight: midnight to 7 am</option>
+        <option value="22-7">10 pm to 7 am</option>
+        <option value="1-6">1 am to 6 am</option>
+        <option value="9-17">Daytime: 9 am to 5 pm</option>
+      </select></label>
+      <label class="field"><span>Download speed</span><select id="tDown" class="field-select">
+        <option value="0">As fast as the connection allows</option>
+        <option value="10240">Up to 10 MB/s</option>
+        <option value="5120">Up to 5 MB/s</option>
+        <option value="2048">Up to 2 MB/s</option>
+        <option value="1024">Up to 1 MB/s</option>
+        <option value="512">Up to 500 KB/s</option>
+      </select></label>
+      <label class="field"><span>Sharing back while it downloads</span><select id="tUp" class="field-select">
+        <option value="10">Up to 10 KB/s</option>
+        <option value="50">Up to 50 KB/s</option>
+        <option value="200">Up to 200 KB/s</option>
+        <option value="1024">Up to 1 MB/s</option>
+        <option value="0">No limit</option>
+      </select></label>
+    </div>
+    <p class="muted small"><strong>Only download what you're allowed to</strong>, such as public-domain and Creative
+      Commons films, or copies of your own. While it downloads, the phone exchanges pieces with the other people sharing
+      that torrent, and they can see your internet address. HomeReel never opens ports on your router, and stops sharing
+      once a download is in the library.</p>
+
     <h3 class="section">Backup</h3>
     <p class="muted small" style="margin-top:0">One file with everything you've typed in or looked up, everyone's progress, profiles
       and My Lists. Not the videos themselves, the keys or the PIN. Restore it on a new phone, or after resetting this one;
@@ -528,6 +585,7 @@ async function load() {
     $('#app').classList.remove('hidden');
     renderPrivate(priv);
     applyStatus(status);
+    loadDownloads();
     movies = [...list.movies.map(tag('movie')), ...showList.shows.map(tag('show'))]
       .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
     byId = new Map(movies.map((m) => [m._key, m]));
@@ -655,6 +713,7 @@ function setFilter(f) {
   $('#upPrivateLabel').classList.toggle('hidden', f !== 'private');
   $('#upPrivate').checked = f === 'private';
   renderGrid();
+  renderDownloads();
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setFilter(t.dataset.filter)));
 $('#openPrivate').addEventListener('click', () => { closeSettings(); setFilter('private'); window.scrollTo(0, 0); });
@@ -1179,6 +1238,7 @@ async function openSettings() {
     $('#sAuto').checked = st.autoMatch;
     $('#sOpt').checked = st.autoOptimize;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
+    fillTorrentSettings(downloads ? downloads.settings : (await api('GET', '/admin/torrents')).settings);
     await loadProfiles();
     loadUpdates().catch(() => {});
     $('#scrim').classList.remove('hidden');
@@ -1207,6 +1267,8 @@ $('#sSave').addEventListener('click', async () => {
   button.disabled = true;
   button.textContent = 'Checking…';
   try {
+    downloads = await api('PUT', '/admin/torrents/settings', readTorrentSettings());
+    renderDownloads();
     await api('PUT', '/admin/settings', body);
     closeSettings();
     toast(body.tmdbKey ? 'Key works. Looking up your movies…' : 'Saved');
@@ -1372,6 +1434,143 @@ document.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 's' && editing) { e.preventDefault(); save(); }
 });
 
+// ---- Torrent downloads: the phone fetches them in its own time; this page only lists and steers them. ----
+let downloads = null;
+let dlTimer = null;
+async function loadDownloads() {
+  clearTimeout(dlTimer);
+  try { downloads = await api('GET', '/admin/torrents'); } catch (err) { if (!err.quiet) console.warn(err); }
+  renderDownloads();
+  const busy = downloads && downloads.items.some((d) => !['done', 'error'].includes(d.state));
+  dlTimer = setTimeout(loadDownloads, busy && !document.hidden ? 3000 : 30000);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && downloads) loadDownloads(); });
+
+function renderDownloads() {
+  if (!downloads) return;
+  const on = downloads.settings.enabled;
+  $('#torrentHint').classList.toggle('hidden', !on);
+  $('#magnetRow').classList.toggle('hidden', !on);
+  // Private downloads only show in the Private view, like private videos.
+  const items = downloads.items.filter((d) => d.private === (filter === 'private'));
+  $('#downloads').classList.toggle('hidden', !items.length);
+  $('#dlWaiting').textContent = downloads.waiting || '';
+  $('#dlRows').replaceChildren(...items.map(downloadRow));
+}
+
+function downloadRow(d) {
+  const row = document.createElement('div');
+  row.className = 'dl';
+  const pct = d.size ? Math.floor((d.done / d.size) * 100) : 0;
+  let text;
+  if (d.state === 'details') text = 'Getting the torrent’s details…';
+  else if (d.state === 'queued') text = d.size ? `Waiting · ${pct}% of ${fmtSize(d.size)}` : 'Waiting';
+  else if (d.state === 'paused') text = `Paused · ${pct}% of ${fmtSize(d.size)}`;
+  else if (d.state === 'moving') text = 'Adding to the library…';
+  else if (d.state === 'done') text = `Added to the library: ${d.files.join(', ')}`;
+  else if (d.state === 'error') text = d.note || 'Something went wrong';
+  else {
+    const left = d.downRate > 0 ? fmtEta((d.size - d.done) / d.downRate) : null;
+    text = [`${pct}% of ${fmtSize(d.size)}`, d.downRate ? fmtRate(d.downRate) : 'Looking for people sharing it',
+      d.peers ? `${d.peers} ${d.peers === 1 ? 'person' : 'people'}` : null, left ? `${left} left` : null].filter(Boolean).join(' · ');
+  }
+  const note = d.note && d.state !== 'error' ? d.note : '';
+  row.innerHTML = `<div><div class="name">${d.private ? '🔒 ' : ''}${esc(d.name)}</div>
+      <div class="state small ${d.state === 'error' ? 'err' : 'muted'}">${esc(text)}</div>
+      ${note ? `<div class="muted small">${esc(note)}</div>` : ''}</div>
+    <div class="actions"></div>
+    ${['done', 'error', 'details'].includes(d.state) ? '' : `<progress max="100" value="${pct}"></progress>`}`;
+  const actions = row.querySelector('.actions');
+  const button = (label, fn, cls) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (cls) b.className = cls;
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { await fn(); } catch (err) { if (!err.quiet) toast(err.message, true); }
+      loadDownloads();
+    });
+    actions.append(b);
+  };
+  const path = `/admin/torrents/${encodeURIComponent(d.id)}`;
+  if (d.state === 'done') {
+    button('Clear', () => api('DELETE', path), 'ghost');
+  } else {
+    if (d.state === 'paused') button('Resume', () => api('POST', `${path}/resume`));
+    else if (d.state === 'error') button('Try again', () => api('POST', `${path}/retry`));
+    else if (d.state !== 'moving') button('Pause', () => api('POST', `${path}/pause`), 'ghost');
+    if (d.state !== 'moving') {
+      button('Remove', async () => {
+        if (!confirm(`Remove “${d.name}” from Downloads? What it has downloaded so far is deleted.`)) throw Object.assign(new Error(''), { quiet: true });
+        await api('DELETE', path);
+      }, 'ghost danger');
+    }
+  }
+  return row;
+}
+
+const fmtRate = (b) => b >= 1e6 ? `${(b / 1e6).toFixed(1)} MB/s` : `${Math.max(1, Math.round(b / 1e3))} KB/s`;
+function fmtEta(seconds) {
+  const m = Math.round(seconds / 60);
+  if (m < 1) return 'under a minute';
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  return h < 48 ? `${h} h ${m % 60} min` : `${Math.round(h / 24)} days`;
+}
+
+async function addTorrent(file) {
+  if (downloads && !downloads.settings.enabled) {
+    toast('Turn on Torrent downloads in Settings to use .torrent files.', true);
+    return;
+  }
+  try {
+    const d = await api('POST', `/admin/torrents${$('#upPrivate').checked ? '?private=1' : ''}`, undefined,
+      new Blob([file], { type: 'application/x-bittorrent' }));
+    toast(`Added to Downloads: ${d.name}`);
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+  loadDownloads();
+}
+
+$('#magnetAdd').addEventListener('click', async () => {
+  const magnet = $('#magnet').value.trim();
+  if (!magnet) return;
+  try {
+    const d = await api('POST', '/admin/torrents/magnet', { magnet, private: $('#upPrivate').checked });
+    $('#magnet').value = '';
+    toast(`Added to Downloads: ${d.name}`);
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  }
+  loadDownloads();
+});
+$('#magnet').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#magnetAdd').click(); } });
+
+function fillTorrentSettings(s) {
+  $('#tOn').checked = s.enabled;
+  $('#tCharging').checked = s.onlyWhileCharging;
+  $('#tWatch').checked = s.slowWhileWatching;
+  const hours = s.startHour != null && s.endHour != null ? `${s.startHour}-${s.endHour}` : '';
+  const select = (el, value) => {
+    if (![...el.options].some((o) => o.value === value)) el.append(new Option(value.replace('-', ':00 to ') + ':00', value));
+    el.value = value;
+  };
+  select($('#tHours'), hours);
+  select($('#tDown'), String(s.maxDownKBps));
+  select($('#tUp'), String(s.maxUpKBps));
+  $('#tOpts').classList.toggle('hidden', !s.enabled);
+}
+$('#tOn').addEventListener('change', () => $('#tOpts').classList.toggle('hidden', !$('#tOn').checked));
+function readTorrentSettings() {
+  const [start, end] = $('#tHours').value ? $('#tHours').value.split('-').map(Number) : [null, null];
+  return {
+    enabled: $('#tOn').checked, onlyWhileCharging: $('#tCharging').checked, slowWhileWatching: $('#tWatch').checked,
+    startHour: start, endHour: end, maxDownKBps: Number($('#tDown').value), maxUpKBps: Number($('#tUp').value),
+  };
+}
+
 // ---- Uploads: one file at a time, 8 MB per request. The server's offset is the truth. ----
 const queue = [];
 $('#uploadBtn').addEventListener('click', () => {
@@ -1399,6 +1598,7 @@ window.addEventListener('drop', (e) => {
 
 function addFiles(files) {
   for (const file of files) {
+    if (/\.torrent$/i.test(file.name)) { addTorrent(file); continue; }
     const row = document.createElement('div');
     row.className = 'up';
     row.innerHTML = `<span class="name">${esc(file.name)} <span class="muted small">${fmtSize(file.size)}</span></span>

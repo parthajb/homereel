@@ -85,6 +85,10 @@ class Prefs(context: Context) {
         get() = sp.getString("profiles", null)
         set(value) = sp.edit().putString("profiles", value).apply()
 
+    var torrentSettingsJson: String?
+        get() = sp.getString("torrentSettings", null)
+        set(value) = sp.edit().putString("torrentSettings", value).apply()
+
     var playabilityJson: String?
         get() = sp.getString("playability", null)
         set(value) = sp.edit().putString("playability", value).apply()

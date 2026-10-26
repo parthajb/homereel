@@ -29,6 +29,9 @@ Only the latest release gets fixes.
   key.
 - **Keys:** the TMDB or OMDb keys leaving the phone other than to TMDB and OMDb. The API only ever says whether
   they're set, even to the admin page.
+- **Torrents:** a viewer adding or steering downloads, a torrent's files being written outside the app's own storage
+  or the chosen folder (a path like `../`), anything but videos and subtitles reaching the library, or HomeReel
+  opening a port on the router.
 
 **By design, and out of scope:**
 - **Plain HTTP:** the API is plain HTTP on the home network. Anyone who can watch the Wi-Fi traffic can see what's
@@ -37,5 +40,7 @@ Only the latest release gets fixes.
 - **The parent PIN** guards leaving a kids profile in the apps. It isn't a password: someone who can edit requests
   can name another profile.
 - **The phone itself:** someone holding the unlocked phone can open its files. Keep a screen lock.
+- **Torrent peers:** with torrent downloads on, the phone talks to strangers on the internet who share the same
+  torrent, and they see your IP address. That's how BitTorrent works; it's off by default.
 - **Your build key:** release builds are signed with the debug key of the computer that built them. Keep that
   computer's `~/.android/debug.keystore` to yourself: anyone with it can build an update your devices accept.

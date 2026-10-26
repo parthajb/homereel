@@ -16,8 +16,10 @@ a streaming service.
 TV. The TV app never goes online. The phone only does if you add a free TMDB key for posters and details, and then
 it sends titles and years and nothing else.
 
-**HomeReel plays files you already have:** your own rips, DRM-free purchases, home videos. It doesn't download,
-find or stream anything from elsewhere, and it can't play anything protected by DRM.
+**HomeReel plays files you already have:** your own rips, DRM-free purchases, home videos. It doesn't find or
+stream anything from elsewhere, and it can't play anything protected by DRM. It can fetch a `.torrent` or magnet
+link you give it, but only once you turn that on ([Torrent downloads](#torrent-downloads)), and only for things you're
+allowed to download.
 
 **Status:** a personal project, shared under the [MIT licence](LICENSE). It's tested on a Redmi Note 9 Pro
 (Android 13) as the server and a OnePlus TV (Android TV 11) as the TV, and on the Android emulator. Both apps need
@@ -136,6 +138,7 @@ The version is set in `server/build.gradle` and `tv/build.gradle` (the `versionC
 | Any browser on the Wi-Fi | Open `http://<phone ip>:8080/admin` and enter the pairing code once. Drag files in to upload them. Click a movie to edit its thumbnail, title, year, IMDb rating, genres and description, or to delete it. |
 | USB cable | Plug the phone into a computer and copy files into the folder (on a Mac: OpenMTP or Android File Transfer). |
 | On the phone | Download or move files into the folder with any file manager. |
+| A torrent | Turn on [Torrent downloads](#torrent-downloads), then drop the `.torrent` file or paste a magnet link on the admin page. |
 
 - **Uploads** go in 8 MB pieces. If the Wi-Fi drops, the upload carries on from where it stopped, and it also
   carries on if you start the same file again later.
@@ -152,6 +155,28 @@ The version is set in `server/build.gradle` and `tv/build.gradle` (the `versionC
 | `Movie Name (2019).srt`, `Movie Name (2019).en.srt`, `….hi.srt` | subtitles, labelled English, Hindi… |
 
 Supported files are `.mp4 .m4v .mkv .webm .avi .mov`, with `.srt`/`.vtt` subtitles.
+
+## Torrent downloads
+
+Off until you turn it on: **Settings → Torrent downloads** on the admin page.
+
+- **Adding:** drop a `.torrent` file where you add movies (with your videos, if you like), or paste a magnet link in
+  the box below the drop area. Videos upload as usual; torrents go to **Downloads** on the main screen.
+- **In its own time:** by default it only downloads while the phone is charging. You can also limit it to hours
+  (overnight, say), cap the download and upload speeds, and have it slow to a trickle while someone is watching, so
+  the TV doesn't stutter.
+- **Only what HomeReel can play:** of the files in a torrent it downloads just the videos and subtitles, never text
+  files, pictures, programs or the short "sample" clip.
+- **When it's done:** the files are copied into the movie folder (or Private, for a torrent added in the Private
+  view), the library rescans, and the phone deletes its own copy and stops sharing it.
+- **In Downloads:** progress, speed and time left; Pause, Resume and Remove (which deletes what it has downloaded so
+  far); Try again after a problem such as a full phone; and Clear once it's in the library.
+- **Space:** a torrent is refused if it wouldn't leave 1 GB free, and downloads pause when space runs low.
+- **Privacy and the law:** while it downloads, the phone exchanges pieces with the other people sharing that torrent,
+  and they can see your internet address. HomeReel never opens ports on your router (UPnP and NAT-PMP are off). Only
+  download what you're allowed to, such as public-domain and Creative Commons films, or copies of your own.
+- **Size:** the phone app includes libtorrent for 64-bit and 32-bit ARM, about 30 MB. The engine only starts when
+  there's something to download.
 
 ## TV series
 
@@ -396,6 +421,10 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `GET /admin/status` | admin | Folder, free space, scan state, what can't play |
 | `POST /admin/uploads` `{name, size, private}` | admin | Starts an upload (into Private if asked), or resumes one with the same name and size |
 | `GET` / `PUT ?offset=N` / `DELETE /admin/uploads/{id}` | admin | Upload state, next piece, cancel |
+| `GET /admin/torrents` | admin | Torrent settings, downloads and why they're waiting |
+| `POST /admin/torrents[?private=1]` (the `.torrent` file as the body), `POST /admin/torrents/magnet` `{magnet, private}` | admin | Adds a download; refused while torrents are off |
+| `PUT /admin/torrents/settings` | admin | On or off, charging only, hours, speed limits, slowing while someone watches |
+| `POST /admin/torrents/{id}/pause`, `…/resume`, `…/retry`; `DELETE /admin/torrents/{id}` | admin | Steers one download; delete removes what it downloaded |
 
 ## Troubleshooting
 
@@ -436,6 +465,7 @@ It builds on:
 | [AndroidX Media3](https://github.com/androidx/media) (ExoPlayer, Transformer) | Playback on the TV; reading tracks and making lighter copies on the phone | Apache 2.0 |
 | [AndroidX Leanback](https://developer.android.com/jetpack/androidx/releases/leanback) and RecyclerView | The TV interface | Apache 2.0 |
 | [kotlinx.serialization](https://github.com/Kotlin/kotlinx.serialization) | The API's JSON | Apache 2.0 |
+| [libtorrent4j](https://github.com/aldenml/libtorrent4j) and [libtorrent](https://www.libtorrent.org) | Torrent downloads on the phone | MIT; BSD 3-Clause |
 | [Material icons](https://fonts.google.com/icons) | Icons in the TV app | Apache 2.0 |
 
 Movie and show details and pictures come from [TMDB](https://www.themoviedb.org), and IMDb ratings from

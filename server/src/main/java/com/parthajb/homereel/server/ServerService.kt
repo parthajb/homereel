@@ -47,6 +47,7 @@ class ServerService : Service() {
         app.events.info("Server started")
         startedAt = System.currentTimeMillis()
         app.library.requestScan()
+        app.torrents.start()
         scheduler = Executors.newSingleThreadScheduledExecutor().also {
             it.scheduleWithFixedDelay({ app.library.requestScan() }, 15, 15, TimeUnit.MINUTES)
             it.scheduleWithFixedDelay({ runCatching { app.health.check() } }, 1, 5, TimeUnit.MINUTES)
@@ -58,6 +59,7 @@ class ServerService : Service() {
     override fun onDestroy() {
         (application as ServerApp).events.info("Server stopped")
         running = false
+        (application as ServerApp).torrents.stop()
         scheduler?.shutdownNow()
         registration?.let { runCatching { nsd().unregisterService(it) } }
         http?.stop()

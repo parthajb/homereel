@@ -34,6 +34,11 @@ import com.parthajb.homereel.shared.ByteRange
 import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.ServerInfo
 import com.parthajb.homereel.shared.TmdbResult
+import com.parthajb.homereel.shared.MagnetRequest
+import com.parthajb.homereel.shared.TorrentItem
+import com.parthajb.homereel.shared.TorrentList
+import com.parthajb.homereel.shared.TorrentSettings
+import com.parthajb.homereel.shared.Torrents
 import com.parthajb.homereel.shared.UploadRequest
 import com.parthajb.homereel.shared.UpdateStatus
 import com.parthajb.homereel.shared.UploadState
@@ -394,6 +399,46 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                     else -> throw HttpError(405, "Method not allowed")
                 }
             }
+            // Torrent downloads: admin only, and refused until they're turned on in Settings.
+            p == listOf("admin", "torrents") -> {
+                requireAdmin()
+                when (method) {
+                    Method.GET -> json(200, TorrentList.serializer(), app.torrents.list(includePrivate = true))
+                    Method.POST -> {
+                        val length = s.headers["content-length"]?.toLongOrNull() ?: throw HttpError(411, "Content-Length is missing")
+                        if (length <= 0 || length > Torrents.MAX_TORRENT_BYTES) throw HttpError(413, "That's too big to be a .torrent file")
+                        val bytes = ByteArray(length.toInt())
+                        DataInputStream(bodies.get()!!).readFully(bytes)
+                        val private = s.parameters["private"]?.firstOrNull() == "1"
+                        json(200, TorrentItem.serializer(), app.torrents.add(bytes, private))
+                    }
+                    else -> throw HttpError(405, "Method not allowed")
+                }
+            }
+            p == listOf("admin", "torrents", "magnet") && method == Method.POST -> {
+                requireAdmin()
+                val request = readJson(s, MagnetRequest.serializer())
+                json(200, TorrentItem.serializer(), app.torrents.addMagnet(request.magnet, request.private))
+            }
+            p == listOf("admin", "torrents", "settings") && method == Method.PUT -> {
+                requireAdmin()
+                json(200, TorrentList.serializer(), app.torrents.updateSettings(readJson(s, TorrentSettings.serializer())))
+            }
+            p.size == 3 && p[0] == "admin" && p[1] == "torrents" && method == Method.DELETE -> {
+                requireAdmin()
+                app.torrents.remove(p[2])
+                noContent()
+            }
+            p.size == 4 && p[0] == "admin" && p[1] == "torrents" && method == Method.POST -> {
+                requireAdmin()
+                when (p[3]) {
+                    "pause" -> app.torrents.pause(p[2], true)
+                    "resume" -> app.torrents.pause(p[2], false)
+                    "retry" -> app.torrents.retry(p[2])
+                    else -> throw HttpError(404, "Not found")
+                }
+                noContent()
+            }
             else -> throw HttpError(404, "Not found")
         }
     }
@@ -445,8 +490,8 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 return error(416, "Range not satisfiable").apply { addHeader("Content-Range", "bytes */$size") }
             }
         }
-        app.locks.begin()
-        val body = FileSlice(pfd, start, length) { app.locks.end() }
+        app.locks.begin(watching = true)
+        val body = FileSlice(pfd, start, length) { app.locks.end(watching = true) }
         return newFixedLengthResponse(Code(status), mime, body, length).apply {
             addHeader("Accept-Ranges", "bytes")
             if (status == 206) addHeader("Content-Range", "bytes $start-${start + length - 1}/$size")

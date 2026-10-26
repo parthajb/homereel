@@ -3,6 +3,14 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## 0.5.0 (2026-10-26)
+
+- **Torrent downloads (off by default):** drop a `.torrent` file or paste a magnet link on the admin page, and the
+  phone downloads it in its own time: only while charging (by default), within chosen hours, with speed limits, and
+  slowed while someone watches. Only videos and subtitles are kept; they go into the library (or Private) when done.
+  Downloads on the main screen show progress, with Pause, Resume, Remove and Try again. Uses libtorrent4j; the phone
+  app is about 30 MB now.
+
 ## 0.4.1 (2026-10-26)
 
 - **TV:** the My List (heart) button on a film's page was squeezed into a thin sliver when Resume, Play from start and

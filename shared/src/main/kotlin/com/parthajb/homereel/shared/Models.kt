@@ -421,3 +421,102 @@ object Updates {
     /** Whether an uploaded update is newer than what's installed. */
     fun isNewer(update: AppUpdate?, installedVersionCode: Long): Boolean = update != null && update.versionCode > installedVersionCode
 }
+
+/**
+ * Torrent downloads, off until the admin turns them on. The phone downloads in its own time and keeps only the
+ * videos and subtitles, which it moves into the library when they're complete.
+ */
+@Serializable
+data class TorrentSettings(
+    val enabled: Boolean = false,
+    val onlyWhileCharging: Boolean = true,
+    /** Hours of the day (0–23) downloads may run, from [startHour] up to [endHour]; both null means any time. */
+    val startHour: Int? = null,
+    val endHour: Int? = null,
+    /** KB/s; 0 means no limit. */
+    val maxDownKBps: Int = 0,
+    val maxUpKBps: Int = 50,
+    /** Down to a trickle while someone is watching, so the film doesn't stutter. */
+    val slowWhileWatching: Boolean = true,
+)
+
+@Serializable
+data class TorrentItem(
+    val id: String,
+    val name: String,
+    /** Bytes of the files HomeReel keeps (videos and subtitles); 0 until a magnet link's details arrive. */
+    val size: Long = 0,
+    val done: Long = 0,
+    val downRate: Long = 0,
+    val upRate: Long = 0,
+    val peers: Int = 0,
+    val state: String,
+    /** Why it's waiting, or what went wrong, in plain words. */
+    val note: String? = null,
+    /** The videos and subtitles it will add. */
+    val files: List<String> = emptyList(),
+    val private: Boolean = false,
+    val addedAt: Long = 0,
+    val finishedAt: Long? = null,
+)
+
+@Serializable
+data class TorrentList(
+    val settings: TorrentSettings,
+    val items: List<TorrentItem>,
+    /** Why nothing is downloading right now (not charging, outside the hours…), or null. */
+    val waiting: String? = null,
+)
+
+@Serializable
+data class MagnetRequest(val magnet: String, val private: Boolean = false)
+
+object Torrents {
+    const val QUEUED = "queued"
+    const val DETAILS = "details"
+    const val DOWNLOADING = "downloading"
+    const val PAUSED = "paused"
+    const val MOVING = "moving"
+    const val DONE = "done"
+    const val ERROR = "error"
+
+    /** A .torrent file is small; anything bigger isn't one. */
+    const val MAX_TORRENT_BYTES = 10 * 1024 * 1024
+
+    fun isTorrentFile(name: String) = MediaFiles.extension(name) == "torrent"
+
+    fun isMagnet(text: String) = text.trim().startsWith("magnet:?", ignoreCase = true) && "xt=urn:bt" in text.lowercase()
+
+    /**
+     * Whether a file inside a torrent is worth downloading: videos and subtitles only, and not the short "sample"
+     * clip many releases include. Everything else (text files, pictures, programs) is never downloaded.
+     */
+    fun wanted(path: String, size: Long, largestVideo: Long): Boolean {
+        val name = path.substringAfterLast('/').substringAfterLast('\\')
+        val ext = MediaFiles.extension(name)
+        if (ext in MediaFiles.SUBTITLE_EXTENSIONS) return true
+        if (ext !in MediaFiles.VIDEO_EXTENSIONS) return false
+        val sample = Regex("(^|[^a-z])sample([^a-z]|$)", RegexOption.IGNORE_CASE).containsMatchIn(path)
+        return !(sample && size < largestVideo / 4)
+    }
+
+    /** Whether [hour] (0–23) falls in the allowed window; a window may run past midnight (22 to 6). */
+    fun inHours(startHour: Int?, endHour: Int?, hour: Int): Boolean {
+        if (startHour == null || endHour == null || startHour == endHour) return true
+        return if (startHour < endHour) hour in startHour until endHour else hour >= startHour || hour < endHour
+    }
+
+    /** [name], or "name (2).ext", "name (3).ext"… until it's not in [taken] (compared ignoring case). */
+    fun freeName(name: String, taken: Set<String>): String {
+        val lower = taken.map { it.lowercase() }.toSet()
+        if (name.lowercase() !in lower) return name
+        val base = MediaFiles.baseName(name)
+        val ext = MediaFiles.extension(name)
+        var n = 2
+        while (true) {
+            val candidate = if (ext.isEmpty()) "$base ($n)" else "$base ($n).$ext"
+            if (candidate.lowercase() !in lower) return candidate
+            n++
+        }
+    }
+}

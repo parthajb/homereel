@@ -248,3 +248,37 @@ class UpdatesTest {
     @Test fun olderIsNotOffered() = assertEquals(false, Updates.isNewer(update(1), 2))
     @Test fun noneIsNotOffered() = assertEquals(false, Updates.isNewer(null, 2))
 }
+
+class TorrentsTest {
+    private val gb = 1024L * 1024 * 1024
+
+    @Test fun keepsTheFilm() = assertEquals(true, Torrents.wanted("Film (2019)/Film.2019.1080p.mkv", 2 * gb, 2 * gb))
+    @Test fun keepsSubtitles() = assertEquals(true, Torrents.wanted("Film/Subs/English.srt", 50_000, 2 * gb))
+    @Test fun skipsTextAndPictures() {
+        assertEquals(false, Torrents.wanted("Film/README.txt", 1000, 2 * gb))
+        assertEquals(false, Torrents.wanted("Film/cover.jpg", 100_000, 2 * gb))
+        assertEquals(false, Torrents.wanted("Film/setup.exe", 100_000, 2 * gb))
+    }
+    @Test fun skipsTheSample() = assertEquals(false, Torrents.wanted("Film/Sample/film-sample.mkv", 40_000_000, 2 * gb))
+    @Test fun keepsAFilmCalledSample() = assertEquals(true, Torrents.wanted("The Sample (2010).mp4", 2 * gb, 2 * gb))
+    @Test fun keepsEpisodes() = assertEquals(true, Torrents.wanted("Show S01/Show.S01E02.mkv", gb / 2, gb / 2 + 1))
+
+    @Test fun anyTime() = assertEquals(true, Torrents.inHours(null, null, 15))
+    @Test fun daytimeWindow() {
+        assertEquals(true, Torrents.inHours(9, 17, 9))
+        assertEquals(false, Torrents.inHours(9, 17, 17))
+    }
+    @Test fun overnightWindow() {
+        assertEquals(true, Torrents.inHours(22, 6, 23))
+        assertEquals(true, Torrents.inHours(22, 6, 2))
+        assertEquals(false, Torrents.inHours(22, 6, 12))
+    }
+
+    @Test fun freeNameUnchanged() = assertEquals("Film.mkv", Torrents.freeName("Film.mkv", setOf("Other.mkv")))
+    @Test fun freeNameNumbers() = assertEquals("Film (3).mkv", Torrents.freeName("Film.mkv", setOf("film.mkv", "Film (2).mkv")))
+
+    @Test fun magnets() {
+        assertEquals(true, Torrents.isMagnet("magnet:?xt=urn:btih:abcdef&dn=x"))
+        assertEquals(false, Torrents.isMagnet("https://example.com/x.torrent"))
+    }
+}
