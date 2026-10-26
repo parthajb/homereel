@@ -3,7 +3,7 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
-## Unreleased
+## 0.6.0 (2026-10-26)
 
 - **Torrent search (optional):** with a Torznab indexer (Search Magnet Link, Jackett, Prowlarr…) and its key in
   Settings → Torrent downloads, a search box appears where you add movies. A result's Download button sends it to

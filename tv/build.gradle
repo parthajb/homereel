@@ -13,8 +13,8 @@ android {
         minSdk 26
         targetSdk 34
         // -PhomereelVersion=7 builds a "newer" copy, for trying an update without ADB.
-        versionCode((project.findProperty('homereelVersion') ?: '6') as int)
-        versionName project.hasProperty('homereelVersion') ? "0.3.${project.findProperty('homereelVersion')}" : '0.5.0'
+        versionCode((project.findProperty('homereelVersion') ?: '7') as int)
+        versionName project.hasProperty('homereelVersion') ? "0.3.${project.findProperty('homereelVersion')}" : '0.6.0'
     }
 
     buildTypes {
