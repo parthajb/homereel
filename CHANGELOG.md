@@ -3,6 +3,17 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## Unreleased
+
+- **Torrent search with Prowlarr or Jackett:** Settings → Downloads asks what to search with. Prowlarr uses its own
+  search and Jackett its all-indexers feed, so one search asks every indexer set up in them. Results are sorted by
+  seeders and name the indexer that found each one. **Test connection** checks the address and key and lists the
+  indexers, without saving. Fixes searches that failed with Prowlarr or Jackett:
+  - their main address was sent to a Torznab path they don't have;
+  - results with only a download link were dropped;
+  - download links that redirect to a magnet were refused;
+  - searches across many indexers timed out after 12 seconds.
+
 ## 0.6.0 (2026-10-26)
 
 - **Torrent search (optional):** with a Torznab indexer (Search Magnet Link, Jackett, Prowlarr…) and its key in

@@ -89,7 +89,12 @@ class Prefs(context: Context) {
         get() = sp.getString("torrentSettings", null)
         set(value) = sp.edit().putString("torrentSettings", value).apply()
 
-    /** A Torznab indexer for torrent search, such as https://www.searchmagnetlink.com. */
+    /** What [indexerUrl] is: Prowlarr, Jackett, or any other Torznab feed (see IndexerKind). */
+    var indexerKind: String
+        get() = sp.getString("indexerKind", null) ?: "torznab"
+        set(value) = sp.edit().putString("indexerKind", value).apply()
+
+    /** Where torrent search asks: Prowlarr's or Jackett's address, or a Torznab feed's. */
     var indexerUrl: String?
         get() = sp.getString("indexerUrl", null)
         set(value) = sp.edit().putString("indexerUrl", value).apply()

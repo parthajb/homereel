@@ -39,6 +39,7 @@ import com.parthajb.homereel.shared.TorrentItem
 import com.parthajb.homereel.shared.TorrentList
 import com.parthajb.homereel.shared.TorrentSettings
 import com.parthajb.homereel.shared.Torrents
+import com.parthajb.homereel.shared.IndexerCheck
 import com.parthajb.homereel.shared.IndexerSettings
 import com.parthajb.homereel.shared.IndexerUpdate
 import com.parthajb.homereel.shared.SearchAdd
@@ -428,7 +429,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 requireAdmin()
                 json(200, TorrentList.serializer(), app.torrents.updateSettings(readJson(s, TorrentSettings.serializer())))
             }
-            // Torrent search through the admin's Torznab indexer. Before the {id}/pause route, which "search/add" would match.
+            // Torrent search through the admin's Prowlarr, Jackett or Torznab feed. Before the {id}/pause route, which "search/add" would match.
             p == listOf("admin", "torrents", "indexer") -> {
                 requireAdmin()
                 val settings = when (method) {
@@ -437,6 +438,10 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                     else -> throw HttpError(405, "Method not allowed")
                 }
                 json(200, IndexerSettings.serializer(), settings)
+            }
+            p == listOf("admin", "torrents", "indexer", "test") && method == Method.POST -> {
+                requireAdmin()
+                json(200, IndexerCheck.serializer(), app.torrentSearch.check(readJson(s, IndexerUpdate.serializer())))
             }
             p == listOf("admin", "torrents", "search") && method == Method.GET -> {
                 requireAdmin()
@@ -447,7 +452,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             p == listOf("admin", "torrents", "search", "add") && method == Method.POST -> {
                 requireAdmin()
                 val request = readJson(s, SearchAdd.serializer())
-                json(200, TorrentItem.serializer(), app.torrentSearch.add(request.infoHash, request.private))
+                json(200, TorrentItem.serializer(), app.torrentSearch.add(request.id, request.private))
             }
             p.size == 3 && p[0] == "admin" && p[1] == "torrents" && method == Method.DELETE -> {
                 requireAdmin()
