@@ -13,6 +13,9 @@ update without a cable won't offer the new build.
 - **Admin page, library:** sort by recently added, title, year, rating or recently watched; a compact List view
   beside the posters; Select mode to look up info, move into or out of Private, or delete several titles at once.
   The editor has tabs (Details, Online info, Playback, File or Episodes) instead of one long page.
+- **TV and web app navigation:** a menu along the top with Home, Movies, TV shows, Genres, My List and (while it's
+  unlocked) Private. Genres lists every genre; choosing one shows its top rated, movies and shows. On the TV, Back
+  goes to the top, then to Home; in the web app each section has its own address.
 
 ## 0.5.0 (2026-10-26)
 

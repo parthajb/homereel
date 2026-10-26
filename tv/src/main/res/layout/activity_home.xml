@@ -6,25 +6,66 @@
 
     <include layout="@layout/hero_backdrop" />
 
+    <!-- The top bar: whose home this is, the sections, then Search and the profile. Up from the first row lands here. -->
     <LinearLayout
-        android:layout_width="560dp"
+        android:id="@+id/top_bar"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="56dp"
-        android:layout_marginTop="30dp"
-        android:orientation="vertical">
+        android:layout_marginStart="48dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="48dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
         <TextView
             android:id="@+id/brand"
             style="@style/HomeReel.Brand"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:maxWidth="220dp"
+            android:singleLine="true" />
+
+        <LinearLayout
+            android:id="@+id/nav"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="20dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="horizontal" />
+
+        <Button
+            android:id="@+id/top_search"
+            style="@style/HomeReel.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:drawableStart="@drawable/ic_search"
+            android:text="@string/search"
+            android:textSize="15sp" />
+
+        <Button
+            android:id="@+id/top_profile"
+            style="@style/HomeReel.Pill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:drawableStart="@drawable/ic_person"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="560dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="56dp"
+        android:layout_marginTop="78dp"
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/hero_title"
             style="@style/HomeReel.HeroTitle"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="12dp" />
+            android:layout_height="52dp" />
 
         <TextView
             android:id="@+id/hero_meta"
@@ -46,41 +87,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:maxLines="3" />
-    </LinearLayout>
-
-    <!-- Up from the first row lands here: Search, and the profile watching. -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="24dp"
-        android:layout_marginEnd="48dp"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/top_search"
-            style="@style/HomeReel.Pill"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:drawableStart="@drawable/ic_search"
-            android:text="@string/search"
-            android:textSize="15sp" />
-
-        <Button
-            android:id="@+id/top_profile"
-            style="@style/HomeReel.Pill"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:drawableStart="@drawable/ic_person"
-            android:textSize="15sp" />
+            android:maxLines="2" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rows"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginTop="248dp"
+        android:layout_marginTop="262dp"
         android:clipChildren="false" />
 </FrameLayout>

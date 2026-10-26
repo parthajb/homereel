@@ -87,6 +87,8 @@ shows the address.
 - **Pairing:** the first time, enter the 6-digit code from the phone. The browser pairs as a viewer, like a TV: it
   can watch and save progress, but not change anything. A browser already paired for the admin page doesn't need
   to pair again.
+- **Sections** in the header, as on the TV: Home, Movies, TV shows, Genres (with a page per genre), My List and
+  Private. Each has its own address, so the browser's Back button and bookmarks work.
 - **What's the same as the TV:** "Who's watching?", with the parent PIN to leave a kids profile; the same rows
   (Continue watching, My List, Because you watched, shows, genres); search; details with cast and More like this;
   seasons and episodes; resume points shared with the TV; Skip intro; and Next episode at the credits.
@@ -347,7 +349,10 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
     description.
   - Rows underneath: Continue watching (with progress bars), Recently added, Top rated, one row per genre, then
     everything A–Z, and Settings.
-  - Back jumps to the top.
+  - **The menu along the top** (press Up from the first row): Home, Movies, TV shows, Genres, My List and, while
+    it's unlocked, Private. Genres shows a tile per genre; choose one for its top rated, movies and shows. Sections
+    with nothing in them aren't shown.
+  - Back jumps to the top, then to Home, then leaves.
 - **Details page:**
   - The tagline, cast and director.
   - Play, or Resume and Play from start, plus Mark as watched.
