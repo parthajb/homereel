@@ -3,6 +3,13 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## 0.4.1 (2026-10-26)
+
+- **TV:** the My List (heart) button on a film's page was squeezed into a thin sliver when Resume, Play from start and
+  Mark as watched were all showing. The buttons now have the full width, on the show page too.
+- **Admin page:** Private videos no longer have a tab, and stay out of All, the filters and search. Settings → Private
+  folder → Open Private videos shows them.
+
 ## 0.4.0 (2026-10-25)
 
 - **Web player:** HomeReel's own controls instead of the browser's: a seek bar with the time as you drag, ±10 s,

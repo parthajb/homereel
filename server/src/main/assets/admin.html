@@ -238,7 +238,6 @@
       <button class="tab" data-filter="all" aria-pressed="true">All <span class="n" id="n-all"></span></button>
       <button class="tab" data-filter="movies" aria-pressed="false">Movies <span class="n" id="n-movies"></span></button>
       <button class="tab" data-filter="shows" aria-pressed="false">TV shows <span class="n" id="n-shows"></span></button>
-      <button class="tab" data-filter="private" aria-pressed="false">🔒 Private <span class="n" id="n-private"></span></button>
       <button class="tab" data-filter="match" aria-pressed="false">Needs a match <span class="n" id="n-match"></span></button>
       <button class="tab" data-filter="details" aria-pressed="false">Needs details <span class="n" id="n-details"></span></button>
       <button class="tab" data-filter="cantplay" aria-pressed="false">Can't play on TV <span class="n" id="n-cantplay"></span></button>
@@ -248,6 +247,11 @@
 
   <main>
     <div id="privateNote" class="private-bar open hidden"></div>
+    <div id="privateView" class="private-bar open hidden">
+      <span class="grow">🔒 <strong>Private videos</strong> <span id="privateCount"></span>. Hidden from every other view and from
+        the TV unless unlocked.</span>
+      <button type="button" class="primary" id="leavePrivate">Leave Private</button>
+    </div>
     <div id="drop" class="hidden">
       <strong>Drop movie files here</strong> <span class="muted">or</span>
       <button id="pick" type="button">choose files</button>
@@ -257,7 +261,7 @@
         If the Wi-Fi drops, an upload carries on from where it stopped. You can add a thumbnail and details after.
         For a TV series, name files like <code>Show Name S01E02.mkv</code>.
       </div>
-      <label class="up-private"><input type="checkbox" id="upPrivate"> 🔒 Upload into the Private folder</label>
+      <label class="up-private hidden" id="upPrivateLabel"><input type="checkbox" id="upPrivate"> 🔒 Upload into the Private folder</label>
     </div>
     <div id="uploads"></div>
     <div id="scanErr" class="notice hidden"></div>
@@ -388,9 +392,11 @@
     <button type="button" id="savePin">Set PIN</button> <button type="button" class="ghost danger" id="clearPin">Clear PIN</button>
 
     <h3 class="section">Private folder</h3>
-    <p class="muted small" style="margin-top:0">Videos in Private are hidden from every TV and the web app. Unlock them
-      for a while to watch on the TV; they lock again by themselves. Kids profiles never see them.</p>
+    <p class="muted small" style="margin-top:0">Videos in Private are hidden from every TV and the web app, and from the
+      rest of this page: they only show after <strong>Open Private videos</strong> below. Unlock them for a while to watch
+      on the TV; they lock again by themselves. Kids profiles never see them.</p>
     <div id="privateBar" class="private-bar"></div>
+    <button type="button" id="openPrivate">🔒 Open Private videos</button>
 
     <h3 class="section">Backup</h3>
     <p class="muted small" style="margin-top:0">One file with everything you've typed in or looked up, everyone's progress, profiles
@@ -458,6 +464,7 @@ let movies = [];
 let byId = new Map();
 let cantPlay = new Map();
 let filter = 'all';
+let privateCount = 0; // how many videos are in Private, kept out of every count on the main page
 let query = '';
 let uploading = false;
 let reloadTimer = null;
@@ -519,8 +526,8 @@ async function load() {
       api('GET', '/admin/status'), api('GET', '/movies'), api('GET', '/shows'), api('GET', '/admin/private'),
     ]);
     $('#app').classList.remove('hidden');
-    applyStatus(status);
     renderPrivate(priv);
+    applyStatus(status);
     movies = [...list.movies.map(tag('movie')), ...showList.shows.map(tag('show'))]
       .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
     byId = new Map(movies.map((m) => [m._key, m]));
@@ -534,7 +541,9 @@ async function load() {
 function applyStatus(st) {
   $('#name').textContent = st.serverName;
   document.title = st.serverName;
-  const parts = [`${st.movieCount} movie${st.movieCount === 1 ? '' : 's'}`];
+  // Private videos aren't counted here either, so the header doesn't hint that some are hidden.
+  const shown = Math.max(0, st.movieCount - privateCount);
+  const parts = [`${shown} movie${shown === 1 ? '' : 's'}`];
   parts.push(st.libraryName ? `folder “${st.libraryName}”` : 'no folder chosen on the phone yet');
   if (st.freeBytes != null) parts.push(`${fmtSize(st.freeBytes)} free`);
   if (st.scanning) parts.push('scanning…');
@@ -560,9 +569,10 @@ const needsDetails = (m) => !m.private && (!m.description || !m.genres.length ||
 const watching = (m) => m._type === 'show' ? !!m.upNext : m.positionMs > 0 && !m.watched;
 
 function matches(m) {
-  if (filter === 'movies' && (m._type !== 'movie' || m.private)) return false;
+  // Private videos show only in the Private view, which is reached from Settings; never in All, a filter or a search.
+  if ((filter === 'private') !== !!m.private) return false;
+  if (filter === 'movies' && m._type !== 'movie') return false;
   if (filter === 'shows' && m._type !== 'show') return false;
-  if (filter === 'private' && !m.private) return false;
   if (filter === 'details' && !needsDetails(m)) return false;
   if (filter === 'match' && m.match !== 'needs-match') return false;
   if (filter === 'cantplay' && !cantPlay.has(m.id)) return false;
@@ -573,14 +583,17 @@ function matches(m) {
 }
 
 function renderGrid() {
-  $('#n-all').textContent = movies.length;
-  $('#n-movies').textContent = movies.filter((m) => m._type === 'movie' && !m.private).length;
-  $('#n-shows').textContent = movies.filter((m) => m._type === 'show').length;
-  $('#n-private').textContent = movies.filter((m) => m.private).length;
-  $('#n-details').textContent = movies.filter(needsDetails).length;
-  $('#n-match').textContent = movies.filter((m) => m.match === 'needs-match').length;
-  $('#n-cantplay').textContent = movies.filter((m) => cantPlay.has(m.id)).length;
-  $('#n-watching').textContent = movies.filter(watching).length;
+  const open = movies.filter((m) => !m.private);
+  const hidden = movies.length - open.length;
+  $('#n-all').textContent = open.length;
+  $('#n-movies').textContent = open.filter((m) => m._type === 'movie').length;
+  $('#n-shows').textContent = open.filter((m) => m._type === 'show').length;
+  $('#n-details').textContent = open.filter(needsDetails).length;
+  $('#n-match').textContent = open.filter((m) => m.match === 'needs-match').length;
+  $('#n-cantplay').textContent = open.filter((m) => cantPlay.has(m.id)).length;
+  $('#n-watching').textContent = open.filter(watching).length;
+  $('#privateView').classList.toggle('hidden', filter !== 'private');
+  $('#privateCount').textContent = `(${hidden})`;
   const shown = movies.filter(matches);
   const grid = $('#grid');
   if (!movies.length) {
@@ -589,7 +602,9 @@ function renderGrid() {
     return;
   }
   if (!shown.length) {
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">Nothing matches.</div>';
+    grid.innerHTML = filter === 'private' && !hidden
+      ? '<div class="empty" style="grid-column:1/-1">Nothing in Private yet. Upload here with “Upload into the Private folder” ticked, or open a movie and choose “Move to Private”.</div>'
+      : '<div class="empty" style="grid-column:1/-1">Nothing matches.</div>';
     return;
   }
   grid.innerHTML = shown.map((m) => {
@@ -633,11 +648,17 @@ $('#grid').addEventListener('keydown', (e) => {
   if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEditor(card.dataset.id); }
 });
 $('#search').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderGrid(); });
-document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
-  filter = t.dataset.filter;
-  document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-pressed', String(x === t)));
+function setFilter(f) {
+  filter = f;
+  document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.filter === f)));
+  // Uploads made in the Private view go into Private; elsewhere the option isn't shown at all.
+  $('#upPrivateLabel').classList.toggle('hidden', f !== 'private');
+  $('#upPrivate').checked = f === 'private';
   renderGrid();
-}));
+}
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setFilter(t.dataset.filter)));
+$('#openPrivate').addEventListener('click', () => { closeSettings(); setFilter('private'); window.scrollTo(0, 0); });
+$('#leavePrivate').addEventListener('click', () => setFilter('all'));
 $('#rescan').addEventListener('click', async () => {
   try { await api('POST', '/rescan'); toast('Rescanning the folder…'); } catch (err) { if (!err.quiet) toast(err.message, true); }
   setTimeout(load, 1500);
@@ -1292,7 +1313,7 @@ $('#edMove').addEventListener('click', async () => {
   try {
     await api('POST', `${itemPath(m)}/move`, { private: toPrivate });
     closeEditor(true);
-    toast(toPrivate ? 'Moved to Private' : 'Moved out of Private');
+    toast(toPrivate ? 'Moved to Private. Find it under Settings → Private folder.' : 'Moved out of Private');
     setTimeout(load, 1500);
   } catch (err) {
     if (!err.quiet) toast(err.message, true);
@@ -1301,6 +1322,7 @@ $('#edMove').addEventListener('click', async () => {
 
 // ---- Private ----
 function renderPrivate(p) {
+  privateCount = p.count || 0;
   const bar = $('#privateBar');
   bar.classList.toggle('open', p.unlocked);
   const until = p.until ? new Date(p.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';

@@ -12,9 +12,9 @@ android {
         applicationId 'com.parthajb.homereel.server'
         minSdk 26
         targetSdk 34
-        // -PhomereelVersion=5 builds a "newer" copy, for trying an update without ADB.
-        versionCode((project.findProperty('homereelVersion') ?: '4') as int)
-        versionName project.hasProperty('homereelVersion') ? "0.3.${project.findProperty('homereelVersion')}" : '0.4.0'
+        // -PhomereelVersion=6 builds a "newer" copy, for trying an update without ADB.
+        versionCode((project.findProperty('homereelVersion') ?: '5') as int)
+        versionName project.hasProperty('homereelVersion') ? "0.3.${project.findProperty('homereelVersion')}" : '0.4.1'
     }
 
     buildTypes {

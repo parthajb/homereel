@@ -85,10 +85,16 @@
             android:textSize="14sp"
             android:visibility="gone" />
 
-        <LinearLayout
+    </LinearLayout>
+
+    <!-- Outside the 620dp text column: Resume, Play from start, Mark as unwatched and My List don't fit inside it,
+         and the last button was squeezed to a sliver. -->
+    <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="56dp"
             android:layout_marginTop="20dp"
+            android:layout_marginEnd="56dp"
             android:clipChildren="false"
             android:orientation="horizontal">
 
@@ -125,16 +131,16 @@
                 android:layout_marginStart="12dp"
                 android:drawableStart="@drawable/ic_heart_outline_small"
                 android:text="@string/my_list_add" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/tech"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:textColor="@color/muted"
-            android:textSize="12sp" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/tech"
+        android:layout_width="620dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="56dp"
+        android:layout_marginTop="16dp"
+        android:textColor="@color/muted"
+        android:textSize="12sp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/more"

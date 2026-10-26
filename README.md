@@ -245,6 +245,8 @@ folder** on the admin page, **Move to Private** on a film, or copy files there b
 - **Locked (the default):**
   - The TV doesn't list them, and asking for one directly gets "not found".
   - That covers the list, the details, the stream, the poster and saving progress.
+- **On the admin page** they're hidden too: not in All, the filters or search. **Settings → Private folder → Open
+  Private videos** shows them, and uploads made there go into Private.
 - **Unlocking:** on the admin page, **Settings → Private folder** unlocks them on the TV for 30 minutes to 4 hours.
   They then show in their own **🔒 Private** row on the TV and nowhere else. While Private is unlocked, the admin
   page's main screen shows a reminder with **Lock now**.
