@@ -35,7 +35,7 @@
   button.primary { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-fg); font-weight: 600; }
   button.ghost { background: transparent; border-color: transparent; }
   button.danger { color: var(--danger); }
-  input[type=text], input[type=number], input[type=search], input[type=password], textarea {
+  input[type=text], input[type=number], input[type=search], input[type=password], input[type=url], textarea {
     width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg);
   }
   textarea { resize: vertical; min-height: 110px; }
@@ -59,7 +59,9 @@
   .bar { max-width: 1200px; margin: 0 auto; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
   .bar .grow { flex: 1; min-width: 160px; }
   #search { max-width: 340px; }
-  .tabs { max-width: 1200px; margin: 0 auto; padding: 0 20px 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tabs { max-width: 1200px; margin: 0 auto; padding: 0 20px 10px; display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; }
   .tab { border-radius: 999px; padding: 5px 12px; font-size: 13px; background: var(--chip); border-color: transparent; }
   .tab[aria-pressed=true] { background: var(--fg); color: var(--bg); }
   .tab .n { opacity: .7; margin-left: 2px; }
@@ -93,6 +95,35 @@
   .up .name { overflow-wrap: anywhere; }
   .up progress { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--accent-strong); }
   .notice { padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; background: var(--warn-bg); color: var(--warn); font-size: 14px; }
+
+  /* Toolbar, list view and selecting */
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .toolbar .grow { flex: 1; }
+  .toolbar select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button[aria-pressed="true"], #selectMode[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+  #grid.list { display: block; }
+  .row-item { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 4px 14px; align-items: center; padding: 8px 10px;
+    border-bottom: 1px solid var(--line); border-radius: 10px; }
+  .row-item:hover { background: var(--chip); }
+  .row-item .thumb { width: 46px; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: linear-gradient(160deg, #2e2a6b, #151527); }
+  .row-item .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .row-item h3 { margin: 0 0 2px; font-size: 15px; }
+  .row-item .rbadges { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+  .row-item .file { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .card .pick { display: none; }
+  #grid.selecting .card .pick { display: grid; place-items: center; position: absolute; top: 8px; right: 8px; z-index: 2; width: 26px; height: 26px;
+    border-radius: 50%; border: 2px solid #fff; background: rgb(0 0 0 / 45%); color: #fff; font-weight: 700; }
+  #grid.list.selecting .card .pick { position: static; border-color: var(--muted); background: transparent; color: var(--fg); width: 22px; height: 22px; }
+  #grid.list.selecting .row-item { grid-template-columns: 24px 46px minmax(0, 1fr) auto; }
+  #grid.selecting .card.sel .pick { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--accent-fg); }
+  #grid.selecting .card.sel .art, #grid.selecting .row-item.sel { outline: 3px solid var(--accent-strong); outline-offset: 2px; }
+  #grid.selecting .overlay { display: none; }
+  #bulkBar { position: sticky; bottom: 12px; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px;
+    padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+  #bulkBar .grow { flex: 1; }
+  .ed-pane .episodes { max-height: none; }
 
   /* Grid */
   #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 22px 18px; }
@@ -143,6 +174,11 @@
   dl.facts dt { color: var(--muted); }
   dl.facts dd { margin: 0; overflow-wrap: anywhere; }
   details.tech { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+  .ed-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; }
+  .ed-tabs button { border: 0; border-radius: 0; background: transparent; padding: 8px 12px; color: var(--muted); font-weight: 600;
+    border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .ed-tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent-strong); }
+  .ed-tabs .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; margin-left: 6px; }
   details.tech summary { cursor: pointer; font-weight: 600; font-size: 14px; }
   .ed-foot { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); align-items: center; }
   .ed-foot .grow { flex: 1; }
@@ -163,7 +199,28 @@
   .result img, .result .noimg { width: 46px; height: 69px; border-radius: 5px; object-fit: cover; background: var(--chip); }
   .result .ov { font-size: 12px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .cert { display: inline-block; border: 1px solid var(--muted); border-radius: 4px; padding: 0 5px; font-size: 11px; line-height: 16px; margin-left: 4px; }
-  #settings .ed-body { display: block; }
+  #settings, #healthPanel {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 21; background: var(--surface); box-shadow: var(--shadow);
+    display: flex; flex-direction: column; animation: slide .18s ease-out;
+  }
+  #settings { width: min(880px, 100%); }
+  .set-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px 1fr; }
+  .set-nav { border-right: 1px solid var(--line); padding: 12px 10px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+  .set-nav button { display: block; width: 100%; text-align: left; white-space: normal; border: 0; background: transparent;
+    padding: 9px 12px; border-radius: 10px; font-weight: 600; }
+  .set-nav button small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .set-nav button:hover { background: var(--chip); }
+  .set-nav button[aria-current="true"] { background: var(--chip); box-shadow: inset 3px 0 0 var(--accent-strong); }
+  .set-body { overflow: auto; padding: 20px 24px 28px; }
+  .set-pane h3 { margin: 0 0 10px; font-size: 18px; }
+  .set-pane h4 { margin: 22px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 15px; }
+  @media (max-width: 720px) {
+    .set-wrap { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .set-nav { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px; }
+    .set-nav button { width: auto; white-space: nowrap; }
+    .set-nav button small { display: none; }
+    .set-body { padding: 16px; }
+  }
   .switch { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 16px; }
   .switch input { margin-top: 4px; }
   .private-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px;
@@ -304,7 +361,34 @@
     </section>
     <div id="scanErr" class="notice hidden"></div>
     <div id="metaNotice" class="notice hidden"></div>
+    <div class="toolbar" id="toolbar">
+      <span class="muted small" id="shownCount"></span>
+      <span class="grow"></span>
+      <label class="small muted" for="sortBy">Sort</label>
+      <select id="sortBy" aria-label="Sort">
+        <option value="added">Recently added</option>
+        <option value="title">Title, A to Z</option>
+        <option value="year">Year, newest first</option>
+        <option value="rating">Rating, highest first</option>
+        <option value="played">Recently watched</option>
+      </select>
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" data-view="grid" aria-pressed="true" title="Posters">▦ Grid</button>
+        <button type="button" data-view="list" aria-pressed="false" title="A compact list">☰ List</button>
+      </div>
+      <button type="button" id="selectMode" aria-pressed="false">Select</button>
+    </div>
     <div id="grid"></div>
+    <div id="bulkBar" class="hidden" role="region" aria-label="Selected titles">
+      <strong id="bulkCount">0 selected</strong>
+      <button type="button" class="ghost" id="bulkAll">Select all shown</button>
+      <span class="grow"></span>
+      <button type="button" data-bulk="refresh">Look up info</button>
+      <button type="button" data-bulk="private">🔒 Move to Private</button>
+      <button type="button" data-bulk="public">Move out of Private</button>
+      <button type="button" class="danger" data-bulk="delete">Delete</button>
+      <button type="button" class="primary" id="bulkDone">Done</button>
+    </div>
   </main>
   <footer class="attrib">
     Movie details and pictures come from <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a>,
@@ -330,24 +414,13 @@
       </div>
     </div>
     <div>
-      <div class="info-box" id="infoBox">
-        <div class="head"><div id="infoState"></div><div class="actions" id="infoActions"></div></div>
-        <div id="findPanel" class="hidden">
-          <div class="find">
-            <input type="text" id="findQ" placeholder="Title to search for" aria-label="Title to search for">
-            <input type="number" id="findYear" placeholder="Year" min="1870" max="2200" aria-label="Year">
-            <button type="button" class="primary" id="findGo">Search</button>
-          </div>
-          <div class="results" id="results"></div>
-        </div>
+      <div class="ed-tabs" role="tablist" aria-label="Edit">
+        <button type="button" role="tab" data-etab="details">Details</button>
+        <button type="button" role="tab" data-etab="online">Online info<span class="dot hidden" id="onlineDot"></span></button>
+        <button type="button" role="tab" data-etab="playback">Playback</button>
+        <button type="button" role="tab" data-etab="file" id="fileTab">File</button>
       </div>
-      <div class="play-box hidden" id="playBox"></div>
-      <div class="play-box hidden" id="markerBox">
-        <strong>Skip intro and credits</strong>
-        <div class="muted small" style="margin:2px 0 10px">Times are the same for every episode of a season. The TV offers
-          <em>Skip intro</em> during the intro, and the next episode as soon as the credits start.</div>
-        <div class="markers" id="markers"></div>
-      </div>
+      <div class="ed-pane" data-etab="details">
       <label class="field"><span class="lockline" data-field="title">Title</span><input type="text" id="fTitle" maxlength="200" placeholder="Leave empty to use the file name"></label>
       <div class="row2">
         <label class="field"><span class="lockline" data-field="year">Year</span><input type="number" id="fYear" min="1870" max="2200" step="1" placeholder="e.g. 2019"></label>
@@ -369,10 +442,34 @@
         </select>
         <div class="muted small" id="kidsNow" style="margin-top:4px"></div></label>
       <label class="field"><span class="lockline" data-field="description">Description</span><textarea id="fDesc" maxlength="2000" placeholder="What's it about? Shown on the TV."></textarea><div class="counter" id="descCount"></div></label>
-      <details class="tech">
-        <summary>File details</summary>
+      </div>
+      <div class="ed-pane hidden" data-etab="online">
+      <div class="info-box" id="infoBox">
+        <div class="head"><div id="infoState"></div><div class="actions" id="infoActions"></div></div>
+        <div id="findPanel" class="hidden">
+          <div class="find">
+            <input type="text" id="findQ" placeholder="Title to search for" aria-label="Title to search for">
+            <input type="number" id="findYear" placeholder="Year" min="1870" max="2200" aria-label="Year">
+            <button type="button" class="primary" id="findGo">Search</button>
+          </div>
+          <div class="results" id="results"></div>
+        </div>
+      </div>
+        <p class="muted small hidden" id="onlineNote">Private videos are never looked up online.</p>
+      </div>
+      <div class="ed-pane hidden" data-etab="playback">
+      <div class="play-box hidden" id="playBox"></div>
+      <div class="play-box hidden" id="markerBox">
+        <strong>Skip intro and credits</strong>
+        <div class="muted small" style="margin:2px 0 10px">Times are the same for every episode of a season. The TV offers
+          <em>Skip intro</em> during the intro, and the next episode as soon as the credits start.</div>
+        <div class="markers" id="markers"></div>
+      </div>
+        <p class="muted small hidden" id="noPlayback">Nothing to set: the phone hasn't measured this file yet, or it plays as it is.</p>
+      </div>
+      <div class="ed-pane hidden" data-etab="file">
         <dl class="facts" id="facts"></dl>
-      </details>
+      </div>
     </div>
   </form>
   <div class="ed-foot">
@@ -384,12 +481,24 @@
   </div>
 </aside>
 
-<aside id="settings" class="hidden" role="dialog" aria-modal="true" aria-labelledby="setTitle" style="position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);z-index:21;background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column">
+<aside id="settings" class="hidden" role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <div class="ed-head">
     <h2 id="setTitle">Settings</h2>
     <button class="ghost" type="button" id="setClose" aria-label="Close">✕</button>
   </div>
-  <form id="setForm" class="ed-body" autocomplete="off">
+  <div class="set-wrap">
+    <nav class="set-nav" aria-label="Settings sections">
+      <button type="button" data-pane="info">Movie info<small id="navInfo">Posters and details</small></button>
+      <button type="button" data-pane="playback">Playback<small>Lighter copies of heavy files</small></button>
+      <button type="button" data-pane="family">Family<small id="navFamily">Profiles and the PIN</small></button>
+      <button type="button" data-pane="private">Private<small id="navPrivate">Hidden videos</small></button>
+      <button type="button" data-pane="downloads">Downloads<small id="navDownloads">Torrents and search</small></button>
+      <button type="button" data-pane="backup">Backup<small>Save and restore</small></button>
+      <button type="button" data-pane="updates">App updates<small>Without a cable</small></button>
+    </nav>
+    <form id="setForm" class="set-body" autocomplete="off">
+      <section class="set-pane hidden" data-pane="info" aria-labelledby="pane-info">
+        <h3 id="pane-info">Movie info</h3>
     <p class="muted small" style="margin-top:0">
       With a free TMDB key, the phone fills in each movie's poster, backdrop, description, genres, cast, director and
       age rating by itself. Add an OMDb key too for the real IMDb rating; without one, TMDB's own score is shown.
@@ -404,10 +513,6 @@
     <label class="switch"><input type="checkbox" id="sAuto"><span>Look up new movies automatically<br>
       <span class="muted small">Only confident matches are filled in. Others wait under “Needs a match”. Camera clips
       (DJI_, VID_, PXL_…) and anything in a “Home videos” folder are never looked up.</span></span></label>
-    <label class="switch"><input type="checkbox" id="sOpt"><span>Make lighter copies of very heavy files by themselves<br>
-      <span class="muted small">Files over 60 Mbps (like 4K drone footage) can stutter over Wi-Fi. While the phone is
-      charging, it makes a lighter copy of each one with its hardware encoder and the TV plays that instead. The
-      originals are never changed.</span></span></label>
     <div id="sTest" class="hidden">
       <label class="field"><span>Test hook: TMDB base URL (debug builds only)</span><input type="text" id="sBase"></label>
       <label class="field"><span>Test hook: image base URL</span><input type="text" id="sImg"></label>
@@ -419,7 +524,16 @@
     <p class="small"><a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Get a free TMDB key</a> ·
       <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">Get a free OMDb key</a></p>
 
-    <h3 class="section">Family</h3>
+      </section>
+      <section class="set-pane hidden" data-pane="playback" aria-labelledby="pane-playback">
+        <h3 id="pane-playback">Playback</h3>
+    <label class="switch"><input type="checkbox" id="sOpt"><span>Make lighter copies of very heavy files by themselves<br>
+      <span class="muted small">Files over 60 Mbps (like 4K drone footage) can stutter over Wi-Fi. While the phone is
+      charging, it makes a lighter copy of each one with its hardware encoder and the TV plays that instead. The
+      originals are never changed.</span></span></label>
+      </section>
+      <section class="set-pane hidden" data-pane="family" aria-labelledby="pane-family">
+        <h3 id="pane-family">Family</h3>
     <p class="muted small" style="margin-top:0">Each profile has its own Continue watching, My List and “Because you watched” rows.
       A kids profile only shows titles rated for children (U, U/A 7+, G, PG…) or ones you mark for kids, never Private.</p>
     <div class="profiles" id="profileRows"></div>
@@ -429,14 +543,18 @@
     <div class="muted small" style="margin:-8px 0 8px" id="sPinState"></div>
     <button type="button" id="savePin">Set PIN</button> <button type="button" class="ghost danger" id="clearPin">Clear PIN</button>
 
-    <h3 class="section">Private folder</h3>
+      </section>
+      <section class="set-pane hidden" data-pane="private" aria-labelledby="pane-private">
+        <h3 id="pane-private">Private folder</h3>
     <p class="muted small" style="margin-top:0">Videos in Private are hidden from every TV and the web app, and from the
       rest of this page: they only show after <strong>Open Private videos</strong> below. Unlock them for a while to watch
       on the TV; they lock again by themselves. Kids profiles never see them.</p>
     <div id="privateBar" class="private-bar"></div>
     <button type="button" id="openPrivate">🔒 Open Private videos</button>
 
-    <h3 class="section">Torrent downloads</h3>
+      </section>
+      <section class="set-pane hidden" data-pane="downloads" aria-labelledby="pane-downloads">
+        <h3 id="pane-downloads">Torrent downloads</h3>
     <label class="switch"><input type="checkbox" id="tOn"><span>Download from .torrent files and magnet links<br>
       <span class="muted small">Drop a .torrent file where you add movies, or paste a magnet link there. The phone downloads
       it in its own time, keeps only the videos and subtitles, and adds them to the library when they're complete.</span></span></label>
@@ -467,7 +585,8 @@
         <option value="0">No limit</option>
       </select></label>
     </div>
-    <label class="field" style="margin-top:6px"><span>Torrent search: Torznab indexer address (optional)</span>
+        <h4>Torrent search</h4>
+    <label class="field" style="margin-top:6px"><span>Torznab indexer address (optional)</span>
       <input type="url" id="iUrl" placeholder="https://www.searchmagnetlink.com" autocomplete="off" spellcheck="false"></label>
     <label class="field"><span>Indexer API key</span>
       <input type="password" id="iKey" placeholder="Paste the key" autocomplete="off" spellcheck="false"></label>
@@ -481,7 +600,9 @@
       that torrent, and they can see your internet address. HomeReel never opens ports on your router, and stops sharing
       once a download is in the library.</p>
 
-    <h3 class="section">Backup</h3>
+      </section>
+      <section class="set-pane hidden" data-pane="backup" aria-labelledby="pane-backup">
+        <h3 id="pane-backup">Backup</h3>
     <p class="muted small" style="margin-top:0">One file with everything you've typed in or looked up, everyone's progress, profiles
       and My Lists. Not the videos themselves, the keys or the PIN. Restore it on a new phone, or after resetting this one;
       files are matched by name and size.</p>
@@ -489,7 +610,9 @@
     <button type="button" id="restoreBtn">Restore from a backup…</button>
     <input type="file" id="restoreFile" accept="application/json,.json" class="hidden">
 
-    <h3 class="section">App updates</h3>
+      </section>
+      <section class="set-pane hidden" data-pane="updates" aria-labelledby="pane-updates">
+        <h3 id="pane-updates">App updates</h3>
     <p class="muted small" style="margin-top:0">Update the apps without a cable or ADB: upload a newer .apk built from this
       project. TVs offer it the next time HomeReel opens on them, and the phone shows <strong>Install update</strong>.
       Only HomeReel apps signed with the same key as this one are accepted.</p>
@@ -498,8 +621,10 @@
     <button type="button" id="updPhoneBtn">Upload phone app…</button>
     <input type="file" id="updFile" accept=".apk,application/vnd.android.package-archive" class="hidden">
     <div class="muted small" id="updState" style="margin-top:6px"></div>
-  </form>
-  <div class="ed-foot">
+      </section>
+    </form>
+  </div>
+  <div class="ed-foot" id="setFoot">
     <button type="button" id="sRun">Look up missing info now</button>
     <span class="grow"></span>
     <button type="button" class="primary" id="sSave">Save</button>
@@ -638,16 +763,19 @@ function applyStatus(st) {
   cantPlay.source = st.cantPlaySource;
   const note = $('#metaNotice');
   let html = '';
-  if (st.metadataError) html = `${esc(st.metadataError)} <button type="button" data-open-settings>Settings</button>`;
+  if (st.metadataError) html = `${esc(st.metadataError)} <button type="button" data-open-settings="info">Settings</button>`;
   else if (st.metadataQueue > 0) html = `Looking up ${st.metadataQueue} title${st.metadataQueue === 1 ? '' : 's'} on TMDB…`;
   else if (st.optimizeQueue > 0) html = `Making lighter copies of ${st.optimizeQueue} heavy file${st.optimizeQueue === 1 ? '' : 's'}…`;
-  else if (!st.metadataEnabled) html = 'Want posters, descriptions, cast and ratings filled in by themselves? <button type="button" data-open-settings>Add a free TMDB key</button>';
+  else if (!st.metadataEnabled) html = 'Want posters, descriptions, cast and ratings filled in by themselves? <button type="button" data-open-settings="info">Add a free TMDB key</button>';
   note.innerHTML = html;
   note.classList.toggle('hidden', !html);
   metaBusy = st.metadataQueue > 0 || st.optimizeQueue > 0;
 }
 let metaBusy = false;
-document.addEventListener('click', (e) => { if (e.target.closest('[data-open-settings]')) openSettings(); });
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('[data-open-settings]');
+  if (link) openSettings(link.dataset.openSettings || undefined);
+});
 
 const needsDetails = (m) => !m.private && (!m.description || !m.genres.length || m.imdbRating == null);
 const watching = (m) => m._type === 'show' ? !!m.upNext : m.positionMs > 0 && !m.watched;
@@ -678,8 +806,14 @@ function renderGrid() {
   $('#n-watching').textContent = open.filter(watching).length;
   $('#privateView').classList.toggle('hidden', filter !== 'private');
   $('#privateCount').textContent = `(${hidden})`;
-  const shown = movies.filter(matches);
+  const shown = sortTitles(movies.filter(matches));
   const grid = $('#grid');
+  grid.classList.toggle('list', view === 'list');
+  grid.classList.toggle('selecting', selecting);
+  $('#toolbar').classList.toggle('hidden', !movies.length);
+  $('#shownCount').textContent = `${shown.length} ${shown.length === 1 ? 'title' : 'titles'}${query ? ` matching “${query}”` : ''}`;
+  for (const key of [...selected]) if (!shown.some((m) => m._key === key)) selected.delete(key);
+  updateBulk();
   if (!movies.length) {
     grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><p><strong>No movies yet.</strong></p><p>Click “Add movies” or drop video files anywhere on this page.</p></div>';
     $('#drop').classList.remove('hidden');
@@ -707,8 +841,21 @@ function renderGrid() {
         : !m.optimized && m.bitrateMbps > 60 ? `<span class="badge warn" title="May stutter over Wi-Fi">Heavy · ${Math.round(m.bitrateMbps)} Mbps</span>` : '',
     ].join('');
     const pct = !isShow && watching(m) && m.durationMs ? Math.min(100, Math.round(m.positionMs * 100 / m.durationMs)) : 0;
-    return `<div class="card" tabindex="0" role="button" data-id="${esc(m._key)}" aria-label="Edit ${esc(m.title)}">
+    const picked = selected.has(m._key);
+    const label = selecting ? `${picked ? 'Unselect' : 'Select'} ${esc(m.title)}` : `Edit ${esc(m.title)}`;
+    if (view === 'list') {
+      const file = isShow ? `${m.episodeCount} episode${m.episodeCount === 1 ? '' : 's'}` : [m.fileName, m.size ? fmtSize(m.size) : null].filter(Boolean).join(' · ');
+      return `<div class="card row-item${picked ? ' sel' : ''}" tabindex="0" role="button" data-id="${esc(m._key)}" aria-label="${label}" aria-pressed="${selecting ? picked : 'false'}">
+        <span class="pick" aria-hidden="true">${picked ? '✓' : ''}</span>
+        <div class="thumb">${m.hasPoster ? `<img loading="lazy" alt="" src="${posterUrl(m)}">` : ''}</div>
+        <div><h3>${esc(m.title)}</h3><div class="meta">${meta || '&nbsp;'}${(m.genres || []).length ? ` · ${esc(m.genres.slice(0, 3).join(', '))}` : ''}</div>
+          <div class="file">${esc(file)}</div></div>
+        <div class="rbadges">${badges}${m.match === 'needs-match' ? '<span class="chip muted">Needs a match</span>' : needsDetails(m) ? '<span class="chip muted">Needs details</span>' : ''}</div>
+      </div>`;
+    }
+    return `<div class="card${picked ? ' sel' : ''}" tabindex="0" role="button" data-id="${esc(m._key)}" aria-label="${label}" aria-pressed="${selecting ? picked : 'false'}">
       <div class="art">
+        <span class="pick" aria-hidden="true">${picked ? '✓' : ''}</span>
         ${m.hasPoster ? `<img loading="lazy" alt="" src="${posterUrl(m)}">` : `<div class="placeholder">${esc(m.title)}</div>`}
         <div class="badges">${badges}</div>
         <div class="overlay">✎ Edit details</div>
@@ -723,14 +870,110 @@ function renderGrid() {
   }).join('');
 }
 
+// Clicking a title edits it; in Select mode it ticks it instead.
+function activate(card) {
+  if (!selecting) { openEditor(card.dataset.id); return; }
+  const key = card.dataset.id;
+  if (selected.has(key)) selected.delete(key); else selected.add(key);
+  renderGrid();
+  const again = document.querySelector(`.card[data-id="${CSS.escape(key)}"]`);
+  if (again) again.focus();
+}
 $('#grid').addEventListener('click', (e) => {
   const card = e.target.closest('.card');
-  if (card) openEditor(card.dataset.id);
+  if (card) activate(card);
 });
 $('#grid').addEventListener('keydown', (e) => {
   const card = e.target.closest('.card');
-  if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openEditor(card.dataset.id); }
+  if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); activate(card); }
 });
+
+// ---- Sorting, the list view and Select mode, remembered on this browser ----
+const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (_) { return d; } };
+const keep = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private window */ } };
+let sortBy = pref('hr.sort', 'added');
+let view = pref('hr.view', 'grid');
+let selecting = false;
+const selected = new Set();
+const sortTitle = (s) => (s || '').replace(/^(the|a|an) /i, '').toLowerCase();
+function sortTitles(list) {
+  const by = {
+    title: (a, b) => sortTitle(a.title).localeCompare(sortTitle(b.title)),
+    year: (a, b) => (b.year || 0) - (a.year || 0) || sortTitle(a.title).localeCompare(sortTitle(b.title)),
+    rating: (a, b) => (b.imdbRating ?? -1) - (a.imdbRating ?? -1) || sortTitle(a.title).localeCompare(sortTitle(b.title)),
+    played: (a, b) => (b.lastPlayedAt || 0) - (a.lastPlayedAt || 0) || (b.addedAt || 0) - (a.addedAt || 0),
+    added: (a, b) => (b.addedAt || 0) - (a.addedAt || 0) || sortTitle(a.title).localeCompare(sortTitle(b.title)),
+  }[sortBy] || ((a, b) => 0);
+  return [...list].sort(by);
+}
+$('#sortBy').value = sortBy;
+$('#sortBy').addEventListener('change', (e) => { sortBy = e.target.value; keep('hr.sort', sortBy); renderGrid(); });
+function setView(v, render = true) {
+  view = v;
+  keep('hr.view', v);
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === v)));
+  if (render) renderGrid();
+}
+document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
+setView(view, false); // the library draws itself once it has loaded
+function setSelecting(on) {
+  selecting = on;
+  if (!on) selected.clear();
+  $('#selectMode').setAttribute('aria-pressed', String(on));
+  renderGrid();
+}
+$('#selectMode').addEventListener('click', () => setSelecting(!selecting));
+$('#bulkDone').addEventListener('click', () => setSelecting(false));
+$('#bulkAll').addEventListener('click', () => {
+  document.querySelectorAll('#grid .card').forEach((c) => selected.add(c.dataset.id));
+  renderGrid();
+});
+function updateBulk() {
+  $('#bulkBar').classList.toggle('hidden', !selecting);
+  const picked = [...selected].map((k) => byId.get(k)).filter(Boolean);
+  const films = picked.filter((m) => m._type === 'movie');
+  $('#bulkCount').textContent = `${picked.length} selected`;
+  // Only what applies to everything selected: shows can't be moved to Private or deleted from here.
+  $('[data-bulk="refresh"]').disabled = !picked.some((m) => !m.private);
+  $('[data-bulk="private"]').disabled = !films.some((m) => !m.private);
+  $('[data-bulk="public"]').disabled = !films.some((m) => m.private);
+  $('[data-bulk="delete"]').disabled = !films.length;
+}
+document.querySelectorAll('[data-bulk]').forEach((b) => b.addEventListener('click', () => bulk(b.dataset.bulk)));
+async function bulk(action) {
+  const picked = [...selected].map((k) => byId.get(k)).filter(Boolean);
+  const targets = {
+    refresh: picked.filter((m) => !m.private),
+    private: picked.filter((m) => m._type === 'movie' && !m.private),
+    public: picked.filter((m) => m._type === 'movie' && m.private),
+    delete: picked.filter((m) => m._type === 'movie'),
+  }[action];
+  if (!targets.length) return;
+  const n = targets.length;
+  const what = `${n} ${n === 1 ? 'title' : 'titles'}`;
+  if (action === 'delete' && !confirm(`Delete ${what} from the phone?\n\n${targets.slice(0, 8).map((m) => `• ${m.title}`).join('\n')}${n > 8 ? `\n…and ${n - 8} more` : ''}\n\nTheir files, subtitles and thumbnails are removed for good.`)) return;
+  if (action === 'private' && !confirm(`Move ${what} into the Private folder? The TV only shows them while Private is unlocked.`)) return;
+  document.querySelectorAll('#bulkBar button').forEach((b) => { b.disabled = true; });
+  let done = 0;
+  let failed = 0;
+  for (const m of targets) {
+    $('#bulkCount').textContent = `Working… ${done + failed + 1} of ${n}`;
+    try {
+      if (action === 'refresh') await api('POST', `${itemPath(m)}/refresh`);
+      else if (action === 'delete') await api('DELETE', itemPath(m));
+      else await api('POST', `${itemPath(m)}/move`, { private: action === 'private' });
+      done++;
+    } catch (err) {
+      if (err.quiet) break;
+      failed++;
+    }
+  }
+  const verb = { refresh: 'Looked up', delete: 'Deleted', private: 'Moved to Private', public: 'Moved out of Private' }[action];
+  toast(`${verb}: ${done} of ${n}${failed ? `. ${failed} didn't work; open them to see why.` : ''}`, failed > 0);
+  document.querySelectorAll('#bulkBar button').forEach((b) => { b.disabled = false; });
+  selected.clear();
+  await load();
+}
 $('#search').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); renderGrid(); });
 function setFilter(f) {
   filter = f;
@@ -783,10 +1026,22 @@ function openEditor(id) {
   resets = new Set();
   renderLocks(m);
   dirty = false;
+  // Tabs: what applies to this title, and where to start.
+  $('#fileTab').textContent = isShow ? 'Episodes' : 'File';
+  $('#onlineNote').classList.toggle('hidden', !m.private);
+  $('#onlineDot').classList.toggle('hidden', !(m.match === 'needs-match' || (!m.private && needsDetails(m))));
+  $('#noPlayback').classList.toggle('hidden', !($('#playBox').classList.contains('hidden') && $('#markerBox').classList.contains('hidden')));
+  showEditorTab(filter === 'match' || filter === 'details' ? 'online' : 'details');
   $('#scrim').classList.remove('hidden');
   $('#editor').classList.remove('hidden');
-  setTimeout(() => $('#fTitle').focus(), 30);
+  setTimeout(() => { if (!$('.ed-pane[data-etab="details"]').classList.contains('hidden')) $('#fTitle').focus(); }, 30);
 }
+
+function showEditorTab(name) {
+  document.querySelectorAll('.ed-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.etab === name)));
+  document.querySelectorAll('.ed-pane').forEach((p) => p.classList.toggle('hidden', p.dataset.etab !== name));
+}
+document.querySelectorAll('.ed-tabs button').forEach((b) => b.addEventListener('click', () => showEditorTab(b.dataset.etab)));
 
 function closeEditor(force) {
   if (!force && dirty && !confirm('Discard your changes?')) return;
@@ -1113,6 +1368,7 @@ async function loadProfiles() {
       <label><input type="checkbox" ${p.kids ? 'checked' : ''}> Kids</label>
       <button type="button" class="ghost danger" data-del title="Delete this profile" ${pl.profiles.length < 2 ? 'disabled' : ''}>✕</button>
     </div>`).join('');
+  $('#navFamily').textContent = `${pl.profiles.length} profile${pl.profiles.length === 1 ? '' : 's'} · ${pl.pinSet ? 'PIN set' : 'no PIN'}`;
 }
 $('#profileRows').addEventListener('change', async (e) => {
   const row = e.target.closest('.profile-row');
@@ -1254,7 +1510,32 @@ $('#updRows').addEventListener('click', async (e) => {
 });
 
 // ---- Settings ----
-async function openSettings() {
+// Settings: one section at a time. Movie info, Playback and Downloads have a Save button; the rest act at once.
+const SAVED_PANES = { info: 'Save', playback: 'Save', downloads: 'Save' };
+let settingsPane = (() => { try { return localStorage.getItem('hr.settingsPane') || 'info'; } catch (_) { return 'info'; } })();
+function showPane(name) {
+  if (!document.querySelector(`.set-pane[data-pane="${name}"]`)) name = 'info';
+  settingsPane = name;
+  try { localStorage.setItem('hr.settingsPane', name); } catch (_) { /* private window */ }
+  document.querySelectorAll('.set-pane').forEach((s) => s.classList.toggle('hidden', s.dataset.pane !== name));
+  document.querySelectorAll('.set-nav button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.pane === name)));
+  $('#setFoot').classList.toggle('hidden', !SAVED_PANES[name] && name !== 'info');
+  $('#sSave').classList.toggle('hidden', !SAVED_PANES[name]);
+  $('#sRun').classList.toggle('hidden', name !== 'info');
+  $('.set-body').scrollTop = 0;
+}
+document.querySelectorAll('.set-nav button').forEach((b) => b.addEventListener('click', () => showPane(b.dataset.pane)));
+
+// A line under each section's name saying where things stand.
+function updateSetNav(meta) {
+  if (meta) $('#navInfo').textContent = meta.tmdbKeySet ? (meta.autoMatch ? 'Key set · looks up new films' : 'Key set') : 'No TMDB key yet';
+  if (downloads) $('#navDownloads').textContent = downloads.settings.enabled
+    ? `On${indexer && indexer.url && indexer.keySet ? ' · search set up' : ''}` : 'Off';
+  const bar = $('#privateBar');
+  if (bar) $('#navPrivate').textContent = bar.classList.contains('open') ? 'Unlocked on the TV' : 'Locked';
+}
+
+async function openSettings(pane) {
   try {
     const st = await api('GET', '/admin/settings');
     $('#sTmdb').value = '';
@@ -1268,9 +1549,12 @@ async function openSettings() {
     fillIndexer(await api('GET', '/admin/torrents/indexer'));
     await loadProfiles();
     loadUpdates().catch(() => {});
+    showPane(typeof pane === 'string' ? pane : settingsPane);
+    updateSetNav(st);
     $('#scrim').classList.remove('hidden');
     $('#settings').classList.remove('hidden');
-    $('#sTmdb').focus();
+    const first = document.querySelector(`.set-pane[data-pane="${settingsPane}"] input, .set-pane[data-pane="${settingsPane}"] button`);
+    if (first) first.focus();
   } catch (err) {
     if (!err.quiet) toast(err.message, true);
   }
@@ -1279,30 +1563,38 @@ function closeSettings() {
   $('#settings').classList.add('hidden');
   if (!editing) $('#scrim').classList.add('hidden');
 }
-$('#settingsBtn').addEventListener('click', openSettings);
+$('#settingsBtn').addEventListener('click', () => openSettings());
 $('#setClose').addEventListener('click', closeSettings);
 $('#sSave').addEventListener('click', async () => {
-  const body = { autoMatch: $('#sAuto').checked, autoOptimize: $('#sOpt').checked };
-  if ($('#sTmdb').value.trim()) body.tmdbKey = $('#sTmdb').value.trim();
-  if ($('#sOmdb').value.trim()) body.omdbKey = $('#sOmdb').value.trim();
-  if (!$('#sTest').classList.contains('hidden')) {
-    if ($('#sBase').value.trim()) body.tmdbBaseUrl = $('#sBase').value.trim();
-    if ($('#sImg').value.trim()) body.tmdbImageBaseUrl = $('#sImg').value.trim();
-    if ($('#sOmdbBase').value.trim()) body.omdbBaseUrl = $('#sOmdbBase').value.trim();
-  }
   const button = $('#sSave');
   button.disabled = true;
-  button.textContent = 'Checking…';
+  button.textContent = 'Saving…';
   try {
-    downloads = await api('PUT', '/admin/torrents/settings', readTorrentSettings());
-    const iBody = { url: $('#iUrl').value.trim() };
-    if ($('#iKey').value.trim()) iBody.apiKey = $('#iKey').value.trim();
-    indexer = await api('PUT', '/admin/torrents/indexer', iBody);
-    renderDownloads();
-    await api('PUT', '/admin/settings', body);
-    closeSettings();
-    toast(body.tmdbKey ? 'Key works. Looking up your movies…' : 'Saved');
-    setTimeout(load, 800);
+    if (settingsPane === 'downloads') {
+      downloads = await api('PUT', '/admin/torrents/settings', readTorrentSettings());
+      const iBody = { url: $('#iUrl').value.trim() };
+      if ($('#iKey').value.trim()) iBody.apiKey = $('#iKey').value.trim();
+      fillIndexer(await api('PUT', '/admin/torrents/indexer', iBody));
+      renderDownloads();
+      updateSetNav();
+      toast('Saved');
+    } else {
+      const body = { autoMatch: $('#sAuto').checked, autoOptimize: $('#sOpt').checked };
+      if ($('#sTmdb').value.trim()) body.tmdbKey = $('#sTmdb').value.trim();
+      if ($('#sOmdb').value.trim()) body.omdbKey = $('#sOmdb').value.trim();
+      if (!$('#sTest').classList.contains('hidden')) {
+        if ($('#sBase').value.trim()) body.tmdbBaseUrl = $('#sBase').value.trim();
+        if ($('#sImg').value.trim()) body.tmdbImageBaseUrl = $('#sImg').value.trim();
+        if ($('#sOmdbBase').value.trim()) body.omdbBaseUrl = $('#sOmdbBase').value.trim();
+      }
+      button.textContent = body.tmdbKey ? 'Checking the key…' : 'Saving…';
+      const st = await api('PUT', '/admin/settings', body);
+      $('#sTmdb').value = '';
+      $('#sOmdb').value = '';
+      updateSetNav(st);
+      toast(body.tmdbKey ? 'Key works. Looking up your movies…' : 'Saved');
+      setTimeout(load, 800);
+    }
   } catch (err) {
     if (!err.quiet) toast(err.message, true);
   } finally {
@@ -1432,6 +1724,7 @@ function renderPrivate(p) {
     ? `<span class="grow">🔓 <strong>Private is unlocked</strong> on the TV until ${esc(until)}.</span>
        <button type="button" class="primary" data-private="lock">Lock now</button>`
     : '';
+  updateSetNav();
   clearTimeout(renderPrivate.timer);
   if (p.unlocked && p.until) renderPrivate.timer = setTimeout(load, Math.max(1000, p.until - Date.now() + 1000));
 }
@@ -1461,6 +1754,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$('#healthPanel').classList.contains('hidden')) { closeHealth(); return; }
   if (e.key === 'Escape' && !$('#settings').classList.contains('hidden')) { closeSettings(); return; }
   if (e.key === 'Escape' && editing) closeEditor();
+  else if (e.key === 'Escape' && selecting && $('#settings').classList.contains('hidden')) setSelecting(false);
   if ((e.metaKey || e.ctrlKey) && e.key === 's' && editing) { e.preventDefault(); save(); }
 });
 

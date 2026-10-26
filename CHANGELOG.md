@@ -8,6 +8,11 @@ update without a cable won't offer the new build.
 - **Torrent search (optional):** with a Torznab indexer (Search Magnet Link, Jackett, Prowlarr…) and its key in
   Settings → Torrent downloads, a search box appears where you add movies. A result's Download button sends it to
   Downloads. Searches are rate-limited and cached; the key never leaves the phone except to the indexer.
+- **Admin page, Settings:** split into sections (Movie info, Playback, Family, Private, Downloads, Backup, App
+  updates) with a side menu, or tabs on a phone. Each section shows how it stands, and saves only its own settings.
+- **Admin page, library:** sort by recently added, title, year, rating or recently watched; a compact List view
+  beside the posters; Select mode to look up info, move into or out of Private, or delete several titles at once.
+  The editor has tabs (Details, Online info, Playback, File or Episodes) instead of one long page.
 
 ## 0.5.0 (2026-10-26)
 
