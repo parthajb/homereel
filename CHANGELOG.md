@@ -3,7 +3,7 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
-## Unreleased
+## 0.6.1 (2026-10-26)
 
 - **Torrent search with Prowlarr or Jackett:** Settings → Downloads asks what to search with. Prowlarr uses its own
   search and Jackett its all-indexers feed, so one search asks every indexer set up in them. Results are sorted by
