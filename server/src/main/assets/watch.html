@@ -59,7 +59,21 @@
   header { position: fixed; inset: 0 0 auto; z-index: 20; display: flex; align-items: center; gap: 16px;
     padding: 14px var(--gutter); background: linear-gradient(rgb(0 0 0 / 75%), transparent); transition: background .2s; }
   header.solid { background: rgb(11 11 15 / 96%); }
-  header .brand { margin-right: auto; cursor: pointer; }
+  header .brand { cursor: pointer; }
+  .sections { display: flex; gap: 2px; margin-right: auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .sections::-webkit-scrollbar { display: none; }
+  .sections a { padding: 6px 11px; border-radius: 6px; color: var(--body); text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .sections a:hover { color: var(--fg); }
+  .sections a[aria-current="page"] { color: var(--fg); background: rgb(255 255 255 / 14%); }
+  .page-head { padding: 92px var(--gutter) 4px; }
+  .page-head h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); }
+  .page-head p { margin: 4px 0 0; }
+  .genre-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px var(--gutter) 6px; }
+  .genre-chips a { padding: 6px 12px; border-radius: 999px; background: rgb(255 255 255 / 10%); color: var(--body); text-decoration: none; font-size: 14px; }
+  .genre-chips a:hover { background: rgb(255 255 255 / 18%); color: var(--fg); }
+  .genre-chips a[aria-current="page"] { background: var(--fg); color: #000; font-weight: 700; }
+  .section-rows { margin-top: 8px; }
+  .grid.flat { padding-top: 12px; }
   .search { display: flex; align-items: center; gap: 8px; background: rgb(0 0 0 / 55%); border: 1px solid rgb(255 255 255 / 30%);
     border-radius: 8px; padding: 6px 10px; width: min(300px, 40vw); }
   .search svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
@@ -243,7 +257,10 @@
   footer { padding: 30px var(--gutter) 50px; color: var(--muted); font-size: 12px; }
 
   @media (max-width: 640px) {
-    header { gap: 10px; }
+    header { gap: 10px; flex-wrap: wrap; }
+    .sections { order: 3; flex-basis: 100%; margin-right: 0; }
+    .page-head { padding-top: 124px; }
+    .grid:not(.flat) { padding-top: 128px; }
     header .brand span { display: none; }
     .search { width: auto; flex: 1; }
     .hero { min-height: 62vh; }
@@ -273,6 +290,7 @@
 <div id="app" class="hidden">
   <header id="top">
     <div class="brand" id="home" role="link" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#1e1b4b"/><path d="M10 7.5l6 4.5-6 4.5z" fill="#f5b301"/></svg><span>HomeReel</span></div>
+    <nav class="sections" id="sections" aria-label="Browse"></nav>
     <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
       <input id="q" type="search" placeholder="Titles, people, genres" aria-label="Search" autocomplete="off"></label>
     <div class="me">
@@ -561,9 +579,97 @@ function row(title, cards) {
 }
 const sortKey = (t) => t.replace(/^(The|A) /, '').trim().toLowerCase();
 
+// ---- Sections: Home, Movies, TV shows, Genres, My List and Private, each with its own address so Back works ----
+function route() {
+  const [section, ...rest] = location.hash.replace(/^#\/?/, '').split('/');
+  return { section: section || 'home', genre: rest.length ? decodeURIComponent(rest.join('/')) : null };
+}
+function sections() {
+  const films = state.movies.filter((m) => !m.private);
+  return [
+    ['home', 'Home'],
+    films.length && ['movies', 'Movies'],
+    state.shows.length && ['shows', 'TV shows'],
+    [...films, ...state.shows].some((x) => (x.genres || []).length) && ['genres', 'Genres'],
+    state.myList.length && ['list', 'My List'],
+    // Only while Private is unlocked: the phone sends nothing otherwise, and never to a kids profile.
+    state.movies.some((m) => m.private) && ['private', '🔒 Private'],
+  ].filter(Boolean);
+}
+function renderNav() {
+  const current = route().section;
+  $('#sections').replaceChildren(...sections().map(([key, label]) =>
+    h('a', { href: key === 'home' ? '#/' : `#/${key}`, 'aria-current': key === current && !$('#q').value.trim() ? 'page' : null, text: label })));
+}
+window.addEventListener('hashchange', () => { $('#q').value = ''; render(); window.scrollTo(0, 0); });
+
+const genresOf = (list) => {
+  const counts = {};
+  list.forEach((x) => (x.genres || []).forEach((g) => { counts[g] = (counts[g] || 0) + 1; }));
+  return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+};
+const byRating = (a, b) => (b.imdbRating || 0) - (a.imdbRating || 0) || a.title.localeCompare(b.title);
+const byTitle = (a, b) => sortKey(a.title).localeCompare(sortKey(b.title));
+
+function renderSection(section, genre) {
+  const films = state.movies.filter((m) => !m.private);
+  const shows = state.shows;
+  const titles = [...films, ...shows];
+  const head = (title, sub) => h('div', { class: 'page-head' }, h('h1', { text: title }), sub ? h('p', { class: 'muted', text: sub }) : null);
+  const grid = (heading, list) => list.length ? h('div', { class: 'grid flat' }, heading ? h('h3', { text: heading }) : null, list.map((x) => card(x))) : null;
+  const inGenre = (list, g) => list.filter((x) => (x.genres || []).includes(g));
+  let parts;
+  if (section === 'movies') {
+    parts = [head('Movies', `${films.length} ${films.length === 1 ? 'film' : 'films'}`), h('div', { class: 'section-rows' },
+      row('Continue watching', films.filter(inProgress).sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)
+        .map((m) => card(m, { wide: true, progress: m.positionMs / (m.durationMs || 1) }))),
+      films.length > 4 ? row('Recently added', [...films].sort((a, b) => b.addedAt - a.addedAt).slice(0, 20).map((x) => card(x))) : null,
+      row('Top rated', films.filter((m) => m.imdbRating != null).sort(byRating).slice(0, 20).map((x) => card(x))),
+      ...genresOf(films).slice(0, 12).map(([g]) => row(g, inGenre(films, g).sort(byRating).map((x) => card(x))))),
+      grid('All movies, A to Z', [...films].sort(byTitle))];
+  } else if (section === 'shows') {
+    parts = [head('TV shows', `${shows.length} ${shows.length === 1 ? 'show' : 'shows'}`), h('div', { class: 'section-rows' },
+      row('Continue watching', shows.filter((s) => s.upNext).sort((a, b) => b.lastPlayedAt - a.lastPlayedAt).map((s) => card(s.upNext, {
+        wide: true, caption: s.title, sub: `${epCode(s.upNext)} · ${s.upNext.title}`,
+        progress: s.upNext.positionMs / (s.upNext.durationMs || 1), onclick: (ep) => playEpisode(s, ep),
+      }))),
+      ...genresOf(shows).slice(0, 12).map(([g]) => row(g, inGenre(shows, g).sort(byRating).map((x) => card(x))))),
+      grid('All TV shows, A to Z', [...shows].sort(byTitle))];
+  } else if (section === 'genres') {
+    const all = genresOf(titles);
+    const chips = h('nav', { class: 'genre-chips', 'aria-label': 'Genres' }, all.map(([g, n]) =>
+      h('a', { href: `#/genres/${encodeURIComponent(g)}`, 'aria-current': g === genre ? 'page' : null, text: `${g} · ${n}` })));
+    if (genre) {
+      const f = inGenre(films, genre).sort(byTitle);
+      const s = inGenre(shows, genre).sort(byTitle);
+      parts = [head(genre, `${f.length + s.length} titles`), chips, h('div', { class: 'section-rows' },
+        row(`Top rated in ${genre}`, [...f, ...s].filter((x) => x.imdbRating != null).sort(byRating).slice(0, 20).map((x) => card(x)))),
+        grid('Movies', f), grid('TV shows', s)];
+    } else {
+      parts = [head('Genres', 'Choose one, or scroll through them all.'), chips,
+        h('div', { class: 'section-rows' }, all.map(([g]) => row(g, inGenre(titles, g).sort(byRating).map((x) => card(x)))))];
+    }
+  } else if (section === 'list') {
+    const byKey = new Map(titles.map((x) => [keyOf(x), x]));
+    parts = [head('My List'), grid(null, state.myList.map((k) => byKey.get(k)).filter(Boolean))];
+  } else {
+    const until = state.privateUntil ? new Date(state.privateUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    const list = state.movies.filter((m) => m.private).sort((a, b) => b.addedAt - a.addedAt);
+    parts = [head('🔒 Private', until ? `Unlocked until ${until}` : null), grid(null, list)];
+  }
+  $('#main').replaceChildren(...parts.filter(Boolean));
+}
+
 function render() {
   const q = $('#q').value.trim();
+  renderNav();
   if (q) return renderSearch(q);
+  const { section, genre } = route();
+  if (section !== 'home') {
+    // A section that has emptied (Private locked again, say) falls back to Home.
+    if (sections().some(([key]) => key === section)) return renderSection(section, genre);
+    history.replaceState(null, '', '#/');
+  }
   const films = state.movies.filter((m) => !m.private);
   const privateOnes = state.movies.filter((m) => m.private);
   const shows = state.shows;
@@ -647,7 +753,11 @@ function renderSearch(q) {
 let searchTimer;
 $('#q').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { window.scrollTo(0, 0); render(); }, 200); });
 $('#q').addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('#q').value = ''; render(); } });
-$('#home').addEventListener('click', () => { $('#q').value = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+$('#home').addEventListener('click', () => {
+  $('#q').value = '';
+  if (route().section !== 'home') location.hash = '#/';
+  else { render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+});
 $('#home').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#home').click(); });
 window.addEventListener('scroll', () => $('#top').classList.toggle('solid', window.scrollY > 40), { passive: true });
 

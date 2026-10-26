@@ -3,6 +3,40 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## 0.6.2 (2026-10-26)
+
+- **Several search feeds, searched together:** torrent search keeps a list of feeds instead of one indexer: Torznab
+  sites, Prowlarr and Jackett, each with a name, on or off, Edit, Remove and Test connection. A search asks every feed
+  that's on at once and merges the results: the same torrent shows once, most seeders first, labelled with who found
+  it. A feed that is slow or fails is listed without spoiling the rest. Each feed has its own request limits.
+- **Torznab feeds without a key:** the API key is optional for a Torznab feed, for sites whose Torznab search is open.
+- The indexer set up in 0.6 becomes the first feed.
+
+## 0.6.1 (2026-10-26)
+
+- **Torrent search with Prowlarr or Jackett:** Settings → Downloads asks what to search with. Prowlarr uses its own
+  search and Jackett its all-indexers feed, so one search asks every indexer set up in them. Results are sorted by
+  seeders and name the indexer that found each one. **Test connection** checks the address and key and lists the
+  indexers, without saving. Fixes searches that failed with Prowlarr or Jackett:
+  - their main address was sent to a Torznab path they don't have;
+  - results with only a download link were dropped;
+  - download links that redirect to a magnet were refused;
+  - searches across many indexers timed out after 12 seconds.
+
+## 0.6.0 (2026-10-26)
+
+- **Torrent search (optional):** with a Torznab indexer (Search Magnet Link, Jackett, Prowlarr…) and its key in
+  Settings → Torrent downloads, a search box appears where you add movies. A result's Download button sends it to
+  Downloads. Searches are rate-limited and cached; the key never leaves the phone except to the indexer.
+- **Admin page, Settings:** split into sections (Movie info, Playback, Family, Private, Downloads, Backup, App
+  updates) with a side menu, or tabs on a phone. Each section shows how it stands, and saves only its own settings.
+- **Admin page, library:** sort by recently added, title, year, rating or recently watched; a compact List view
+  beside the posters; Select mode to look up info, move into or out of Private, or delete several titles at once.
+  The editor has tabs (Details, Online info, Playback, File or Episodes) instead of one long page.
+- **TV and web app navigation:** a menu along the top with Home, Movies, TV shows, Genres, My List and (while it's
+  unlocked) Private. Genres lists every genre; choosing one shows its top rated, movies and shows. On the TV, Back
+  goes to the top, then to Home; in the web app each section has its own address.
+
 ## 0.5.0 (2026-10-26)
 
 - **Torrent downloads (off by default):** drop a `.torrent` file or paste a magnet link on the admin page, and the

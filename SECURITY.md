@@ -32,6 +32,11 @@ Only the latest release gets fixes.
 - **Torrents:** a viewer adding or steering downloads, a torrent's files being written outside the app's own storage
   or the chosen folder (a path like `../`), anything but videos and subtitles reaching the library, or HomeReel
   opening a port on the router.
+- **Torrent search:** a feed's key leaving the phone other than to that feed, a key going over plain HTTP to a feed
+  on the internet, or a search result making the phone fetch an address other than its own feed's (web seeds
+  included). Redirects from the indexer may lead to a magnet, its own address, or a public `https://`
+  address (without the key); one that reaches the key to another host, or the phone to another address on the home
+  network, is in scope.
 
 **By design, and out of scope:**
 - **Plain HTTP:** the API is plain HTTP on the home network. Anyone who can watch the Wi-Fi traffic can see what's

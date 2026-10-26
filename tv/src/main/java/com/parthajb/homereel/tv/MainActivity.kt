@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
@@ -27,6 +28,7 @@ import java.util.concurrent.Executors
 /**
  * The home screen: a big backdrop and the focused title's details at the top, rows of posters underneath.
  * Rows: Continue watching, Recently added, Top rated, one per genre, then everything A–Z, and Settings.
+ * The menu along the top switches to just Movies, TV shows, a genre, My List or Private.
  */
 class MainActivity : FragmentActivity(), CardHost {
     private val store by lazy { ServerStore(this) }
@@ -44,6 +46,12 @@ class MainActivity : FragmentActivity(), CardHost {
     private var loading = false
     private var firstLoad = true
     private var focusedKey: String? = null
+
+    /** The section the top menu has chosen, and the genre when it's Genres. */
+    private var section = Section.HOME
+    private var genre: String? = null
+    private var genreNames: List<String> = emptyList()
+    private lateinit var nav: LinearLayout
 
     private lateinit var rows: RecyclerView
     private lateinit var title: TextView
@@ -68,6 +76,7 @@ class MainActivity : FragmentActivity(), CardHost {
         }
         setContentView(R.layout.activity_home)
         rows = findViewById(R.id.rows)
+        nav = findViewById(R.id.nav)
         title = findViewById(R.id.hero_title)
         meta = findViewById(R.id.hero_meta)
         genres = findViewById(R.id.hero_genres)
@@ -168,6 +177,11 @@ class MainActivity : FragmentActivity(), CardHost {
     }
 
     private fun show(list: List<Movie>) {
+        if (section !in available(list)) {
+            section = Section.HOME
+            genre = null
+        }
+        renderNav(list)
         val built = buildRows(list)
         val changed = adapter.submit(built)
         if (list.isEmpty() && shows.isEmpty()) {
@@ -198,7 +212,132 @@ class MainActivity : FragmentActivity(), CardHost {
     /** A film or a show, for the rows that mix them: newest, best rated, by genre. */
     private class Title(val item: HomeItem, val addedAt: Long, val rating: Double?, val genres: List<String>, val name: String)
 
-    private fun buildRows(all: List<Movie>): List<HomeRow> {
+    // ---- The top menu ----
+
+    enum class Section(val label: Int) {
+        HOME(R.string.nav_home), MOVIES(R.string.nav_movies), SHOWS(R.string.nav_shows), GENRES(R.string.nav_genres),
+        MY_LIST(R.string.nav_my_list), PRIVATE(R.string.nav_private),
+    }
+
+    /** Only sections with something in them; Private only while it's unlocked (the phone sends nothing otherwise). */
+    private fun available(all: List<Movie>): List<Section> = listOfNotNull(
+        Section.HOME,
+        Section.MOVIES.takeIf { all.any { !it.private } },
+        Section.SHOWS.takeIf { shows.isNotEmpty() },
+        Section.GENRES.takeIf { all.any { !it.private && it.genres.isNotEmpty() } || shows.any { it.genres.isNotEmpty() } },
+        Section.MY_LIST.takeIf { myList.isNotEmpty() },
+        Section.PRIVATE.takeIf { all.any { it.private } },
+    )
+
+    private fun renderNav(all: List<Movie>) {
+        val sections = available(all)
+        val current = (0 until nav.childCount).map { nav.getChildAt(it).tag }
+        if (current != sections) {
+            val focused = nav.findFocus()?.tag
+            nav.removeAllViews()
+            for (s in sections) {
+                val tab = TextView(this, null, 0, R.style.HomeReel_NavTab).apply {
+                    tag = s
+                    setText(s.label)
+                    setOnClickListener { choose(s) }
+                }
+                nav.addView(tab, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    marginEnd = dp(this@MainActivity, 4)
+                })
+                if (s == focused) tab.requestFocus()
+            }
+        }
+        for (i in 0 until nav.childCount) nav.getChildAt(i).isActivated = nav.getChildAt(i).tag == section
+    }
+
+    /** Switches section; focus stays on the menu, and Down goes into the new rows. */
+    private fun choose(s: Section) {
+        if (s == section && s != Section.GENRES) return
+        section = s
+        genre = null
+        focusedKey = null
+        renderNav(movies)
+        adapter.submit(buildRows(movies))
+        rows.scrollToPosition(0)
+        adapter.rows.firstOrNull()?.items?.firstOrNull()?.let(::onFocused)
+    }
+
+    private fun buildRows(all: List<Movie>): List<HomeRow> = when (section) {
+        Section.HOME -> homeRows(all)
+        Section.MOVIES -> movieRows(all.filter { !it.private })
+        Section.SHOWS -> showRows()
+        Section.GENRES -> genreRows(all.filter { !it.private })
+        Section.MY_LIST -> listRows(all.filter { !it.private })
+        Section.PRIVATE -> listOf(HomeRow(getString(R.string.row_private_all), all.filter { it.private }.sortedByDescending { it.addedAt }.map { MovieItem(it) }))
+    }
+
+    private fun movieRows(list: List<Movie>): List<HomeRow> {
+        val out = ArrayList<HomeRow>()
+        val watching = list.filter { inProgress(it) }.sortedByDescending { it.lastPlayedAt }.map { MovieItem(it, landscape = true) }
+        if (watching.isNotEmpty()) out += HomeRow(getString(R.string.row_continue), watching)
+        if (list.size > 4) out += HomeRow(getString(R.string.row_recent_movies), list.sortedByDescending { it.addedAt }.take(20).map { MovieItem(it) })
+        val rated = list.filter { it.imdbRating != null }.sortedByDescending { it.imdbRating }
+        if (rated.size >= 2) out += HomeRow(getString(R.string.row_top_rated), rated.take(20).map { MovieItem(it) })
+        genresOf(list.map { it.genres }).take(12).forEach { g ->
+            out += HomeRow(g, list.filter { g in it.genres }.sortedByDescending { it.imdbRating ?: 0.0 }.map { MovieItem(it) })
+        }
+        out += azRows(list)
+        return out
+    }
+
+    private fun showRows(): List<HomeRow> {
+        val out = ArrayList<HomeRow>()
+        val watching = shows.mapNotNull { show ->
+            show.upNext?.let { ep ->
+                show.lastPlayedAt to MovieItem(ep, landscape = true, caption = getString(R.string.episode_caption, show.title, Format.episodeCode(ep)))
+            }
+        }.sortedByDescending { it.first }.map { it.second }
+        if (watching.isNotEmpty()) out += HomeRow(getString(R.string.row_continue), watching)
+        if (shows.size > 4) out += HomeRow(getString(R.string.row_recent_shows), shows.sortedByDescending { it.addedAt }.take(20).map { ShowItem(it) })
+        genresOf(shows.map { it.genres }).take(12).forEach { g ->
+            out += HomeRow(g, shows.filter { g in it.genres }.sortedByDescending { it.imdbRating ?: 0.0 }.map { ShowItem(it) })
+        }
+        out += HomeRow(getString(R.string.row_all_shows), shows.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { sortKey(it.title) }).map { ShowItem(it) })
+        return out
+    }
+
+    /** A row of genre tiles; once one is chosen, its films and shows underneath. */
+    private fun genreRows(list: List<Movie>): List<HomeRow> {
+        genreNames = genresOf(list.map { it.genres } + shows.map { it.genres })
+        val count = { g: String -> list.count { g in it.genres } + shows.count { g in it.genres } }
+        val tiles = genreNames.mapIndexed { i, g -> ActionItem(ACTION_GENRE + i, getString(R.string.genre_count, g, count(g)), R.drawable.ic_genre) }
+        val out = arrayListOf(HomeRow(getString(R.string.row_genres), tiles))
+        val g = genre ?: return out
+        val films = list.filter { g in it.genres }
+        val series = shows.filter { g in it.genres }
+        val titles = films.map { Title(MovieItem(it), it.addedAt, it.imdbRating, it.genres, it.title) } +
+            series.map { Title(ShowItem(it), it.addedAt, it.imdbRating, it.genres, it.title) }
+        val rated = titles.filter { it.rating != null }.sortedByDescending { it.rating }
+        if (rated.size >= 2) out += HomeRow(getString(R.string.row_genre_top, g), rated.take(20).map { it.item })
+        if (films.isNotEmpty()) out += HomeRow(getString(R.string.row_genre_movies, g), films.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { sortKey(it.title) }).map { MovieItem(it) })
+        if (series.isNotEmpty()) out += HomeRow(getString(R.string.row_genre_shows, g), series.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { sortKey(it.title) }).map { ShowItem(it) })
+        return out
+    }
+
+    private fun listRows(list: List<Movie>): List<HomeRow> {
+        val byKey: Map<String, HomeItem> = list.associate { "m:${it.id}" to MovieItem(it) } + shows.associate { "s:${it.id}" to ShowItem(it) }
+        return listOf(HomeRow(getString(R.string.row_my_list), myList.mapNotNull { byKey[it] }))
+    }
+
+    /** Genres, most titles first. */
+    private fun genresOf(lists: List<List<String>>): List<String> =
+        lists.flatten().groupingBy { it }.eachCount().entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .map { it.key }
+
+    private fun azRows(list: List<Movie>): List<HomeRow> {
+        val sorted = list.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { sortKey(it.title) })
+        if (sorted.isEmpty()) return emptyList()
+        if (sorted.size <= 60) return listOf(HomeRow(getString(R.string.row_all), sorted.map { MovieItem(it) }))
+        return sorted.groupBy { letter(it.title) }.map { (letter, group) -> HomeRow(getString(R.string.row_letter, letter), group.map { MovieItem(it) }) }
+    }
+
+    private fun homeRows(all: List<Movie>): List<HomeRow> {
         val out = ArrayList<HomeRow>()
         // Private videos only ever appear in their own row, so locking Private again leaves no trace elsewhere.
         val list = all.filter { !it.private }
@@ -369,6 +508,9 @@ class MainActivity : FragmentActivity(), CardHost {
     }
 
     private fun actionHelp(id: Int): String = when (id) {
+        in ACTION_GENRE until ACTION_GENRE + 1000 -> genreNames.getOrNull(id - ACTION_GENRE)?.let { g ->
+            getString(R.string.help_genre, movies.count { !it.private && g in it.genres } + shows.count { g in it.genres })
+        } ?: ""
         ACTION_REFRESH -> getString(R.string.help_refresh)
         ACTION_RESCAN -> getString(R.string.help_rescan, "http://${store.host}:${store.port}/admin")
         ACTION_ABOUT -> getString(R.string.help_about)
@@ -398,6 +540,15 @@ class MainActivity : FragmentActivity(), CardHost {
     override fun onPlay(movie: Movie) = play(this, movie, if (inProgress(movie)) movie.positionMs else 0)
 
     private fun onAction(id: Int) {
+        if (id in ACTION_GENRE until ACTION_GENRE + 1000) {
+            genre = genreNames.getOrNull(id - ACTION_GENRE) ?: return
+            focusedKey = adapter.rows.getOrNull(1)?.items?.firstOrNull()?.key
+            adapter.submit(buildRows(movies))
+            // Into the chosen genre's first row.
+            focusedKey = adapter.rows.getOrNull(1)?.items?.firstOrNull()?.key
+            restoreFocus()
+            return
+        }
         when (id) {
             ACTION_REFRESH -> {
                 Images.clear()
@@ -457,6 +608,11 @@ class MainActivity : FragmentActivity(), CardHost {
             restoreFocus()
             return
         }
+        if (section != Section.HOME) {
+            choose(Section.HOME)
+            restoreFocus()
+            return
+        }
         @Suppress("DEPRECATION")
         super.onBackPressed()
     }
@@ -474,6 +630,9 @@ class MainActivity : FragmentActivity(), CardHost {
         private const val ACTION_PROFILE = 5
         private const val ACTION_FRAMERATE = 6
         private const val ACTION_UPDATE = 7
+
+        /** Genre tiles: ACTION_GENRE + the genre's place in [genreNames]. */
+        private const val ACTION_GENRE = 1000
 
         /** The update version already mentioned in a toast, so it isn't repeated on every visit to Home. */
         private var announcedUpdate = 0L

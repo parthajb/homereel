@@ -39,6 +39,11 @@ import com.parthajb.homereel.shared.TorrentItem
 import com.parthajb.homereel.shared.TorrentList
 import com.parthajb.homereel.shared.TorrentSettings
 import com.parthajb.homereel.shared.Torrents
+import com.parthajb.homereel.shared.IndexerCheck
+import com.parthajb.homereel.shared.FeedEdit
+import com.parthajb.homereel.shared.FeedList
+import com.parthajb.homereel.shared.SearchAdd
+import com.parthajb.homereel.shared.TorrentSearchPage
 import com.parthajb.homereel.shared.UploadRequest
 import com.parthajb.homereel.shared.UpdateStatus
 import com.parthajb.homereel.shared.UploadState
@@ -423,6 +428,39 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             p == listOf("admin", "torrents", "settings") && method == Method.PUT -> {
                 requireAdmin()
                 json(200, TorrentList.serializer(), app.torrents.updateSettings(readJson(s, TorrentSettings.serializer())))
+            }
+            // Torrent search across the admin's feeds. Before the {id}/pause route, which "search/add" would match.
+            p == listOf("admin", "torrents", "feeds") -> {
+                requireAdmin()
+                val feeds = when (method) {
+                    Method.GET -> app.torrentSearch.list()
+                    Method.POST -> app.torrentSearch.add(readJson(s, FeedEdit.serializer()))
+                    else -> throw HttpError(405, "Method not allowed")
+                }
+                json(200, FeedList.serializer(), feeds)
+            }
+            p == listOf("admin", "torrents", "feeds", "test") && method == Method.POST -> {
+                requireAdmin()
+                json(200, IndexerCheck.serializer(), app.torrentSearch.check(readJson(s, FeedEdit.serializer())))
+            }
+            p.size == 4 && p[0] == "admin" && p[1] == "torrents" && p[2] == "feeds" -> {
+                requireAdmin()
+                val feeds = when (method) {
+                    Method.PUT -> app.torrentSearch.update(p[3], readJson(s, FeedEdit.serializer()))
+                    Method.DELETE -> app.torrentSearch.remove(p[3])
+                    else -> throw HttpError(405, "Method not allowed")
+                }
+                json(200, FeedList.serializer(), feeds)
+            }
+            p == listOf("admin", "torrents", "search") && method == Method.GET -> {
+                requireAdmin()
+                val q = s.parameters["q"]?.firstOrNull().orEmpty()
+                json(200, TorrentSearchPage.serializer(), app.torrentSearch.search(q, s.parameters["cat"]?.firstOrNull()))
+            }
+            p == listOf("admin", "torrents", "search", "add") && method == Method.POST -> {
+                requireAdmin()
+                val request = readJson(s, SearchAdd.serializer())
+                json(200, TorrentItem.serializer(), app.torrentSearch.add(request.id, request.private))
             }
             p.size == 3 && p[0] == "admin" && p[1] == "torrents" && method == Method.DELETE -> {
                 requireAdmin()

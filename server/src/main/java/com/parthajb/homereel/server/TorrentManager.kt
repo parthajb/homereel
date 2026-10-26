@@ -175,6 +175,9 @@ class TorrentManager(
         return synchronized(this) { item(record) }
     }
 
+    /** Whether this torrent (by info hash) is already in Downloads, finished ones included. */
+    fun has(id: String): Boolean = synchronized(this) { records.containsKey(id.lowercase()) }
+
     fun pause(id: String, paused: Boolean) {
         synchronized(this) {
             val r = records[id] ?: throw HttpError(404, "No such download")

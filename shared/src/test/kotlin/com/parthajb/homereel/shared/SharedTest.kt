@@ -282,3 +282,155 @@ class TorrentsTest {
         assertEquals(false, Torrents.isMagnet("https://example.com/x.torrent"))
     }
 }
+
+class TorznabTest {
+    private val hash = "0123456789abcdef0123456789abcdef01234567"
+    private val xml = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:torznab="http://torznab.com/schemas/2015/feed">
+<channel><title>Indexer</title>
+<item>
+  <title>Big Buck Bunny (2008) 1080p</title>
+  <guid>abc</guid>
+  <link>magnet:?xt=urn:btih:$hash&amp;dn=Big+Buck+Bunny&amp;tr=udp%3A%2F%2Ftracker.example%3A1337&amp;ws=http%3A%2F%2F192.168.1.1%2Fx&amp;xs=http%3A%2F%2Fevil%2Fy</link>
+  <pubDate>Mon, 01 Sep 2008 10:00:00 +0000</pubDate>
+  <size>725106140</size>
+  <torznab:attr name="seeders" value="42"/>
+  <torznab:attr name="peers" value="50"/>
+  <torznab:attr name="infohash" value="${hash.uppercase()}"/>
+</item>
+<item><title>Link only</title><link>https://indexer.example/dl/2</link><jackettindexer id="yts">YTS</jackettindexer></item>
+<item><title>Nothing to fetch</title><link>ftp://example.com/file</link></item>
+<item>
+  <title>Hash from an attribute only</title>
+  <enclosure url="https://indexer.example/dl/1.torrent" length="1" type="application/x-bittorrent"/>
+  <torznab:attr name="infohash" value="fedcba9876543210fedcba9876543210fedcba98"/>
+</item>
+<item>
+  <title>Magnet for a different torrent</title>
+  <torznab:attr name="infohash" value="$hash"/>
+  <torznab:attr name="magneturl" value="magnet:?xt=urn:btih:1111111111111111111111111111111111111111"/>
+</item>
+</channel></rss>"""
+
+    @Test fun parsesItems() {
+        val p = Torznab.parse(xml.toByteArray())
+        assertNull(p.error)
+        assertEquals(listOf("Big Buck Bunny (2008) 1080p", "Link only", "Hash from an attribute only"), p.items.map { it.name })
+        assertEquals(2, p.skipped)
+        val first = p.items[0]
+        assertEquals(hash, first.infoHash)
+        assertEquals(725106140L, first.size)
+        assertEquals(42, first.seeders)
+        assertEquals("https://indexer.example/dl/1.torrent", p.items[2].link)
+        assertNull(p.items[2].seeders)
+    }
+
+    @Test fun linkOnlyResultsWaitForTheirHash() {
+        val item = Torznab.parse(xml.toByteArray()).items[1]
+        assertNull(item.infoHash)
+        assertEquals("YTS", item.indexer)
+        assertEquals(true, item.id.startsWith("link-"))
+        assertNull(Torznab.normaliseHash(item.id)) // never mistaken for a hash
+    }
+
+    @Test fun prowlarrSearch() {
+        val json = """[
+          {"guid":"a","title":"Night of the Living Dead (1968)","size":700000000,"seeders":30,"leechers":4,"indexer":"Internet Archive",
+           "protocol":"torrent","infoHash":"${hash.uppercase()}","magnetUrl":"magnet:?xt=urn:btih:$hash&dn=x&tr=udp%3A%2F%2Ft.example%3A1",
+           "downloadUrl":"http://192.168.1.20:9696/3/download?apikey=k&link=x","publishDate":"2020-01-01T00:00:00Z","categories":[{"id":2000}]},
+          {"guid":"b","title":"Private tracker film","size":1,"seeders":5,"protocol":"torrent","indexer":"Private",
+           "downloadUrl":"http://192.168.1.20:9696/4/download?apikey=k&link=y"},
+          {"guid":"c","title":"Usenet film","protocol":"usenet","downloadUrl":"http://192.168.1.20:9696/5/download"},
+          {"guid":"d","title":"Nothing to add","protocol":"torrent"}
+        ]"""
+        val p = Torznab.parseProwlarr(json.toByteArray())
+        assertNull(p.error)
+        assertEquals(listOf("Night of the Living Dead (1968)", "Private tracker film"), p.items.map { it.name })
+        assertEquals(1, p.skipped)
+        assertEquals(hash, p.items[0].infoHash)
+        assertEquals(34, p.items[0].peers)
+        assertEquals("Internet Archive", p.items[0].indexer)
+        assertNull(p.items[1].infoHash)
+        assertEquals("http://192.168.1.20:9696/4/download?apikey=k&link=y", p.items[1].link)
+    }
+
+    @Test fun mergesTheSameTorrentFromSeveralFeeds() {
+        fun item(hash: String?, seeders: Int?, magnet: Boolean, link: String? = null) = Torznab.Item(
+            hash, "Film", null, seeders, null, null, if (magnet) "magnet:?xt=urn:btih:$hash" else null, link)
+        val merged = Torznab.merge(listOf(
+            Torznab.Found("a", "Torlock", item(hash, 10, magnet = false, link = "https://a/1.torrent")),
+            Torznab.Found("b", "Prowlarr", item(hash, 4, magnet = true)),
+            Torznab.Found("b", "Prowlarr", item(null, 50, magnet = false, link = "https://b/x")),
+            Torznab.Found("c", "Jackett", item(null, 1, magnet = false, link = "https://b/x")),
+        ))
+        assertEquals(3, merged.size)
+        assertEquals(listOf(50, 10, 1), merged.map { it.best.item.seeders })
+        val same = merged[1]
+        assertEquals("b", same.best.feedId) // the copy with a magnet
+        assertEquals(listOf("Torlock", "Prowlarr"), same.sources)
+    }
+
+    @Test fun prowlarrNotJson() = assertEquals(true, Torznab.parseProwlarr("<html>".toByteArray()).error != null)
+
+    @Test fun prowlarrIndexers() = assertEquals(
+        listOf("YTS"),
+        Torznab.parseProwlarrIndexers("""[{"name":"YTS","enable":true,"protocol":"torrent"},{"name":"Off","enable":false,"protocol":"torrent"},{"name":"NZB","enable":true,"protocol":"usenet"}]""".toByteArray()),
+    )
+
+    @Test fun jackettIndexers() = assertEquals(
+        listOf("1337x", "YTS"),
+        Torznab.parseIndexers("""<indexers><indexer id="1337x" configured="true"><title>1337x</title></indexer><indexer id="yts" configured="true"><title>YTS</title></indexer></indexers>""".toByteArray()).getOrThrow(),
+    )
+
+    @Test fun torznabCaps() = assertEquals(
+        listOf("Search Magnet Link"),
+        Torznab.parseIndexers("""<caps><server title="Search Magnet Link"/><searching/></caps>""".toByteArray()).getOrThrow(),
+    )
+
+    @Test fun indexersError() = assertEquals(
+        "Invalid API Key",
+        Torznab.parseIndexers("""<error code="100" description="Invalid API Key"/>""".toByteArray()).exceptionOrNull()?.message,
+    )
+
+    @Test fun cleanMagnetKeepsOnlyHashNameAndTrackers() {
+        val first = Torznab.parse(xml.toByteArray()).items[0]
+        val clean = Torznab.cleanMagnet(first.magnet, first.infoHash!!, first.name)
+        assertEquals(true, clean.startsWith("magnet:?xt=urn:btih:$hash&dn="))
+        assertEquals(true, "tracker.example" in clean)
+        assertEquals(false, "ws=" in clean || "xs=" in clean || "192.168" in clean)
+    }
+
+    @Test fun base32Hash() = assertEquals(
+        "e3f8c5e8b9c2c1b0b5b7f3e5d6a5e1c2b3a4d5e6",
+        Torznab.normaliseHash(base32("e3f8c5e8b9c2c1b0b5b7f3e5d6a5e1c2b3a4d5e6")),
+    )
+
+    @Test fun rejectsOtherHashes() {
+        assertNull(Torznab.normaliseHash("abc"))
+        assertNull(Torznab.normaliseHash("z".repeat(40)))
+    }
+
+    @Test fun errorReply() = assertEquals(
+        "The indexer said: Invalid API Key",
+        Torznab.parse("""<error code="100" description="Invalid API Key"/>""".toByteArray()).error,
+    )
+
+    @Test fun garbageReply() = assertEquals(true, Torznab.parse("<html><body>".toByteArray()).error != null)
+
+    private fun base32(hex: String): String {
+        val bytes = hex.chunked(2).map { it.toInt(16) }
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        var buffer = 0
+        var bits = 0
+        val out = StringBuilder()
+        for (b in bytes) {
+            buffer = (buffer shl 8) or b
+            bits += 8
+            while (bits >= 5) {
+                bits -= 5
+                out.append(alphabet[(buffer shr bits) and 31])
+            }
+        }
+        return out.toString()
+    }
+}

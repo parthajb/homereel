@@ -89,6 +89,24 @@ class Prefs(context: Context) {
         get() = sp.getString("torrentSettings", null)
         set(value) = sp.edit().putString("torrentSettings", value).apply()
 
+    /** Torrent search's feeds, keys included (see TorrentSearch). Never sent to the admin page as they are. */
+    var searchFeedsJson: String?
+        get() = sp.getString("searchFeeds", null)
+        set(value) = sp.edit().putString("searchFeeds", value).apply()
+
+    /** When each feed was asked in the last day, and any wait it asked for, so the limits survive a restart. */
+    var feedBudgetsJson: String?
+        get() = sp.getString("feedBudgets", null)
+        set(value) = sp.edit().putString("feedBudgets", value).apply()
+
+    /** 0.6's single indexer, read once to become the first feed, then removed. */
+    fun takeOldIndexer(): Triple<String, String, String?>? {
+        val url = sp.getString("indexerUrl", null) ?: return null
+        val old = Triple(sp.getString("indexerKind", null) ?: "torznab", url, sp.getString("indexerKey", null))
+        sp.edit().remove("indexerUrl").remove("indexerKind").remove("indexerKey").remove("indexerRequests").remove("indexerCooldown").apply()
+        return old
+    }
+
     var playabilityJson: String?
         get() = sp.getString("playability", null)
         set(value) = sp.edit().putString("playability", value).apply()

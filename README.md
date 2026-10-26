@@ -87,6 +87,8 @@ shows the address.
 - **Pairing:** the first time, enter the 6-digit code from the phone. The browser pairs as a viewer, like a TV: it
   can watch and save progress, but not change anything. A browser already paired for the admin page doesn't need
   to pair again.
+- **Sections** in the header, as on the TV: Home, Movies, TV shows, Genres (with a page per genre), My List and
+  Private. Each has its own address, so the browser's Back button and bookmarks work.
 - **What's the same as the TV:** "Who's watching?", with the parent PIN to leave a kids profile; the same rows
   (Continue watching, My List, Because you watched, shows, genres); search; details with cast and More like this;
   seasons and episodes; resume points shared with the TV; Skip intro; and Next episode at the credits.
@@ -177,6 +179,47 @@ Off until you turn it on: **Settings → Torrent downloads** on the admin page.
   download what you're allowed to, such as public-domain and Creative Commons films, or copies of your own.
 - **Size:** the phone app includes libtorrent for 64-bit and 32-bit ARM, about 30 MB. The engine only starts when
   there's something to download.
+
+### Torrent search (optional)
+
+Add one or more **search feeds**, and a search box appears where you add movies. A search asks every feed that's on,
+all at once, and shows one list; a result's **Download** button sends it to Downloads, the same as pasting its magnet
+link. HomeReel doesn't come with any feed set up.
+
+- **Kinds of feed** (Settings → Downloads → Torrent search → **+ Add a feed**):
+  - **Torznab feed:** one site's own [Torznab](https://torznab.github.io/spec-1.3-draft/) search. A site's API page
+    gives the address, usually ending in `/torznab` or `/api`. The key is optional: leave it empty for a site that
+    doesn't need one.
+  - **[Prowlarr](https://prowlarr.com):** the address you open Prowlarr at, such as `http://192.168.1.20:9696`. The
+    key is under Settings → General → Security. Searches use Prowlarr's own search, which asks every torrent indexer
+    switched on in it.
+  - **[Jackett](https://github.com/Jackett/Jackett):** the address you open Jackett at, such as
+    `http://192.168.1.20:9117`. The key is at the top right of its dashboard. Searches ask every indexer set up in
+    Jackett. To search just one, paste its **Copy Torznab Feed** address instead; a key inside a pasted address is
+    picked up and kept out of the address.
+  - Prowlarr and Jackett run on a computer or NAS at home (Docker images exist for both); the phone only talks to them.
+    Sites that offer Torznab themselves need neither.
+- **Managing feeds:** each has a name (shown beside its results), a tick to switch it on or off, Edit and Remove, up
+  to 20. **Test connection** tries the address and key without saving them, says whether they work, and lists the
+  indexers Prowlarr or Jackett will ask (or picks up a Torznab site's own name).
+- **The keys** stay on the phone; the admin page only sees whether each is set. A feed on the internet must use
+  `https://`; plain `http://` is only allowed on your home network (or a Tailscale network, `100.64.0.0/10`).
+- **Results:** Movies, TV or everything, up to 100 from each feed, with size, seeders, peers and who found it ("YTS via
+  Prowlarr"). The same torrent from several feeds shows once, keeping the copy with a magnet, most seeders first. A
+  feed that is slow or fails doesn't spoil the others: the page says which didn't answer and why. HomeReel waits up to
+  a minute, since Prowlarr and Jackett wait for their slowest indexer. Seeders are what the sites last saw, so a
+  torrent may still have nobody sharing it.
+- **Light on the sites:** HomeReel only asks when you press Search. Each feed has its own limits, kept across
+  restarts: at most once a second, 90 times an hour and 900 times a day. The same search within 15 minutes comes from
+  a cache, so the same address is never asked twice in a minute. A feed that says "too many" waits 15 minutes on its
+  own.
+- **What the result can do:** HomeReel keeps only a magnet's hash, name and trackers, so a result can't make the phone
+  fetch other web addresses. Download links are only fetched from the address of the feed that gave them (Prowlarr's
+  and Jackett's are always on theirs). When one redirects, HomeReel takes a magnet, follows the feed's own address, or
+  follows a public `https://` address without the key. It never follows one to another address on your home network.
+  A result with neither a magnet nor a link on its feed's address is left out, and the page says how many were.
+- **Privacy:** every feed that's on sees what you search for and your internet address.
+- **From 0.6:** the indexer set up there becomes the first feed.
 
 ## TV series
 
@@ -327,7 +370,10 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
     description.
   - Rows underneath: Continue watching (with progress bars), Recently added, Top rated, one row per genre, then
     everything A–Z, and Settings.
-  - Back jumps to the top.
+  - **The menu along the top** (press Up from the first row): Home, Movies, TV shows, Genres, My List and, while
+    it's unlocked, Private. Genres shows a tile per genre; choose one for its top rated, movies and shows. Sections
+    with nothing in them aren't shown.
+  - Back jumps to the top, then to Home, then leaves.
 - **Details page:**
   - The tagline, cast and director.
   - Play, or Resume and Play from start, plus Mark as watched.
@@ -425,6 +471,11 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `POST /admin/torrents[?private=1]` (the `.torrent` file as the body), `POST /admin/torrents/magnet` `{magnet, private}` | admin | Adds a download; refused while torrents are off |
 | `PUT /admin/torrents/settings` | admin | On or off, charging only, hours, speed limits, slowing while someone watches |
 | `POST /admin/torrents/{id}/pause`, `…/resume`, `…/retry`; `DELETE /admin/torrents/{id}` | admin | Steers one download; delete removes what it downloaded |
+| `GET` / `POST /admin/torrents/feeds` `{kind: torznab\|prowlarr\|jackett, name, url, apiKey, enabled}` | admin | The search feeds; keys are write-only, and optional for a Torznab feed |
+| `PUT` / `DELETE /admin/torrents/feeds/{id}` `{name, url, apiKey, clearKey, enabled}` | admin | Changes or removes one feed; fields left out stay as they are |
+| `POST /admin/torrents/feeds/test` `{id?, kind, url, apiKey}` | admin | Tries the typed address and key (or a saved feed's) without saving them; says which indexers a search will ask |
+| `GET /admin/torrents/search?q=&cat=movies\|tv\|all` | admin | Asks every feed that's on and merges the results; they carry an id (the hash, when known) and who found them, never magnets or links |
+| `POST /admin/torrents/search/add` `{id, private}` | admin | Sends a recent search result to Downloads |
 
 ## Troubleshooting
 

@@ -13,8 +13,9 @@ HomeReel is a home video server on an old phone and a TV app for it. These princ
   that leave the phone.
 - **Your own videos only.** HomeReel plays files people own. Features that find, scrape or stream content from
   elsewhere, or get round DRM or copy protection, won't be accepted. Torrent downloads are the one exception: off
-  until someone turns them on, and only for a `.torrent` or magnet link the person brings. Nothing that searches for
-  torrents or links to sites that list them.
+  until someone turns them on, for a `.torrent` or magnet link the person brings, or found through Prowlarr, Jackett
+  or a Torznab indexer the person sets up themselves. HomeReel ships no indexer address, and nothing that browses or
+  recommends films to download.
 - **Old hardware first.** The phone may be years old, and the TV may have 1–2 GB of RAM. Both apps support Android
   8.0 (API 26) and up, and the TV app stays light: no blur, no autoplaying video, nothing polling in the background.
 - **Plain words.** Text on screen is short, plain English, and says what to do next. The app uses British spelling
