@@ -89,6 +89,16 @@
   #tsResults h3 { margin: 0 0 4px; font-size: 15px; }
   .tsr { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
   .tsr .name { font-weight: 600; overflow-wrap: anywhere; }
+  .feed { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+  .feed:last-child { border-bottom: 1px solid var(--line); }
+  .feed .name { font-weight: 600; overflow-wrap: anywhere; }
+  .feed .acts { display: flex; gap: 4px; }
+  .feed.off .name, .feed.off .muted { opacity: .55; }
+  #feedRows:empty::before { content: 'No feeds yet.'; color: var(--muted); font-size: 13px; display: block; margin-bottom: 8px; }
+  #feedAdd { margin: 10px 0 4px; }
+  .feed-form { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 4px; margin: 10px 0; background: var(--raised); }
+  .feed-form h5 { margin: 0 0 10px; font-size: 14px; }
+  .feed-actions { display: flex; gap: 8px; margin: 4px 0 10px; }
   .i-test { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -2px 0 10px; }
   .i-test .ok { color: var(--fg); font-weight: 600; }
   .i-test .bad { color: var(--danger); }
@@ -354,8 +364,7 @@
       <h3 id="tsTitle">Search results</h3>
       <div class="muted small" id="tsNote"></div>
       <div id="tsRows"></div>
-      <button type="button" class="ghost" id="tsMore" style="margin-top:8px">More results</button>
-      <button type="button" class="ghost" id="tsClose" style="margin-top:8px">Close</button>
+          <button type="button" class="ghost" id="tsClose" style="margin-top:8px">Close</button>
     </section>
     <section id="downloads" class="hidden" aria-labelledby="dlTitle">
       <h3 id="dlTitle">Downloads</h3>
@@ -589,23 +598,34 @@
       </select></label>
     </div>
         <h4>Torrent search</h4>
-    <label class="field" style="margin-top:6px"><span>Search with</span><select id="iKind" class="field-select">
-      <option value="prowlarr">Prowlarr: every indexer set up in it</option>
-      <option value="jackett">Jackett: every indexer set up in it</option>
-      <option value="torznab">Another Torznab feed (one indexer)</option>
-    </select></label>
-    <label class="field"><span id="iUrlLabel">Address (optional)</span>
-      <input type="url" id="iUrl" autocomplete="off" spellcheck="false"></label>
-    <label class="field"><span>API key</span>
-      <input type="password" id="iKey" placeholder="Paste the key" autocomplete="off" spellcheck="false"></label>
-    <div class="muted small" style="margin:-8px 0 8px"><span id="iKeyState"></span>
-      <button type="button" class="ghost danger" id="iClear">Remove key</button></div>
-    <p class="muted small" id="iHelp" style="margin-top:0"></p>
-    <div class="i-test"><button type="button" id="iTest">Test connection</button>
-      <span class="small" id="iTestResult" role="status"></span></div>
-    <p class="muted small">With search set up, a search box appears where you add movies. HomeReel only searches when
-      you press Search, at most 90 times an hour, and repeats come from a 15-minute cache. The indexers see your searches
-      and your internet address (or Prowlarr's and Jackett's, if they run elsewhere or through a VPN).</p>
+    <p class="muted small" style="margin-top:0">A search asks every feed that's on, all at once, and shows one list:
+      the same torrent found by several feeds shows once, most seeders first.</p>
+    <div id="feedRows"></div>
+    <button type="button" id="feedAdd">+ Add a feed</button>
+    <div id="feedForm" class="feed-form hidden" role="group" aria-labelledby="feedFormTitle">
+      <h5 id="feedFormTitle">Add a feed</h5>
+      <label class="field"><span>Kind</span><select id="iKind" class="field-select">
+        <option value="torznab">Torznab feed: one site's own search</option>
+        <option value="prowlarr">Prowlarr: every indexer set up in it</option>
+        <option value="jackett">Jackett: every indexer set up in it</option>
+      </select></label>
+      <label class="field"><span id="iUrlLabel">Address</span>
+        <input type="url" id="iUrl" autocomplete="off" spellcheck="false"></label>
+      <label class="field"><span>Name (optional)</span>
+        <input type="text" id="iName" maxlength="40" autocomplete="off" placeholder="Shown beside its results"></label>
+      <label class="field"><span id="iKeyLabel">API key</span>
+        <input type="password" id="iKey" placeholder="Paste the key" autocomplete="off" spellcheck="false"></label>
+      <div class="muted small" style="margin:-8px 0 8px"><span id="iKeyState"></span>
+        <button type="button" class="ghost danger" id="iClear">Remove key</button></div>
+      <p class="muted small" id="iHelp" style="margin-top:0"></p>
+      <div class="i-test"><button type="button" id="iTest">Test connection</button>
+        <span class="small" id="iTestResult" role="status"></span></div>
+      <div class="feed-actions"><button type="button" class="primary" id="feedSave">Add feed</button>
+        <button type="button" class="ghost" id="feedCancel">Cancel</button></div>
+    </div>
+    <p class="muted small">With a feed on, a search box appears where you add movies. HomeReel only searches when you
+      press Search, asks each feed at most 90 times an hour, and repeats come from a 15-minute cache. The sites see your
+      searches and your internet address (or Prowlarr's and Jackett's, if they run elsewhere or through a VPN).</p>
     <p class="muted small"><strong>Only download what you're allowed to</strong>, such as public-domain and Creative
       Commons films, or copies of your own. While it downloads, the phone exchanges pieces with the other people sharing
       that torrent, and they can see your internet address. HomeReel never opens ports on your router, and stops sharing
@@ -1541,7 +1561,7 @@ document.querySelectorAll('.set-nav button').forEach((b) => b.addEventListener('
 function updateSetNav(meta) {
   if (meta) $('#navInfo').textContent = meta.tmdbKeySet ? (meta.autoMatch ? 'Key set · looks up new films' : 'Key set') : 'No TMDB key yet';
   if (downloads) $('#navDownloads').textContent = downloads.settings.enabled
-    ? `On${indexer && indexer.url && indexer.keySet ? ` · ${KIND_NAMES[indexer.kind] || 'search'} set up` : ''}` : 'Off';
+    ? `On${feedsOn() ? ` · ${feedsOn()} search feed${feedsOn() === 1 ? '' : 's'}` : ''}` : 'Off';
   const bar = $('#privateBar');
   if (bar) $('#navPrivate').textContent = bar.classList.contains('open') ? 'Unlocked on the TV' : 'Locked';
 }
@@ -1557,7 +1577,8 @@ async function openSettings(pane) {
     $('#sOpt').checked = st.autoOptimize;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
     fillTorrentSettings(downloads ? downloads.settings : (await api('GET', '/admin/torrents')).settings);
-    fillIndexer(await api('GET', '/admin/torrents/indexer'));
+    await loadFeeds();
+    closeFeedForm();
     await loadProfiles();
     loadUpdates().catch(() => {});
     showPane(typeof pane === 'string' ? pane : settingsPane);
@@ -1583,7 +1604,6 @@ $('#sSave').addEventListener('click', async () => {
   try {
     if (settingsPane === 'downloads') {
       downloads = await api('PUT', '/admin/torrents/settings', readTorrentSettings());
-      fillIndexer(await api('PUT', '/admin/torrents/indexer', indexerBody()));
       renderDownloads();
       updateSetNav();
       toast('Saved');
@@ -1772,7 +1792,7 @@ let downloads = null;
 let dlTimer = null;
 async function loadDownloads() {
   clearTimeout(dlTimer);
-  if (!indexer) { try { indexer = await api('GET', '/admin/torrents/indexer'); } catch (_) { /* older phone app */ } }
+  if (!feeds) { try { await loadFeeds(); } catch (_) { /* older phone app */ } }
   try { downloads = await api('GET', '/admin/torrents'); } catch (err) { if (!err.quiet) console.warn(err); }
   renderDownloads();
   const busy = downloads && downloads.items.some((d) => !['done', 'error'].includes(d.state));
@@ -1785,7 +1805,7 @@ function renderDownloads() {
   const on = downloads.settings.enabled;
   $('#torrentHint').classList.toggle('hidden', !on);
   $('#magnetRow').classList.toggle('hidden', !on);
-  $('#tsForm').classList.toggle('hidden', !(on && indexer && indexer.url && indexer.keySet));
+  $('#tsForm').classList.toggle('hidden', !(on && feedsOn()));
   // Private downloads only show in the Private view, like private videos.
   const items = downloads.items.filter((d) => d.private === (filter === 'private'));
   $('#downloads').classList.toggle('hidden', !items.length);
@@ -1883,40 +1903,127 @@ $('#magnetAdd').addEventListener('click', async () => {
 });
 $('#magnet').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#magnetAdd').click(); } });
 
-// ---- Torrent search: Prowlarr, Jackett or a Torznab feed the admin set up; results go to Downloads like a pasted magnet. ----
-let indexer = null;
+// ---- Torrent search: the admin's feeds (Torznab sites, Prowlarr, Jackett), asked together; results go to Downloads. ----
+let feeds = null;
+let feedEditing = null; // a feed being edited, {} for a new one, null when the form is closed
 let tsPage = null;
-const KIND_NAMES = { prowlarr: 'Prowlarr', jackett: 'Jackett', torznab: 'Torznab' };
+const KIND_NAMES = { prowlarr: 'Prowlarr', jackett: 'Jackett', torznab: 'Torznab feed' };
 const KIND_HELP = {
-  prowlarr: ['Prowlarr’s address', 'http://192.168.1.20:9696',
+  prowlarr: ['Prowlarr’s address', 'http://192.168.1.20:9696', 'API key',
     'The address you open Prowlarr at, on the computer or NAS that runs it. The API key is in Prowlarr under Settings → General → Security. Searches ask every torrent indexer switched on in Prowlarr.'],
-  jackett: ['Jackett’s address', 'http://192.168.1.20:9117',
+  jackett: ['Jackett’s address', 'http://192.168.1.20:9117', 'API key',
     'The address you open Jackett at, on the computer or NAS that runs it. The API key is at the top right of Jackett’s dashboard. Searches ask every indexer set up in Jackett; to use one, paste its Copy Torznab Feed address instead.'],
-  torznab: ['Torznab feed address', 'https://indexer.example/api',
-    'Any Torznab feed, such as one indexer from Prowlarr or Jackett, or a public service that offers Torznab. Plain http:// only works on your home network.'],
+  torznab: ['Torznab address', 'https://site.example/torznab', 'API key (optional)',
+    'A site’s own Torznab search: its API page gives the address, usually ending in /torznab or /api. Leave the key empty if the site doesn’t need one. Plain http:// only works on your home network.'],
 };
+function feedsOn() { return feeds ? feeds.filter((f) => f.enabled).length : 0; }
+async function loadFeeds() {
+  feeds = (await api('GET', '/admin/torrents/feeds')).feeds;
+  renderFeeds();
+}
+function setFeeds(list) {
+  feeds = list.feeds;
+  renderFeeds();
+  renderDownloads();
+  updateSetNav();
+}
+function renderFeeds() {
+  $('#feedRows').replaceChildren(...feeds.map((f) => {
+    const row = document.createElement('div');
+    row.className = `feed${f.enabled ? '' : ' off'}`;
+    const on = document.createElement('input');
+    on.type = 'checkbox';
+    on.checked = f.enabled;
+    on.setAttribute('aria-label', `Search ${f.name}`);
+    on.addEventListener('change', async () => {
+      try { setFeeds(await api('PUT', `/admin/torrents/feeds/${f.id}`, { enabled: on.checked })); }
+      catch (err) { on.checked = !on.checked; if (!err.quiet) toast(err.message, true); }
+    });
+    const text = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = f.name;
+    const meta = document.createElement('div');
+    meta.className = 'muted small';
+    let host = f.url;
+    try { host = new URL(f.url).host; } catch (_) { /* shown as typed */ }
+    meta.textContent = [KIND_NAMES[f.kind] === f.name ? null : KIND_NAMES[f.kind], host, f.keySet ? 'key set' : 'no key', f.enabled ? null : 'off'].filter(Boolean).join(' · ');
+    text.append(name, meta);
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'ghost';
+    edit.textContent = 'Edit';
+    edit.addEventListener('click', () => openFeedForm(f));
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'ghost danger';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', async () => {
+      if (!confirm(`Remove ${f.name} from torrent search? Its address and key are forgotten.`)) return;
+      try { setFeeds(await api('DELETE', `/admin/torrents/feeds/${f.id}`)); if (feedEditing && feedEditing.id === f.id) closeFeedForm(); toast(`${f.name} removed`); }
+      catch (err) { if (!err.quiet) toast(err.message, true); }
+    });
+    acts.append(edit, remove);
+    row.append(on, text, acts);
+    return row;
+  }));
+}
 function showKind(kind) {
-  const [label, example, help] = KIND_HELP[kind] || KIND_HELP.torznab;
+  const [label, example, keyLabel, help] = KIND_HELP[kind] || KIND_HELP.torznab;
   $('#iUrlLabel').textContent = label;
   $('#iUrl').placeholder = example;
+  $('#iKeyLabel').textContent = keyLabel;
   $('#iHelp').textContent = help;
 }
-function fillIndexer(i) {
-  indexer = i;
-  $('#iKind').value = i.kind || 'torznab';
+function openFeedForm(f) {
+  feedEditing = f || {};
+  const editing = Boolean(f);
+  $('#feedFormTitle').textContent = editing ? `Edit ${f.name}` : 'Add a feed';
+  $('#feedSave').textContent = editing ? 'Save feed' : 'Add feed';
+  $('#iKind').value = editing ? f.kind : 'torznab';
   showKind($('#iKind').value);
-  $('#iUrl').value = i.url || '';
+  $('#iUrl').value = editing ? f.url : '';
+  $('#iName').value = editing ? f.name : '';
   $('#iKey').value = '';
-  $('#iKeyState').textContent = i.keySet ? 'A key is set. Leave the box empty to keep it.' : 'No key yet.';
-  $('#iClear').classList.toggle('hidden', !i.keySet);
+  $('#iKeyState').textContent = editing && f.keySet ? 'A key is set. Leave the box empty to keep it.' : '';
+  $('#iClear').classList.toggle('hidden', !(editing && f.keySet));
   $('#iTestResult').textContent = '';
+  $('#feedForm').classList.remove('hidden');
+  $('#feedAdd').classList.add('hidden');
+  $('#iUrl').focus();
 }
-function indexerBody() {
-  const body = { kind: $('#iKind').value, url: $('#iUrl').value.trim() };
+function closeFeedForm() {
+  feedEditing = null;
+  $('#feedForm').classList.add('hidden');
+  $('#feedAdd').classList.remove('hidden');
+}
+function feedBody() {
+  const body = { kind: $('#iKind').value, url: $('#iUrl').value.trim(), name: $('#iName').value.trim() };
   if ($('#iKey').value.trim()) body.apiKey = $('#iKey').value.trim();
+  if (feedEditing && feedEditing.id) body.id = feedEditing.id;
   return body;
 }
+$('#feedAdd').addEventListener('click', () => openFeedForm());
+$('#feedCancel').addEventListener('click', closeFeedForm);
 $('#iKind').addEventListener('change', () => { showKind($('#iKind').value); $('#iTestResult').textContent = ''; });
+$('#feedSave').addEventListener('click', async () => {
+  const button = $('#feedSave');
+  const body = feedBody();
+  if (!body.url) { toast('Type the address', true); return; }
+  button.disabled = true;
+  try {
+    const editing = feedEditing && feedEditing.id;
+    setFeeds(editing ? await api('PUT', `/admin/torrents/feeds/${feedEditing.id}`, body) : await api('POST', '/admin/torrents/feeds', body));
+    toast(editing ? 'Feed saved' : 'Feed added');
+    closeFeedForm();
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  } finally {
+    button.disabled = false;
+  }
+});
 $('#iTest').addEventListener('click', async () => {
   const button = $('#iTest');
   const out = $('#iTestResult');
@@ -1925,10 +2032,12 @@ $('#iTest').addEventListener('click', async () => {
   out.className = 'small muted';
   out.textContent = '';
   try {
-    const r = await api('POST', '/admin/torrents/indexer/test', indexerBody());
+    const r = await api('POST', '/admin/torrents/feeds/test', feedBody());
     out.className = `small ${r.ok ? 'ok' : 'bad'}`;
     const names = r.indexers.slice(0, 8).join(', ') + (r.indexers.length > 8 ? `, and ${r.indexers.length - 8} more` : '');
     out.textContent = (r.ok ? '✓ ' : '✗ ') + r.message + (r.ok && r.indexers.length && $('#iKind').value !== 'torznab' ? ` (${names})` : '');
+    // A Torznab site names itself: offer that as the feed's name.
+    if (r.ok && $('#iKind').value === 'torznab' && !$('#iName').value.trim() && r.indexers.length) $('#iName').value = r.indexers[0];
   } catch (err) {
     out.className = 'small bad';
     out.textContent = `✗ ${err.message}`;
@@ -1938,20 +2047,23 @@ $('#iTest').addEventListener('click', async () => {
   }
 });
 $('#iClear').addEventListener('click', async () => {
-  try { fillIndexer(await api('PUT', '/admin/torrents/indexer', { clearKey: true })); renderDownloads(); toast('Key removed'); }
-  catch (err) { if (!err.quiet) toast(err.message, true); }
+  if (!feedEditing || !feedEditing.id) return;
+  try {
+    setFeeds(await api('PUT', `/admin/torrents/feeds/${feedEditing.id}`, { clearKey: true }));
+    $('#iKeyState').textContent = '';
+    $('#iClear').classList.add('hidden');
+    toast('Key removed');
+  } catch (err) { if (!err.quiet) toast(err.message, true); }
 });
 
-async function runSearch(offset) {
+async function runSearch() {
   const q = $('#tsQ').value.trim();
   if (q.length < 2) { toast('Type at least 2 characters', true); return; }
   const go = $('#tsGo');
   go.disabled = true;
-  go.textContent = indexer && indexer.kind !== 'torznab' ? 'Searching your indexers…' : 'Searching…';
+  go.textContent = feedsOn() > 1 ? `Searching ${feedsOn()} feeds…` : 'Searching…';
   try {
-    const page = await api('GET', `/admin/torrents/search?q=${encodeURIComponent(q)}&cat=${$('#tsCat').value}&offset=${offset}`);
-    if (offset && tsPage && tsPage.query === page.query) page.items = tsPage.items.concat(page.items.filter((r) => !tsPage.items.some((o) => o.id === r.id)));
-    tsPage = page;
+    tsPage = await api('GET', `/admin/torrents/search?q=${encodeURIComponent(q)}&cat=${$('#tsCat').value}`);
     renderSearch();
   } catch (err) {
     if (!err.quiet) toast(err.message, true);
@@ -1960,9 +2072,15 @@ async function runSearch(offset) {
     go.textContent = 'Search';
   }
 }
-$('#tsForm').addEventListener('submit', (e) => { e.preventDefault(); runSearch(0); });
-$('#tsMore').addEventListener('click', () => runSearch(tsPage.offset + 50));
+$('#tsForm').addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });
 $('#tsClose').addEventListener('click', () => { tsPage = null; $('#tsResults').classList.add('hidden'); });
+
+// "YTS via Prowlarr", "Torlock", or "Torlock + 2 more" when several feeds found the same torrent.
+function foundBy(r) {
+  const first = r.sources[0];
+  const via = r.indexer && first && r.indexer !== first ? `${r.indexer} via ${first}` : (first || r.indexer);
+  return r.sources.length > 1 ? `${via} + ${r.sources.length - 1} more` : via;
+}
 
 function renderSearch() {
   const page = tsPage;
@@ -1970,9 +2088,10 @@ function renderSearch() {
   if (!page) return;
   $('#tsTitle').textContent = `Search results for “${page.query}”`;
   const left = page.skipped ? ` ${page.skipped} result${page.skipped === 1 ? '' : 's'} left out: nothing HomeReel could download.` : '';
-  $('#tsNote').textContent = (!page.items.length ? 'Nothing found.'
-    : (indexer && indexer.kind !== 'torznab' ? 'Most seeders first. ' : '') + 'Seeders are what the indexer last saw; a torrent may still have nobody sharing it.') + left;
-  $('#tsMore').classList.toggle('hidden', !page.more);
+  const failed = page.failed.length ? ` Didn't answer: ${page.failed.join('; ')}.` : '';
+  const asked = page.feeds > 1 ? `From ${page.feeds - page.failed.length} of ${page.feeds} feeds. ` : '';
+  $('#tsNote').textContent = (!page.items.length ? `${asked}Nothing found.`
+    : `${asked}Most seeders first. Seeders are what the sites last saw; a torrent may still have nobody sharing it.`) + left + failed;
   $('#tsRows').replaceChildren(...page.items.map((r) => {
     const row = document.createElement('div');
     row.className = 'tsr';
@@ -1985,7 +2104,7 @@ function renderSearch() {
     meta.textContent = [r.size != null ? fmtSize(r.size) : 'Size unknown',
       r.seeders == null ? 'Seeders unknown' : r.seeders === 0 ? 'No seeders reported' : `${r.seeders} seeder${r.seeders === 1 ? '' : 's'}`,
       r.peers != null ? `${r.peers} peer${r.peers === 1 ? '' : 's'}` : null,
-      r.published ? new Date(r.published).toLocaleDateString() : null, r.indexer].filter(Boolean).join(' · ');
+      r.published ? new Date(r.published).toLocaleDateString() : null, foundBy(r)].filter(Boolean).join(' · ');
     left.append(name, meta);
     const b = document.createElement('button');
     b.type = 'button';

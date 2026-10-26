@@ -182,37 +182,44 @@ Off until you turn it on: **Settings → Torrent downloads** on the admin page.
 
 ### Torrent search (optional)
 
-With [Prowlarr](https://prowlarr.com), [Jackett](https://github.com/Jackett/Jackett) or any
-[Torznab](https://torznab.github.io/spec-1.3-draft/) feed set up, a search box appears where you add movies, and a
-result's **Download** button sends it to Downloads, the same as pasting its magnet link.
+Add one or more **search feeds**, and a search box appears where you add movies. A search asks every feed that's on,
+all at once, and shows one list; a result's **Download** button sends it to Downloads, the same as pasting its magnet
+link. HomeReel doesn't come with any feed set up.
 
-- **Setting it up:** in **Settings → Downloads → Torrent search**, choose what to search with, type its address and
-  paste its API key, then press **Test connection**. It says whether the key works and which indexers a search will
-  ask. HomeReel doesn't come with an indexer set up.
-  - **Prowlarr** (recommended): the address you open Prowlarr at, such as `http://192.168.1.20:9696`. The key is under
-    Settings → General → Security. Searches use Prowlarr's own search, which asks every torrent indexer switched on
-    in it.
-  - **Jackett:** the address you open Jackett at, such as `http://192.168.1.20:9117`. The key is at the top right of
-    its dashboard. Searches ask every indexer set up in Jackett. To search just one, paste its **Copy Torznab Feed**
-    address instead; a key inside a pasted address is picked up and kept out of the address.
-  - **Another Torznab feed:** one indexer, such as a single Prowlarr or Jackett indexer, or a public service that
-    offers Torznab.
+- **Kinds of feed** (Settings → Downloads → Torrent search → **+ Add a feed**):
+  - **Torznab feed:** one site's own [Torznab](https://torznab.github.io/spec-1.3-draft/) search. A site's API page
+    gives the address, usually ending in `/torznab` or `/api`. The key is optional: leave it empty for a site that
+    doesn't need one.
+  - **[Prowlarr](https://prowlarr.com):** the address you open Prowlarr at, such as `http://192.168.1.20:9696`. The
+    key is under Settings → General → Security. Searches use Prowlarr's own search, which asks every torrent indexer
+    switched on in it.
+  - **[Jackett](https://github.com/Jackett/Jackett):** the address you open Jackett at, such as
+    `http://192.168.1.20:9117`. The key is at the top right of its dashboard. Searches ask every indexer set up in
+    Jackett. To search just one, paste its **Copy Torznab Feed** address instead; a key inside a pasted address is
+    picked up and kept out of the address.
   - Prowlarr and Jackett run on a computer or NAS at home (Docker images exist for both); the phone only talks to them.
-- **The key** stays on the phone; the admin page only sees whether it's set. An indexer on the internet must use
+    Sites that offer Torznab themselves need neither.
+- **Managing feeds:** each has a name (shown beside its results), a tick to switch it on or off, Edit and Remove, up
+  to 20. **Test connection** tries the address and key without saving them, says whether they work, and lists the
+  indexers Prowlarr or Jackett will ask (or picks up a Torznab site's own name).
+- **The keys** stay on the phone; the admin page only sees whether each is set. A feed on the internet must use
   `https://`; plain `http://` is only allowed on your home network (or a Tailscale network, `100.64.0.0/10`).
-- **Searching:** Movies, TV or everything, with size, seeders, peers and the indexer that found it. Prowlarr and
-  Jackett answer with every indexer's results at once, up to 100, most seeders first, and wait for their slowest
-  indexer (HomeReel waits up to a minute). Another Torznab feed gives 50 results a page. Seeders are what the indexer
-  last saw, so a torrent may still have nobody sharing it.
-- **Light on the indexer:** HomeReel only asks when you press Search, at most once a second, 90 times an hour and 900
-  times a day (kept across restarts), and the same search within 15 minutes comes from a cache. If the indexer says
-  "too many", it waits 15 minutes.
+- **Results:** Movies, TV or everything, up to 100 from each feed, with size, seeders, peers and who found it ("YTS via
+  Prowlarr"). The same torrent from several feeds shows once, keeping the copy with a magnet, most seeders first. A
+  feed that is slow or fails doesn't spoil the others: the page says which didn't answer and why. HomeReel waits up to
+  a minute, since Prowlarr and Jackett wait for their slowest indexer. Seeders are what the sites last saw, so a
+  torrent may still have nobody sharing it.
+- **Light on the sites:** HomeReel only asks when you press Search. Each feed has its own limits, kept across
+  restarts: at most once a second, 90 times an hour and 900 times a day. The same search within 15 minutes comes from
+  a cache, so the same address is never asked twice in a minute. A feed that says "too many" waits 15 minutes on its
+  own.
 - **What the result can do:** HomeReel keeps only a magnet's hash, name and trackers, so a result can't make the phone
-  fetch other web addresses. Download links are only fetched from the indexer's own address (Prowlarr's and Jackett's
-  are always on theirs). When one redirects, HomeReel takes a magnet, follows the indexer's own address, or follows a
-  public `https://` address without the key. It never follows one to another address on your home network. A result
-  with neither a magnet nor a link on the indexer's address is left out, and the page says how many were.
-- **Privacy:** the indexer sees what you search for and your internet address.
+  fetch other web addresses. Download links are only fetched from the address of the feed that gave them (Prowlarr's
+  and Jackett's are always on theirs). When one redirects, HomeReel takes a magnet, follows the feed's own address, or
+  follows a public `https://` address without the key. It never follows one to another address on your home network.
+  A result with neither a magnet nor a link on its feed's address is left out, and the page says how many were.
+- **Privacy:** every feed that's on sees what you search for and your internet address.
+- **From 0.6:** the indexer set up there becomes the first feed.
 
 ## TV series
 
@@ -464,9 +471,10 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `POST /admin/torrents[?private=1]` (the `.torrent` file as the body), `POST /admin/torrents/magnet` `{magnet, private}` | admin | Adds a download; refused while torrents are off |
 | `PUT /admin/torrents/settings` | admin | On or off, charging only, hours, speed limits, slowing while someone watches |
 | `POST /admin/torrents/{id}/pause`, `…/resume`, `…/retry`; `DELETE /admin/torrents/{id}` | admin | Steers one download; delete removes what it downloaded |
-| `GET` / `PUT /admin/torrents/indexer` `{kind: prowlarr\|jackett\|torznab, url, apiKey, clearKey}` | admin | What torrent search asks; the key is write-only |
-| `POST /admin/torrents/indexer/test` `{kind, url, apiKey}` | admin | Tries the typed (or saved) address and key without saving them; says which indexers a search will ask |
-| `GET /admin/torrents/search?q=&cat=movies\|tv\|all&offset=` | admin | Searches; results carry an id (the hash, when known), never magnets or links |
+| `GET` / `POST /admin/torrents/feeds` `{kind: torznab\|prowlarr\|jackett, name, url, apiKey, enabled}` | admin | The search feeds; keys are write-only, and optional for a Torznab feed |
+| `PUT` / `DELETE /admin/torrents/feeds/{id}` `{name, url, apiKey, clearKey, enabled}` | admin | Changes or removes one feed; fields left out stay as they are |
+| `POST /admin/torrents/feeds/test` `{id?, kind, url, apiKey}` | admin | Tries the typed address and key (or a saved feed's) without saving them; says which indexers a search will ask |
+| `GET /admin/torrents/search?q=&cat=movies\|tv\|all` | admin | Asks every feed that's on and merges the results; they carry an id (the hash, when known) and who found them, never magnets or links |
 | `POST /admin/torrents/search/add` `{id, private}` | admin | Sends a recent search result to Downloads |
 
 ## Troubleshooting

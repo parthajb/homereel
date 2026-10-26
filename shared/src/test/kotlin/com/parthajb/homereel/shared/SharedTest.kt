@@ -354,6 +354,22 @@ class TorznabTest {
         assertEquals("http://192.168.1.20:9696/4/download?apikey=k&link=y", p.items[1].link)
     }
 
+    @Test fun mergesTheSameTorrentFromSeveralFeeds() {
+        fun item(hash: String?, seeders: Int?, magnet: Boolean, link: String? = null) = Torznab.Item(
+            hash, "Film", null, seeders, null, null, if (magnet) "magnet:?xt=urn:btih:$hash" else null, link)
+        val merged = Torznab.merge(listOf(
+            Torznab.Found("a", "Torlock", item(hash, 10, magnet = false, link = "https://a/1.torrent")),
+            Torznab.Found("b", "Prowlarr", item(hash, 4, magnet = true)),
+            Torznab.Found("b", "Prowlarr", item(null, 50, magnet = false, link = "https://b/x")),
+            Torznab.Found("c", "Jackett", item(null, 1, magnet = false, link = "https://b/x")),
+        ))
+        assertEquals(3, merged.size)
+        assertEquals(listOf(50, 10, 1), merged.map { it.best.item.seeders })
+        val same = merged[1]
+        assertEquals("b", same.best.feedId) // the copy with a magnet
+        assertEquals(listOf("Torlock", "Prowlarr"), same.sources)
+    }
+
     @Test fun prowlarrNotJson() = assertEquals(true, Torznab.parseProwlarr("<html>".toByteArray()).error != null)
 
     @Test fun prowlarrIndexers() = assertEquals(
