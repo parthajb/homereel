@@ -182,22 +182,36 @@ Off until you turn it on: **Settings → Torrent downloads** on the admin page.
 
 ### Torrent search (optional)
 
-With a [Torznab](https://torznab.github.io/spec-1.3-draft/) indexer, a search box appears where you add movies, and a
+With [Prowlarr](https://prowlarr.com), [Jackett](https://github.com/Jackett/Jackett) or any
+[Torznab](https://torznab.github.io/spec-1.3-draft/) feed set up, a search box appears where you add movies, and a
 result's **Download** button sends it to Downloads, the same as pasting its magnet link.
 
-- **Setting it up:** in **Settings → Torrent downloads**, add the indexer's address and API key. That can be a public
-  one, such as Search Magnet Link (`https://www.searchmagnetlink.com`, a free key from its API page), or your own
-  Jackett or Prowlarr. HomeReel doesn't come with an indexer set up.
+- **Setting it up:** in **Settings → Downloads → Torrent search**, choose what to search with, type its address and
+  paste its API key, then press **Test connection**. It says whether the key works and which indexers a search will
+  ask. HomeReel doesn't come with an indexer set up.
+  - **Prowlarr** (recommended): the address you open Prowlarr at, such as `http://192.168.1.20:9696`. The key is under
+    Settings → General → Security. Searches use Prowlarr's own search, which asks every torrent indexer switched on
+    in it.
+  - **Jackett:** the address you open Jackett at, such as `http://192.168.1.20:9117`. The key is at the top right of
+    its dashboard. Searches ask every indexer set up in Jackett. To search just one, paste its **Copy Torznab Feed**
+    address instead; a key inside a pasted address is picked up and kept out of the address.
+  - **Another Torznab feed:** one indexer, such as a single Prowlarr or Jackett indexer, or a public service that
+    offers Torznab.
+  - Prowlarr and Jackett run on a computer or NAS at home (Docker images exist for both); the phone only talks to them.
 - **The key** stays on the phone; the admin page only sees whether it's set. An indexer on the internet must use
-  `https://`; plain `http://` is only allowed for one on your home network.
-- **Searching:** Movies, TV or everything; 50 results a page, with size, seeders and peers when the indexer says.
-  Seeders are what the indexer last saw, so a torrent may still have nobody sharing it.
+  `https://`; plain `http://` is only allowed on your home network (or a Tailscale network, `100.64.0.0/10`).
+- **Searching:** Movies, TV or everything, with size, seeders, peers and the indexer that found it. Prowlarr and
+  Jackett answer with every indexer's results at once, up to 100, most seeders first, and wait for their slowest
+  indexer (HomeReel waits up to a minute). Another Torznab feed gives 50 results a page. Seeders are what the indexer
+  last saw, so a torrent may still have nobody sharing it.
 - **Light on the indexer:** HomeReel only asks when you press Search, at most once a second, 90 times an hour and 900
   times a day (kept across restarts), and the same search within 15 minutes comes from a cache. If the indexer says
   "too many", it waits 15 minutes.
 - **What the result can do:** HomeReel keeps only a magnet's hash, name and trackers, so a result can't make the phone
-  fetch other web addresses. A `.torrent` file is only fetched from the indexer's own address, without following
-  redirects.
+  fetch other web addresses. Download links are only fetched from the indexer's own address (Prowlarr's and Jackett's
+  are always on theirs). When one redirects, HomeReel takes a magnet, follows the indexer's own address, or follows a
+  public `https://` address without the key. It never follows one to another address on your home network. A result
+  with neither a magnet nor a link on the indexer's address is left out, and the page says how many were.
 - **Privacy:** the indexer sees what you search for and your internet address.
 
 ## TV series
@@ -450,9 +464,10 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `POST /admin/torrents[?private=1]` (the `.torrent` file as the body), `POST /admin/torrents/magnet` `{magnet, private}` | admin | Adds a download; refused while torrents are off |
 | `PUT /admin/torrents/settings` | admin | On or off, charging only, hours, speed limits, slowing while someone watches |
 | `POST /admin/torrents/{id}/pause`, `…/resume`, `…/retry`; `DELETE /admin/torrents/{id}` | admin | Steers one download; delete removes what it downloaded |
-| `GET` / `PUT /admin/torrents/indexer` `{url, apiKey, clearKey}` | admin | The Torznab indexer for torrent search; the key is write-only |
-| `GET /admin/torrents/search?q=&cat=movies\|tv\|all&offset=` | admin | Searches the indexer; results carry hashes, never magnets |
-| `POST /admin/torrents/search/add` `{infoHash, private}` | admin | Sends a recent search result to Downloads |
+| `GET` / `PUT /admin/torrents/indexer` `{kind: prowlarr\|jackett\|torznab, url, apiKey, clearKey}` | admin | What torrent search asks; the key is write-only |
+| `POST /admin/torrents/indexer/test` `{kind, url, apiKey}` | admin | Tries the typed (or saved) address and key without saving them; says which indexers a search will ask |
+| `GET /admin/torrents/search?q=&cat=movies\|tv\|all&offset=` | admin | Searches; results carry an id (the hash, when known), never magnets or links |
+| `POST /admin/torrents/search/add` `{id, private}` | admin | Sends a recent search result to Downloads |
 
 ## Troubleshooting
 

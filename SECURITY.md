@@ -34,7 +34,9 @@ Only the latest release gets fixes.
   opening a port on the router.
 - **Torrent search:** the indexer key leaving the phone other than to the indexer, the key going over plain HTTP to
   an indexer on the internet, or a search result making the phone fetch an address other than the indexer's own
-  (web seeds and redirects included).
+  (web seeds included). Redirects from the indexer may lead to a magnet, its own address, or a public `https://`
+  address (without the key); one that reaches the key to another host, or the phone to another address on the home
+  network, is in scope.
 
 **By design, and out of scope:**
 - **Plain HTTP:** the API is plain HTTP on the home network. Anyone who can watch the Wi-Fi traffic can see what's

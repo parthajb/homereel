@@ -89,6 +89,9 @@
   #tsResults h3 { margin: 0 0 4px; font-size: 15px; }
   .tsr { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
   .tsr .name { font-weight: 600; overflow-wrap: anywhere; }
+  .i-test { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -2px 0 10px; }
+  .i-test .ok { color: var(--fg); font-weight: 600; }
+  .i-test .bad { color: var(--danger); }
   #uploads { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 16px; margin-bottom: 18px; }
   .up { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .up:last-child { border-bottom: 0; }
@@ -586,15 +589,23 @@
       </select></label>
     </div>
         <h4>Torrent search</h4>
-    <label class="field" style="margin-top:6px"><span>Torznab indexer address (optional)</span>
-      <input type="url" id="iUrl" placeholder="https://www.searchmagnetlink.com" autocomplete="off" spellcheck="false"></label>
-    <label class="field"><span>Indexer API key</span>
+    <label class="field" style="margin-top:6px"><span>Search with</span><select id="iKind" class="field-select">
+      <option value="prowlarr">Prowlarr: every indexer set up in it</option>
+      <option value="jackett">Jackett: every indexer set up in it</option>
+      <option value="torznab">Another Torznab feed (one indexer)</option>
+    </select></label>
+    <label class="field"><span id="iUrlLabel">Address (optional)</span>
+      <input type="url" id="iUrl" autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>API key</span>
       <input type="password" id="iKey" placeholder="Paste the key" autocomplete="off" spellcheck="false"></label>
     <div class="muted small" style="margin:-8px 0 8px"><span id="iKeyState"></span>
       <button type="button" class="ghost danger" id="iClear">Remove key</button></div>
-    <p class="muted small" style="margin-top:0">With an indexer and its key, a search box appears where you add movies.
-      HomeReel only searches when you press Search, at most 90 times an hour, and repeats come from a 15-minute cache.
-      The indexer sees your searches and your internet address.</p>
+    <p class="muted small" id="iHelp" style="margin-top:0"></p>
+    <div class="i-test"><button type="button" id="iTest">Test connection</button>
+      <span class="small" id="iTestResult" role="status"></span></div>
+    <p class="muted small">With search set up, a search box appears where you add movies. HomeReel only searches when
+      you press Search, at most 90 times an hour, and repeats come from a 15-minute cache. The indexers see your searches
+      and your internet address (or Prowlarr's and Jackett's, if they run elsewhere or through a VPN).</p>
     <p class="muted small"><strong>Only download what you're allowed to</strong>, such as public-domain and Creative
       Commons films, or copies of your own. While it downloads, the phone exchanges pieces with the other people sharing
       that torrent, and they can see your internet address. HomeReel never opens ports on your router, and stops sharing
@@ -1530,7 +1541,7 @@ document.querySelectorAll('.set-nav button').forEach((b) => b.addEventListener('
 function updateSetNav(meta) {
   if (meta) $('#navInfo').textContent = meta.tmdbKeySet ? (meta.autoMatch ? 'Key set · looks up new films' : 'Key set') : 'No TMDB key yet';
   if (downloads) $('#navDownloads').textContent = downloads.settings.enabled
-    ? `On${indexer && indexer.url && indexer.keySet ? ' · search set up' : ''}` : 'Off';
+    ? `On${indexer && indexer.url && indexer.keySet ? ` · ${KIND_NAMES[indexer.kind] || 'search'} set up` : ''}` : 'Off';
   const bar = $('#privateBar');
   if (bar) $('#navPrivate').textContent = bar.classList.contains('open') ? 'Unlocked on the TV' : 'Locked';
 }
@@ -1572,9 +1583,7 @@ $('#sSave').addEventListener('click', async () => {
   try {
     if (settingsPane === 'downloads') {
       downloads = await api('PUT', '/admin/torrents/settings', readTorrentSettings());
-      const iBody = { url: $('#iUrl').value.trim() };
-      if ($('#iKey').value.trim()) iBody.apiKey = $('#iKey').value.trim();
-      fillIndexer(await api('PUT', '/admin/torrents/indexer', iBody));
+      fillIndexer(await api('PUT', '/admin/torrents/indexer', indexerBody()));
       renderDownloads();
       updateSetNav();
       toast('Saved');
@@ -1874,16 +1883,60 @@ $('#magnetAdd').addEventListener('click', async () => {
 });
 $('#magnet').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#magnetAdd').click(); } });
 
-// ---- Torrent search: a Torznab indexer the admin set up; results go to Downloads like a pasted magnet. ----
+// ---- Torrent search: Prowlarr, Jackett or a Torznab feed the admin set up; results go to Downloads like a pasted magnet. ----
 let indexer = null;
 let tsPage = null;
+const KIND_NAMES = { prowlarr: 'Prowlarr', jackett: 'Jackett', torznab: 'Torznab' };
+const KIND_HELP = {
+  prowlarr: ['Prowlarr’s address', 'http://192.168.1.20:9696',
+    'The address you open Prowlarr at, on the computer or NAS that runs it. The API key is in Prowlarr under Settings → General → Security. Searches ask every torrent indexer switched on in Prowlarr.'],
+  jackett: ['Jackett’s address', 'http://192.168.1.20:9117',
+    'The address you open Jackett at, on the computer or NAS that runs it. The API key is at the top right of Jackett’s dashboard. Searches ask every indexer set up in Jackett; to use one, paste its Copy Torznab Feed address instead.'],
+  torznab: ['Torznab feed address', 'https://indexer.example/api',
+    'Any Torznab feed, such as one indexer from Prowlarr or Jackett, or a public service that offers Torznab. Plain http:// only works on your home network.'],
+};
+function showKind(kind) {
+  const [label, example, help] = KIND_HELP[kind] || KIND_HELP.torznab;
+  $('#iUrlLabel').textContent = label;
+  $('#iUrl').placeholder = example;
+  $('#iHelp').textContent = help;
+}
 function fillIndexer(i) {
   indexer = i;
+  $('#iKind').value = i.kind || 'torznab';
+  showKind($('#iKind').value);
   $('#iUrl').value = i.url || '';
   $('#iKey').value = '';
   $('#iKeyState').textContent = i.keySet ? 'A key is set. Leave the box empty to keep it.' : 'No key yet.';
   $('#iClear').classList.toggle('hidden', !i.keySet);
+  $('#iTestResult').textContent = '';
 }
+function indexerBody() {
+  const body = { kind: $('#iKind').value, url: $('#iUrl').value.trim() };
+  if ($('#iKey').value.trim()) body.apiKey = $('#iKey').value.trim();
+  return body;
+}
+$('#iKind').addEventListener('change', () => { showKind($('#iKind').value); $('#iTestResult').textContent = ''; });
+$('#iTest').addEventListener('click', async () => {
+  const button = $('#iTest');
+  const out = $('#iTestResult');
+  button.disabled = true;
+  button.textContent = 'Testing…';
+  out.className = 'small muted';
+  out.textContent = '';
+  try {
+    const r = await api('POST', '/admin/torrents/indexer/test', indexerBody());
+    out.className = `small ${r.ok ? 'ok' : 'bad'}`;
+    const names = r.indexers.slice(0, 8).join(', ') + (r.indexers.length > 8 ? `, and ${r.indexers.length - 8} more` : '');
+    out.textContent = (r.ok ? '✓ ' : '✗ ') + r.message + (r.ok && r.indexers.length && $('#iKind').value !== 'torznab' ? ` (${names})` : '');
+  } catch (err) {
+    out.className = 'small bad';
+    out.textContent = `✗ ${err.message}`;
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Test connection';
+  }
+});
 $('#iClear').addEventListener('click', async () => {
   try { fillIndexer(await api('PUT', '/admin/torrents/indexer', { clearKey: true })); renderDownloads(); toast('Key removed'); }
   catch (err) { if (!err.quiet) toast(err.message, true); }
@@ -1894,10 +1947,10 @@ async function runSearch(offset) {
   if (q.length < 2) { toast('Type at least 2 characters', true); return; }
   const go = $('#tsGo');
   go.disabled = true;
-  go.textContent = 'Searching…';
+  go.textContent = indexer && indexer.kind !== 'torznab' ? 'Searching your indexers…' : 'Searching…';
   try {
     const page = await api('GET', `/admin/torrents/search?q=${encodeURIComponent(q)}&cat=${$('#tsCat').value}&offset=${offset}`);
-    if (offset && tsPage && tsPage.query === page.query) page.items = tsPage.items.concat(page.items.filter((r) => !tsPage.items.some((o) => o.infoHash === r.infoHash)));
+    if (offset && tsPage && tsPage.query === page.query) page.items = tsPage.items.concat(page.items.filter((r) => !tsPage.items.some((o) => o.id === r.id)));
     tsPage = page;
     renderSearch();
   } catch (err) {
@@ -1916,8 +1969,9 @@ function renderSearch() {
   $('#tsResults').classList.toggle('hidden', !page);
   if (!page) return;
   $('#tsTitle').textContent = `Search results for “${page.query}”`;
-  $('#tsNote').textContent = !page.items.length ? 'Nothing found.'
-    : 'Seeders are what the indexer last saw; a torrent may still have nobody sharing it.';
+  const left = page.skipped ? ` ${page.skipped} result${page.skipped === 1 ? '' : 's'} left out: nothing HomeReel could download.` : '';
+  $('#tsNote').textContent = (!page.items.length ? 'Nothing found.'
+    : (indexer && indexer.kind !== 'torznab' ? 'Most seeders first. ' : '') + 'Seeders are what the indexer last saw; a torrent may still have nobody sharing it.') + left;
   $('#tsMore').classList.toggle('hidden', !page.more);
   $('#tsRows').replaceChildren(...page.items.map((r) => {
     const row = document.createElement('div');
@@ -1931,7 +1985,7 @@ function renderSearch() {
     meta.textContent = [r.size != null ? fmtSize(r.size) : 'Size unknown',
       r.seeders == null ? 'Seeders unknown' : r.seeders === 0 ? 'No seeders reported' : `${r.seeders} seeder${r.seeders === 1 ? '' : 's'}`,
       r.peers != null ? `${r.peers} peer${r.peers === 1 ? '' : 's'}` : null,
-      r.published ? new Date(r.published).toLocaleDateString() : null].filter(Boolean).join(' · ');
+      r.published ? new Date(r.published).toLocaleDateString() : null, r.indexer].filter(Boolean).join(' · ');
     left.append(name, meta);
     const b = document.createElement('button');
     b.type = 'button';
@@ -1941,7 +1995,7 @@ function renderSearch() {
       b.disabled = true;
       b.textContent = 'Adding…';
       try {
-        const d = await api('POST', '/admin/torrents/search/add', { infoHash: r.infoHash, private: $('#upPrivate').checked });
+        const d = await api('POST', '/admin/torrents/search/add', { id: r.id, private: $('#upPrivate').checked });
         r.inDownloads = true;
         b.textContent = 'In Downloads';
         toast(`Added to Downloads: ${d.name}`);
