@@ -3,7 +3,7 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
-## Unreleased
+## 0.6.2 (2026-10-26)
 
 - **Several search feeds, searched together:** torrent search keeps a list of feeds instead of one indexer: Torznab
   sites, Prowlarr and Jackett, each with a name, on or off, Edit, Remove and Test connection. A search asks every feed
