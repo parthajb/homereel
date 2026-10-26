@@ -178,6 +178,26 @@ Off until you turn it on: **Settings → Torrent downloads** on the admin page.
 - **Size:** the phone app includes libtorrent for 64-bit and 32-bit ARM, about 30 MB. The engine only starts when
   there's something to download.
 
+### Torrent search (optional)
+
+With a [Torznab](https://torznab.github.io/spec-1.3-draft/) indexer, a search box appears where you add movies, and a
+result's **Download** button sends it to Downloads, the same as pasting its magnet link.
+
+- **Setting it up:** in **Settings → Torrent downloads**, add the indexer's address and API key. That can be a public
+  one, such as Search Magnet Link (`https://www.searchmagnetlink.com`, a free key from its API page), or your own
+  Jackett or Prowlarr. HomeReel doesn't come with an indexer set up.
+- **The key** stays on the phone; the admin page only sees whether it's set. An indexer on the internet must use
+  `https://`; plain `http://` is only allowed for one on your home network.
+- **Searching:** Movies, TV or everything; 50 results a page, with size, seeders and peers when the indexer says.
+  Seeders are what the indexer last saw, so a torrent may still have nobody sharing it.
+- **Light on the indexer:** HomeReel only asks when you press Search, at most once a second, 90 times an hour and 900
+  times a day (kept across restarts), and the same search within 15 minutes comes from a cache. If the indexer says
+  "too many", it waits 15 minutes.
+- **What the result can do:** HomeReel keeps only a magnet's hash, name and trackers, so a result can't make the phone
+  fetch other web addresses. A `.torrent` file is only fetched from the indexer's own address, without following
+  redirects.
+- **Privacy:** the indexer sees what you search for and your internet address.
+
 ## TV series
 
 Name episode files the usual way and HomeReel groups them into shows by itself:
@@ -425,6 +445,9 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `POST /admin/torrents[?private=1]` (the `.torrent` file as the body), `POST /admin/torrents/magnet` `{magnet, private}` | admin | Adds a download; refused while torrents are off |
 | `PUT /admin/torrents/settings` | admin | On or off, charging only, hours, speed limits, slowing while someone watches |
 | `POST /admin/torrents/{id}/pause`, `…/resume`, `…/retry`; `DELETE /admin/torrents/{id}` | admin | Steers one download; delete removes what it downloaded |
+| `GET` / `PUT /admin/torrents/indexer` `{url, apiKey, clearKey}` | admin | The Torznab indexer for torrent search; the key is write-only |
+| `GET /admin/torrents/search?q=&cat=movies\|tv\|all&offset=` | admin | Searches the indexer; results carry hashes, never magnets |
+| `POST /admin/torrents/search/add` `{infoHash, private}` | admin | Sends a recent search result to Downloads |
 
 ## Troubleshooting
 

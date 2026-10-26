@@ -80,8 +80,13 @@
   .dl progress { grid-column: 1 / -1; width: 100%; height: 6px; }
   .dl .actions { display: flex; gap: 6px; }
   .dl .state.err { color: var(--danger, #b91c1c); }
-  #magnetRow { display: flex; gap: 8px; margin-top: 10px; }
-  #magnetRow input { flex: 1; min-width: 0; }
+  #magnetRow, #tsForm { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  #magnetRow input, #tsForm input { flex: 1; min-width: 160px; }
+  #tsForm select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+  #tsResults { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; margin-bottom: 18px; }
+  #tsResults h3 { margin: 0 0 4px; font-size: 15px; }
+  .tsr { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+  .tsr .name { font-weight: 600; overflow-wrap: anywhere; }
   #uploads { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 6px 16px; margin-bottom: 18px; }
   .up { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
   .up:last-child { border-bottom: 0; }
@@ -277,9 +282,21 @@
         <input type="text" id="magnet" placeholder="Or paste a magnet link" aria-label="Magnet link" autocomplete="off" spellcheck="false">
         <button type="button" id="magnetAdd">Add</button>
       </div>
+      <form id="tsForm" class="hidden" role="search">
+        <input type="search" id="tsQ" placeholder="Search torrents" aria-label="Search torrents" maxlength="200" autocomplete="off">
+        <select id="tsCat" aria-label="Category"><option value="movies">Movies</option><option value="tv">TV</option><option value="all">Everything</option></select>
+        <button type="submit" id="tsGo">Search</button>
+      </form>
       <label class="up-private hidden" id="upPrivateLabel"><input type="checkbox" id="upPrivate"> 🔒 Upload into the Private folder</label>
     </div>
     <div id="uploads"></div>
+    <section id="tsResults" class="hidden" aria-labelledby="tsTitle">
+      <h3 id="tsTitle">Search results</h3>
+      <div class="muted small" id="tsNote"></div>
+      <div id="tsRows"></div>
+      <button type="button" class="ghost" id="tsMore" style="margin-top:8px">More results</button>
+      <button type="button" class="ghost" id="tsClose" style="margin-top:8px">Close</button>
+    </section>
     <section id="downloads" class="hidden" aria-labelledby="dlTitle">
       <h3 id="dlTitle">Downloads</h3>
       <div class="muted small" id="dlWaiting"></div>
@@ -450,6 +467,15 @@
         <option value="0">No limit</option>
       </select></label>
     </div>
+    <label class="field" style="margin-top:6px"><span>Torrent search: Torznab indexer address (optional)</span>
+      <input type="url" id="iUrl" placeholder="https://www.searchmagnetlink.com" autocomplete="off" spellcheck="false"></label>
+    <label class="field"><span>Indexer API key</span>
+      <input type="password" id="iKey" placeholder="Paste the key" autocomplete="off" spellcheck="false"></label>
+    <div class="muted small" style="margin:-8px 0 8px"><span id="iKeyState"></span>
+      <button type="button" class="ghost danger" id="iClear">Remove key</button></div>
+    <p class="muted small" style="margin-top:0">With an indexer and its key, a search box appears where you add movies.
+      HomeReel only searches when you press Search, at most 90 times an hour, and repeats come from a 15-minute cache.
+      The indexer sees your searches and your internet address.</p>
     <p class="muted small"><strong>Only download what you're allowed to</strong>, such as public-domain and Creative
       Commons films, or copies of your own. While it downloads, the phone exchanges pieces with the other people sharing
       that torrent, and they can see your internet address. HomeReel never opens ports on your router, and stops sharing
@@ -1239,6 +1265,7 @@ async function openSettings() {
     $('#sOpt').checked = st.autoOptimize;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
     fillTorrentSettings(downloads ? downloads.settings : (await api('GET', '/admin/torrents')).settings);
+    fillIndexer(await api('GET', '/admin/torrents/indexer'));
     await loadProfiles();
     loadUpdates().catch(() => {});
     $('#scrim').classList.remove('hidden');
@@ -1268,6 +1295,9 @@ $('#sSave').addEventListener('click', async () => {
   button.textContent = 'Checking…';
   try {
     downloads = await api('PUT', '/admin/torrents/settings', readTorrentSettings());
+    const iBody = { url: $('#iUrl').value.trim() };
+    if ($('#iKey').value.trim()) iBody.apiKey = $('#iKey').value.trim();
+    indexer = await api('PUT', '/admin/torrents/indexer', iBody);
     renderDownloads();
     await api('PUT', '/admin/settings', body);
     closeSettings();
@@ -1439,6 +1469,7 @@ let downloads = null;
 let dlTimer = null;
 async function loadDownloads() {
   clearTimeout(dlTimer);
+  if (!indexer) { try { indexer = await api('GET', '/admin/torrents/indexer'); } catch (_) { /* older phone app */ } }
   try { downloads = await api('GET', '/admin/torrents'); } catch (err) { if (!err.quiet) console.warn(err); }
   renderDownloads();
   const busy = downloads && downloads.items.some((d) => !['done', 'error'].includes(d.state));
@@ -1451,6 +1482,7 @@ function renderDownloads() {
   const on = downloads.settings.enabled;
   $('#torrentHint').classList.toggle('hidden', !on);
   $('#magnetRow').classList.toggle('hidden', !on);
+  $('#tsForm').classList.toggle('hidden', !(on && indexer && indexer.url && indexer.keySet));
   // Private downloads only show in the Private view, like private videos.
   const items = downloads.items.filter((d) => d.private === (filter === 'private'));
   $('#downloads').classList.toggle('hidden', !items.length);
@@ -1547,6 +1579,89 @@ $('#magnetAdd').addEventListener('click', async () => {
   loadDownloads();
 });
 $('#magnet').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#magnetAdd').click(); } });
+
+// ---- Torrent search: a Torznab indexer the admin set up; results go to Downloads like a pasted magnet. ----
+let indexer = null;
+let tsPage = null;
+function fillIndexer(i) {
+  indexer = i;
+  $('#iUrl').value = i.url || '';
+  $('#iKey').value = '';
+  $('#iKeyState').textContent = i.keySet ? 'A key is set. Leave the box empty to keep it.' : 'No key yet.';
+  $('#iClear').classList.toggle('hidden', !i.keySet);
+}
+$('#iClear').addEventListener('click', async () => {
+  try { fillIndexer(await api('PUT', '/admin/torrents/indexer', { clearKey: true })); renderDownloads(); toast('Key removed'); }
+  catch (err) { if (!err.quiet) toast(err.message, true); }
+});
+
+async function runSearch(offset) {
+  const q = $('#tsQ').value.trim();
+  if (q.length < 2) { toast('Type at least 2 characters', true); return; }
+  const go = $('#tsGo');
+  go.disabled = true;
+  go.textContent = 'Searching…';
+  try {
+    const page = await api('GET', `/admin/torrents/search?q=${encodeURIComponent(q)}&cat=${$('#tsCat').value}&offset=${offset}`);
+    if (offset && tsPage && tsPage.query === page.query) page.items = tsPage.items.concat(page.items.filter((r) => !tsPage.items.some((o) => o.infoHash === r.infoHash)));
+    tsPage = page;
+    renderSearch();
+  } catch (err) {
+    if (!err.quiet) toast(err.message, true);
+  } finally {
+    go.disabled = false;
+    go.textContent = 'Search';
+  }
+}
+$('#tsForm').addEventListener('submit', (e) => { e.preventDefault(); runSearch(0); });
+$('#tsMore').addEventListener('click', () => runSearch(tsPage.offset + 50));
+$('#tsClose').addEventListener('click', () => { tsPage = null; $('#tsResults').classList.add('hidden'); });
+
+function renderSearch() {
+  const page = tsPage;
+  $('#tsResults').classList.toggle('hidden', !page);
+  if (!page) return;
+  $('#tsTitle').textContent = `Search results for “${page.query}”`;
+  $('#tsNote').textContent = !page.items.length ? 'Nothing found.'
+    : 'Seeders are what the indexer last saw; a torrent may still have nobody sharing it.';
+  $('#tsMore').classList.toggle('hidden', !page.more);
+  $('#tsRows').replaceChildren(...page.items.map((r) => {
+    const row = document.createElement('div');
+    row.className = 'tsr';
+    const left = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = r.name;
+    const meta = document.createElement('div');
+    meta.className = 'muted small';
+    meta.textContent = [r.size != null ? fmtSize(r.size) : 'Size unknown',
+      r.seeders == null ? 'Seeders unknown' : r.seeders === 0 ? 'No seeders reported' : `${r.seeders} seeder${r.seeders === 1 ? '' : 's'}`,
+      r.peers != null ? `${r.peers} peer${r.peers === 1 ? '' : 's'}` : null,
+      r.published ? new Date(r.published).toLocaleDateString() : null].filter(Boolean).join(' · ');
+    left.append(name, meta);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = r.inDownloads ? 'In Downloads' : 'Download';
+    b.disabled = r.inDownloads;
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      b.textContent = 'Adding…';
+      try {
+        const d = await api('POST', '/admin/torrents/search/add', { infoHash: r.infoHash, private: $('#upPrivate').checked });
+        r.inDownloads = true;
+        b.textContent = 'In Downloads';
+        toast(`Added to Downloads: ${d.name}`);
+        loadDownloads();
+      } catch (err) {
+        b.disabled = false;
+        b.textContent = 'Download';
+        if (!err.quiet) toast(err.message, true);
+      }
+    });
+    row.append(left, b);
+    return row;
+  }));
+}
 
 function fillTorrentSettings(s) {
   $('#tOn').checked = s.enabled;

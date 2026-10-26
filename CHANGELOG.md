@@ -3,6 +3,12 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## Unreleased
+
+- **Torrent search (optional):** with a Torznab indexer (Search Magnet Link, Jackett, Prowlarr…) and its key in
+  Settings → Torrent downloads, a search box appears where you add movies. A result's Download button sends it to
+  Downloads. Searches are rate-limited and cached; the key never leaves the phone except to the indexer.
+
 ## 0.5.0 (2026-10-26)
 
 - **Torrent downloads (off by default):** drop a `.torrent` file or paste a magnet link on the admin page, and the

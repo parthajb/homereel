@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Plain HTTP is allowed so a torrent indexer on the home network (Jackett, Prowlarr) can be reached. TorrentSearch
+    only allows http:// for private addresses, and every fixed web address HomeReel uses (TMDB, OMDb) is HTTPS.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>
