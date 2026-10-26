@@ -90,6 +90,22 @@
     <string name="my_list_add">My List</string>
     <string name="my_list_remove">In My List</string>
     <string name="row_movies">Movies</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_movies">Movies</string>
+    <string name="nav_shows">TV shows</string>
+    <string name="nav_genres">Genres</string>
+    <string name="nav_my_list">My List</string>
+    <string name="nav_private">🔒 Private</string>
+    <string name="row_genres">Genres</string>
+    <string name="genre_count">%1$s  ·  %2$d</string>
+    <string name="row_genre_movies">%1$s movies</string>
+    <string name="row_genre_shows">%1$s shows</string>
+    <string name="row_genre_top">Top rated in %1$s</string>
+    <string name="row_all_shows">All TV shows</string>
+    <string name="row_recent_movies">Recently added movies</string>
+    <string name="row_recent_shows">Recently added shows</string>
+    <string name="row_private_all">🔒 Private videos</string>
+    <string name="help_genre">%1$d titles. Choose it to see them.</string>
 
     <string name="heavy_line">⚠ %1$d Mbps: this file may stutter over Wi-Fi. A lighter copy can be made on the admin page.</string>
     <string name="action_framerate_on">Match frame rate: On</string>

@@ -3,6 +3,12 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## Unreleased
+
+- **TV and web app navigation:** a menu along the top with Home, Movies, TV shows, Genres, My List and (while it's
+  unlocked) Private. Genres lists every genre; choosing one shows its top rated, movies and shows. On the TV, Back
+  goes to the top, then to Home; in the web app each section has its own address.
+
 ## 0.5.0 (2026-10-26)
 
 - **Torrent downloads (off by default):** drop a `.torrent` file or paste a magnet link on the admin page, and the
