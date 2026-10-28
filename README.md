@@ -391,6 +391,10 @@ finds subtitles for films and episodes that have none, in the languages listed t
 
 ## On the TV
 
+- **The TV's own home screen:** on Android TV and Google TV, what you're part way through shows in the TV's
+  **Play next** row (up to ten), with a picture, so you can carry on without opening HomeReel first. It's updated
+  while HomeReel is open, never in the background, and follows the profile watching; a kids profile empties it.
+  Remove a title from the row and it stays out until you finish it. Some TV makers' home screens have no such row.
 - **Home screen:**
   - A full-screen backdrop and the focused title's details at the top: rating, year, age rating, length, genres,
     description.

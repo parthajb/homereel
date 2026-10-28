@@ -32,6 +32,8 @@ update without a cable won't offer the new build.
 - **Collections:** a film in a series (from TMDB, like "Harry Potter Collection") shows the rest of the series, in
   order, above More like this, on the TV and in the web app. The Genres page has a Collections tile for each series
   with two or more films here.
+- **Play next on the TV's home screen:** on Android TV and Google TV, Continue watching also shows in the TV's own
+  Play next row, updated while HomeReel is open and emptied for a kids profile.
 
 ## 0.6.2 (2026-10-26)
 

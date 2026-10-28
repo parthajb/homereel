@@ -134,6 +134,16 @@ class ApiClient(val host: String, val port: Int, private val token: String?, pri
      * A picture scaled down to about [width] px wide while decoding, so a big JPEG never sits in memory whole.
      * Backdrops use RGB_565, half the memory, since they sit under a dark gradient anyway.
      */
+    /** A picture as the phone sends it, for the Play next row; null if there isn't one. At most 4 MB. */
+    fun bytes(path: String): ByteArray? = open("GET", path, null).let { c ->
+        try {
+            if (c.responseCode != 200 || c.contentLengthLong > 4L * 1024 * 1024) return null
+            c.inputStream.use { it.readBytes() }.takeIf { it.size <= 4 * 1024 * 1024 }
+        } finally {
+            c.disconnect()
+        }
+    }
+
     fun image(path: String, width: Int, lowColour: Boolean): Bitmap? {
         val bytes = open("GET", path, null).let { c ->
             try {
