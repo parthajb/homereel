@@ -7,6 +7,7 @@ import com.parthajb.homereel.shared.Api
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.AppUpdate
 import com.parthajb.homereel.shared.ErrorBody
+import com.parthajb.homereel.shared.FeedSafety
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.MovieList
 import com.parthajb.homereel.shared.PairRequest
@@ -27,7 +28,6 @@ import kotlinx.serialization.builtins.serializer
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.URL
 import java.security.MessageDigest
@@ -209,9 +209,8 @@ class ApiClient(val host: String, val port: Int, private val token: String?, pri
     companion object {
         /** Plain HTTP is only acceptable on the home network: refuse anything that resolves outside it. */
         fun requireLocal(host: String) {
-            val address = InetAddress.getByName(host)
-            val ula = address is Inet6Address && (address.address[0].toInt() and 0xfe) == 0xfc
-            if (!(address.isSiteLocalAddress || address.isLinkLocalAddress || address.isLoopbackAddress || ula)) {
+            // The home network, this TV, or a Tailscale network (100.64.0.0/10), as for torrent search: never the internet.
+            if (!FeedSafety.isHomeAddress(InetAddress.getByName(host))) {
                 throw IOException("$host isn't on your home network")
             }
         }

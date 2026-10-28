@@ -121,7 +121,8 @@ shows the address.
 - **Add it to your home screen** on a phone or tablet (Share → Add to Home Screen) to open it like an app.
 
 It only works on the home network, like everything else in HomeReel. To watch away from home, use a VPN such as
-Tailscale on the phone and your device rather than opening port 8080 to the internet.
+Tailscale on the phone and your device rather than opening port 8080 to the internet:
+[Watching away from home](docs/away-from-home.md) shows how.
 
 ## Updating without a cable
 
@@ -548,6 +549,7 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `shared/` | Plain Kotlin: API models, Range parsing, title parsing, the playability rules, and their unit tests |
 | `server/` | Phone app: NanoHTTPD server, Storage Access Framework scanner, uploads, NSD, the admin page and the web app (`src/main/assets/admin.html`, `watch.html`) |
 | `tv/` | TV app: AndroidX Leanback and Media3 ExoPlayer |
+| `docs/` | Guides, such as [watching away from home](docs/away-from-home.md) with Tailscale |
 | `tools/mock_tmdb.py` | A fake TMDB and OMDb with made-up data, for testing online movie info without keys |
 | `tools/mock_opensubtitles.py` | A fake OpenSubtitles, for testing Find subtitles without a key |
 
