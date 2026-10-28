@@ -16,6 +16,7 @@ import com.parthajb.homereel.shared.MovieList
 import com.parthajb.homereel.shared.Health
 import com.parthajb.homereel.shared.PinCheck
 import com.parthajb.homereel.shared.PinUpdate
+import com.parthajb.homereel.shared.PrivateRules
 import com.parthajb.homereel.shared.PrivateState
 import com.parthajb.homereel.shared.Profile
 import com.parthajb.homereel.shared.ProfileEdit
@@ -130,7 +131,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
         val viewer = Viewer(
             profile,
             app.profiles.myList(profile.id).toSet(),
-            seePrivate = (role == Api.ROLE_ADMIN || library.privateUnlocked) && !profile.kids,
+            seePrivate = PrivateRules.seesPrivate(admin = role == Api.ROLE_ADMIN, unlocked = library.privateUnlocked, kidsProfile = profile.kids),
             admin = role == Api.ROLE_ADMIN,
         )
         if (p.size >= 2 && p[0] == "movies") library.visible(p[1], viewer)

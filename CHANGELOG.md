@@ -3,6 +3,13 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## Unreleased
+
+- **Torrent search, safer redirects:** a download link that redirects to a name with any address on the home network
+  is refused. Before, such a name was followed unless all of its addresses were on the home network.
+- **Tests for the safety rules:** the torrent search rules (where requests may go, request limits, the cache) and
+  the Private, kids and backup restore rules moved into `shared/`, each with tests.
+
 ## 0.6.2 (2026-10-26)
 
 - **Several search feeds, searched together:** torrent search keeps a list of feeds instead of one indexer: Torznab

@@ -1,7 +1,10 @@
 package com.parthajb.homereel.server
 
 import android.util.Log
+import com.parthajb.homereel.shared.ExpiringCache
+import com.parthajb.homereel.shared.FeedBudget
 import com.parthajb.homereel.shared.FeedEdit
+import com.parthajb.homereel.shared.FeedSafety
 import com.parthajb.homereel.shared.FeedList
 import com.parthajb.homereel.shared.IndexerCheck
 import com.parthajb.homereel.shared.IndexerKind
@@ -19,11 +22,8 @@ import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.Inet4Address
-import java.net.InetAddress
 import java.net.SocketTimeoutException
 import java.net.URL
-import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.UUID
 import java.util.concurrent.Callable
@@ -59,22 +59,17 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
         val enabled: Boolean = true,
     )
 
-    @Serializable
-    private data class Budget(val requests: List<Long> = emptyList(), val cooldownUntil: Long = 0)
-
     private val json = Json { ignoreUnknownKeys = true }
     private val feedsSerializer = ListSerializer(StoredFeed.serializer())
-    private val budgetsSerializer = MapSerializer(String.serializer(), Budget.serializer())
+    private val budgetsSerializer = MapSerializer(String.serializer(), FeedBudget.serializer())
 
     private var feeds: List<StoredFeed> = load()
-    private val budgets: MutableMap<String, Budget> =
+    private val budgets: MutableMap<String, FeedBudget> =
         prefs.feedBudgetsJson?.let { runCatching { json.decodeFromString(budgetsSerializer, it) }.getOrNull() }.orEmpty().toMutableMap()
 
     private val pool = Executors.newFixedThreadPool(6) { r -> Thread(r, "HomeReel-search").apply { isDaemon = true } }
 
-    private val cache = object : LinkedHashMap<String, Pair<Long, Torznab.Parsed>>(64, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, Torznab.Parsed>>) = size > 200
-    }
+    private val cache = ExpiringCache<String, Torznab.Parsed>(200, CACHE_MS)
 
     /** What each recent result pointed at, and which feed it came from, so adding one needs only its id. */
     private val seen = object : LinkedHashMap<String, Torznab.Found>(256, 0.75f, true) {
@@ -195,7 +190,7 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
                 return@forEachIndexed
             }
             // A result with only a download link can be added only if the link is on the feed's own address.
-            val usable = result.items.filter { (it.magnet != null && it.infoHash != null) || it.link?.let { l -> sameHost(l, feed.url) } == true }
+            val usable = result.items.filter { (it.magnet != null && it.infoHash != null) || it.link?.let { l -> FeedSafety.sameHost(l, feed.url) } == true }
             skipped += result.skipped + result.items.size - usable.size
             usable.forEach { found += Torznab.Found(feed.id, feed.name, it) }
         }
@@ -213,13 +208,13 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
     /** One feed's answer, from the cache when the same search was made in the last 15 minutes. */
     private fun parsed(feed: StoredFeed, q: String, cat: String?): Torznab.Parsed {
         val key = "${feed.id}|${feed.url}|$q|$cat"
-        synchronized(this) { cache[key]?.takeIf { System.currentTimeMillis() - it.first < CACHE_MS }?.let { return it.second } }
+        synchronized(this) { cache[key, System.currentTimeMillis()]?.let { return it } }
         val result = try {
             fetch(feed, q, cat)
         } catch (e: HttpError) {
             Torznab.Parsed(emptyList(), 0, e.message ?: "didn't answer")
         }
-        if (result.error == null) synchronized(this) { cache[key] = System.currentTimeMillis() to result }
+        if (result.error == null) synchronized(this) { cache.put(key, result, System.currentTimeMillis()) }
         return result
     }
 
@@ -231,7 +226,7 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
         if (hash != null && torrents.has(hash)) throw HttpError(409, "${item.name} is already in Downloads")
         if (item.magnet != null && hash != null) return torrents.addMagnet(Torznab.cleanMagnet(item.magnet, hash, item.name), private)
         val feed = synchronized(this) { feeds.firstOrNull { it.id == found.feedId } } ?: throw HttpError(409, "That result's feed was removed; search again")
-        val link = item.link?.takeIf { sameHost(it, feed.url) }
+        val link = item.link?.takeIf { FeedSafety.sameHost(it, feed.url) }
             // Only from the feed's own address: a result can't send the phone anywhere else.
             ?: throw HttpError(409, "That result's download link isn't on ${feed.name}'s address, so HomeReel won't fetch it")
         try {
@@ -287,10 +282,10 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
     private fun request(feed: StoredFeed, url: String, readTimeout: Int, limit: Int = MAX_REPLY, magnetOk: Boolean = false): Reply {
         var target = URL(url)
         repeat(MAX_REDIRECTS + 1) {
-            val own = sameHost(target.toString(), feed.url)
-            // Checked again at request time: a home-network name could point elsewhere now.
-            if (target.protocol == "http" && !isPrivate(target.host)) throw HttpError(400, "plain http:// only works for a feed on your home network")
-            if (!own && (target.protocol != "https" || isPrivate(target.host))) throw HttpError(502, "it sent HomeReel to another address, which it won't follow")
+            // Checked at every hop, at request time: a home-network name could point elsewhere now.
+            val hop = FeedSafety.hop(target, feed.url)
+            if (hop is FeedSafety.Hop.Refused) throw HttpError(if (hop.plainHttp) 400 else 502, hop.reason)
+            val own = hop == FeedSafety.Hop.Own
             val c = target.openConnection() as HttpURLConnection
             try {
                 c.connectTimeout = 8_000
@@ -357,18 +352,16 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
         return out.toByteArray()
     }
 
-    /** One request a second at most per feed, 90 an hour and 900 a day, kept across restarts. */
+    /** Spends one of the feed's requests ([FeedBudget]), waiting if the last was under a second ago. */
     private fun spend(feed: StoredFeed) {
         val wait = synchronized(budgets) {
-            val now = System.currentTimeMillis()
-            val b = budgets[feed.id] ?: Budget()
-            if (now < b.cooldownUntil) throw HttpError(429, "waiting ${(b.cooldownUntil - now) / 60_000 + 1} min before asking it again (it asked)")
-            val times = b.requests.filter { now - it < DAY_MS }
-            if (times.count { now - it < HOUR_MS } >= PER_HOUR) throw HttpError(429, "that's $PER_HOUR searches this hour; try again later")
-            if (times.size >= PER_DAY) throw HttpError(429, "that's $PER_DAY searches today; try again tomorrow")
-            val at = maxOf(now, (times.maxOrNull() ?: 0L) + 1000)
-            budgets[feed.id] = b.copy(requests = times + at)
-            at - now
+            when (val spend = (budgets[feed.id] ?: FeedBudget()).spend(System.currentTimeMillis())) {
+                is FeedBudget.Spend.Refused -> throw HttpError(429, spend.reason)
+                is FeedBudget.Spend.Allowed -> {
+                    budgets[feed.id] = spend.budget
+                    spend.waitMs
+                }
+            }
         }
         saveBudgets()
         if (wait > 0) Thread.sleep(wait)
@@ -376,7 +369,7 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
     }
 
     private fun coolDown(feed: StoredFeed) {
-        synchronized(budgets) { budgets[feed.id] = (budgets[feed.id] ?: Budget()).copy(cooldownUntil = System.currentTimeMillis() + COOLDOWN_MS) }
+        synchronized(budgets) { budgets[feed.id] = (budgets[feed.id] ?: FeedBudget()).coolDown(System.currentTimeMillis()) }
         saveBudgets()
     }
 
@@ -414,37 +407,16 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
         else -> runCatching { URL(url).host.removePrefix("www.") }.getOrNull() ?: "Torznab feed"
     }
 
-    /**
-     * The address as typed, tidied: no trailing slash, and no query, whose `apikey` (as in a copied Jackett feed
-     * address) is returned so it can become the key.
-     */
-    private fun cleanUrl(raw: String, kind: String): Pair<String, String?> {
-        val parsed = runCatching { URL(raw.trim()) }.getOrNull()
-        if (parsed == null || parsed.protocol !in setOf("http", "https") || parsed.host.isNullOrBlank()) {
-            throw HttpError(400, "The address should look like ${example(kind)}")
-        }
-        if (parsed.protocol == "http" && !isPrivate(parsed.host)) {
-            throw HttpError(400, "Use https:// for a feed on the internet, so nothing is sent in the clear. Plain http:// is for one on your home network.")
-        }
-        val key = parsed.query?.split('&')?.firstNotNullOfOrNull { part ->
-            val name = part.substringBefore('=').lowercase()
-            if (name == "apikey" || name == "jackett_apikey") runCatching { URLDecoder.decode(part.substringAfter('='), "UTF-8") }.getOrNull()?.ifBlank { null } else null
-        }
-        val url = "${parsed.protocol}://${parsed.authority}${parsed.path}".trimEnd('/')
-        return url to key
+    /** The address as typed, tidied ([FeedSafety.clean]), and a key found in it. */
+    private fun cleanUrl(raw: String, kind: String): Pair<String, String?> = try {
+        FeedSafety.clean(raw, kind).let { it.url to it.key }
+    } catch (e: IllegalArgumentException) {
+        throw HttpError(400, e.message ?: "That address won't work")
     }
 
-    /** Prowlarr's own address, from it or from one of its per-indexer feed addresses (…/1/api). */
-    private fun prowlarrRoot(url: String) = url.replace(Regex("(/\\d+)?(/api(/v1)?)?/?$"), "")
+    private fun prowlarrRoot(url: String) = FeedSafety.prowlarrRoot(url)
 
-    /** The Torznab endpoint: Jackett's all-indexers feed when the address is just Jackett's; the address itself otherwise. */
-    private fun torznabApi(feed: StoredFeed): String {
-        val base = feed.url.removeSuffix("/api")
-        if (feed.kind == IndexerKind.JACKETT && "/torznab" !in base) {
-            return "${base.replace(Regex("/(UI/Dashboard|api/v2\\.0)$"), "")}/api/v2.0/indexers/all/results/torznab/api"
-        }
-        return "$base/api"
-    }
+    private fun torznabApi(feed: StoredFeed) = FeedSafety.torznabApi(feed.kind, feed.url)
 
     private fun kindName(kind: String) = when (kind) {
         IndexerKind.PROWLARR -> "Prowlarr"
@@ -452,31 +424,7 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
         else -> "Torznab feed"
     }
 
-    private fun example(kind: String) = when (kind) {
-        IndexerKind.PROWLARR -> "http://192.168.1.20:9696"
-        IndexerKind.JACKETT -> "http://192.168.1.20:9117"
-        else -> "https://indexer.example/torznab"
-    }
-
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
-
-    /** Whether every address [host] resolves to is on the home network, this phone, or a Tailscale network. */
-    private fun isPrivate(host: String): Boolean = runCatching {
-        InetAddress.getAllByName(host).all {
-            it.isSiteLocalAddress || it.isLoopbackAddress || it.isLinkLocalAddress || isCarrierGrade(it) ||
-                (it.address.size == 16 && (it.address[0].toInt() and 0xfe) == 0xfc) // IPv6 unique local, fc00::/7
-        }
-    }.getOrDefault(false)
-
-    /** 100.64.0.0/10, which Tailscale uses for the devices on a tailnet. */
-    private fun isCarrierGrade(a: InetAddress) =
-        a is Inet4Address && a.address[0].toInt() == 100 && (a.address[1].toInt() and 0xc0) == 64
-
-    private fun sameHost(link: String, base: String): Boolean = runCatching {
-        val a = URL(link)
-        val b = URL(base)
-        a.protocol in setOf("http", "https") && a.host.equals(b.host, ignoreCase = true) && a.port == b.port
-    }.getOrDefault(false)
 
     private companion object {
         const val TAG = "HomeReel"
@@ -491,10 +439,5 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
         const val SEARCH_TIMEOUT_MS = 60_000
         const val DOWNLOAD_TIMEOUT_MS = 30_000
         const val CACHE_MS = 15 * 60_000L
-        const val COOLDOWN_MS = 15 * 60_000L
-        const val HOUR_MS = 3_600_000L
-        const val DAY_MS = 24 * HOUR_MS
-        const val PER_HOUR = 90
-        const val PER_DAY = 900
     }
 }

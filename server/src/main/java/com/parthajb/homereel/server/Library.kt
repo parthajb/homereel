@@ -20,8 +20,10 @@ import com.parthajb.homereel.shared.PlayabilityItem
 import com.parthajb.homereel.shared.PlayabilityReport
 import com.parthajb.homereel.shared.Playability
 import com.parthajb.homereel.shared.ProgressUpdate
+import com.parthajb.homereel.shared.PrivateRules
 import com.parthajb.homereel.shared.PrivateState
 import com.parthajb.homereel.shared.PrivateUpdate
+import com.parthajb.homereel.shared.Restore
 import com.parthajb.homereel.shared.Ratings
 import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.Show
@@ -151,13 +153,15 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         return e
     }
 
-    private fun canSee(e: Entry, viewer: Viewer): Boolean {
-        if (e.private && !viewer.seePrivate) return false
+    private fun canSee(e: Entry, viewer: Viewer): Boolean = PrivateRules.canSee(
+        private = e.private,
         // Files on a missing USB drive can't play: only the admin page lists them, marked offline.
-        if (e.offline && !viewer.admin) return false
-        if (!viewer.kids) return true
-        return if (e.isEpisode) e.showId?.let { catalog.show(it) }?.kidsOk == true else e.kidsOk
-    }
+        offline = e.offline,
+        kidsOk = viewer.kids && if (e.isEpisode) e.showId?.let { catalog.show(it) }?.kidsOk == true else e.kidsOk,
+        seesPrivate = viewer.seePrivate,
+        admin = viewer.admin,
+        kidsProfile = viewer.kids,
+    )
 
     private fun entry(id: String): Entry = catalog.get(id) ?: throw HttpError(404, "No such movie")
 
@@ -344,11 +348,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
 
     /** Unlocks Private for [PrivateUpdate.minutes] (5 minutes to 12 hours), or locks it now. */
     fun setPrivate(update: PrivateUpdate): PrivateState {
-        prefs.privateUntil = if (update.unlock) {
-            System.currentTimeMillis() + update.minutes.coerceIn(5, 12 * 60) * 60_000L
-        } else {
-            0
-        }
+        prefs.privateUntil = if (update.unlock) PrivateRules.unlockUntil(System.currentTimeMillis(), update.minutes) else 0
         return privateState()
     }
 
@@ -655,7 +655,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         val byName = current.groupBy { it.fileName to it.size }
         var films = 0
         for (old in b.entries) {
-            val target = catalog.get(old.id) ?: byName[old.fileName to old.size]?.singleOrNull() ?: continue
+            val target = Restore.target(old.id, old.fileName, old.size, catalog::get, byName) ?: continue
             catalog.update(target.id) {
                 it.copy(
                     titleOverride = old.titleOverride, yearOverridden = old.yearOverridden, yearOverride = old.yearOverride,
@@ -695,9 +695,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
 
     /** For each profile, whichever was played last wins. */
     private fun mergeProgress(now: Map<String, Progress>, old: Map<String, Progress>): Map<String, Progress> =
-        (now.keys + old.keys).associateWith { pid ->
-            listOfNotNull(now[pid], old[pid]).maxByOrNull { it.lastPlayedAt }!!
-        }
+        Restore.newestPerProfile(now, old) { it.lastPlayedAt }
 
     // ---- Lighter copies ----
 
@@ -751,7 +749,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         if (!metadata.configured || !prefs.autoMatch) return
         val now = System.currentTimeMillis()
         fun due(match: String, failedAt: Long) = match == MatchState.NONE && (force || failedAt == 0L || now - failedAt > DAY)
-        val ids = catalog.all().filter { !it.isEpisode && !it.private && due(it.match, it.matchFailedAt) }.map { "m:${it.id}" } +
+        val ids = catalog.all().filter { !it.isEpisode && PrivateRules.mayLookUp(it.private) && due(it.match, it.matchFailedAt) }.map { "m:${it.id}" } +
             catalog.shows().filter { due(it.match, it.matchFailedAt) }.map { "s:${it.id}" }
         synchronized(lookupQueue) {
             val idle = lookupQueue.isEmpty()
