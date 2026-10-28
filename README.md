@@ -502,7 +502,7 @@ used. The web app is served at `/` and the admin page at `/admin`.
 
 Bug reports, fixes and ideas are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains what fits HomeReel, how to
 try a change on the Android emulator without a spare phone or TV, and what a pull request needs. Changes are listed
-in [CHANGELOG.md](CHANGELOG.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+in [CHANGELOG.md](CHANGELOG.md), and what's planned in [ROADMAP.md](ROADMAP.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Licence and credits
 
