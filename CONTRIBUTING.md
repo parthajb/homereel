@@ -27,7 +27,8 @@ HomeReel is a home video server on an old phone and a TV app for it. These princ
 You need JDK 17 and the Android SDK (platform 34, build-tools 34). Put the SDK path in `local.properties`
 (`sdk.dir=…`; it's ignored by git).
 
-Run what the checks run before you open a pull request:
+Run what the checks run before you open a pull request. GitHub runs the same command on every pull request
+(`.github/workflows/checks.yml`) and shows whether it passed:
 
 ```bash
 ./gradlew :shared:test :server:lintRelease :tv:lintRelease :server:assembleRelease :tv:assembleRelease
