@@ -263,6 +263,16 @@ class TvPrefs(context: Context) {
 
     fun setAudioLanguage(profileId: String?, language: String) = sp.edit().putString("audio.${profileId.orEmpty()}", language).apply()
 
+    /** Night mode in the player: quieter loud parts, clearer voices. Stays on for the next film until turned off. */
+    var nightMode: Boolean
+        get() = sp.getBoolean("nightMode", false)
+        set(value) = sp.edit().putBoolean("nightMode", value).apply()
+
+    /** The volume boost for a film, or a whole show, in dB: 0, 3, 6 or 9. */
+    fun boost(key: String): Int = sp.getInt("boost.$key", 0)
+
+    fun setBoost(key: String, db: Int) = sp.edit().apply { if (db == 0) remove("boost.$key") else putInt("boost.$key", db) }.apply()
+
     /** Subtitle size, an index into the player's sizes, or [TV_SETTING] for the TV's own captions setting. */
     var subtitleSize: Int
         get() = sp.getInt("subSize", TV_SETTING)
