@@ -7,6 +7,10 @@ update without a cable won't offer the new build.
 
 - **Checks on every pull request:** GitHub runs the unit tests, lint on both apps and both release builds on each
   pull request and on every push to `main` and `dev`.
+- **Torrent search, safer redirects:** a download link that redirects to a name with any address on the home network
+  is refused. Before, such a name was followed unless all of its addresses were on the home network.
+- **Tests for the safety rules:** the torrent search rules (where requests may go, request limits, the cache) and
+  the Private, kids and backup restore rules moved into `shared/`, each with tests.
 
 ## 0.6.2 (2026-10-26)
 
