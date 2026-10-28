@@ -611,6 +611,14 @@ const genresOf = (list) => {
   list.forEach((x) => (x.genres || []).forEach((g) => { counts[g] = (counts[g] || 0) + 1; }));
   return Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 };
+// Film series from TMDB with two or more films here, the biggest first, each in release order (as on the TV).
+const byYear = (a, b) => (a.year || 9999) - (b.year || 9999) || a.title.localeCompare(b.title);
+const collectionsOf = (films) => {
+  const sets = new Map();
+  films.filter((m) => m.collection).forEach((m) => sets.set(m.collection, [...(sets.get(m.collection) || []), m]));
+  return [...sets.entries()].filter(([, list]) => list.length >= 2).map(([name, list]) => [name, list.sort(byYear)])
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+};
 const byRating = (a, b) => (b.imdbRating || 0) - (a.imdbRating || 0) || a.title.localeCompare(b.title);
 const byTitle = (a, b) => sortKey(a.title).localeCompare(sortKey(b.title));
 
@@ -642,14 +650,22 @@ function renderSection(section, genre) {
     const all = genresOf(titles);
     const chips = h('nav', { class: 'genre-chips', 'aria-label': 'Genres' }, all.map(([g, n]) =>
       h('a', { href: `#/genres/${encodeURIComponent(g)}`, 'aria-current': g === genre ? 'page' : null, text: `${g} · ${n}` })));
-    if (genre) {
+    // Collections live here too, at #/genres/collection/<name>.
+    const sets = collectionsOf(films);
+    const chosenSet = genre && genre.startsWith('collection/') ? genre.slice('collection/'.length) : null;
+    const setChips = sets.length ? h('nav', { class: 'genre-chips', 'aria-label': 'Collections' }, sets.map(([c, list]) =>
+      h('a', { href: `#/genres/collection/${encodeURIComponent(c)}`, 'aria-current': c === chosenSet ? 'page' : null, text: `${c} · ${list.length}` }))) : null;
+    const chosen = chosenSet && sets.find(([c]) => c === chosenSet);
+    if (chosen) {
+      parts = [head(chosen[0], `${chosen[1].length} films, in the order they came out`), chips, setChips, grid(null, chosen[1])];
+    } else if (genre && !chosenSet) {
       const f = inGenre(films, genre).sort(byTitle);
       const s = inGenre(shows, genre).sort(byTitle);
       parts = [head(genre, `${f.length + s.length} titles`), chips, h('div', { class: 'section-rows' },
         row(`Top rated in ${genre}`, [...f, ...s].filter((x) => x.imdbRating != null).sort(byRating).slice(0, 20).map((x) => card(x)))),
         grid('Movies', f), grid('TV shows', s)];
     } else {
-      parts = [head('Genres', 'Choose one, or scroll through them all.'), chips,
+      parts = [head('Genres', 'Choose one, or scroll through them all.'), chips, setChips,
         h('div', { class: 'section-rows' }, all.map(([g]) => row(g, inGenre(titles, g).sort(byRating).map((x) => card(x)))))];
     }
   } else if (section === 'list') {
@@ -853,7 +869,11 @@ async function openDetails(x) {
     if (x.subtitles && x.subtitles.length) facts.append(h('dt', { text: 'Subtitles' }), h('dd', { text: x.subtitles.map((s) => s.label).join(', ') }));
     if (facts.children.length) body.append(facts);
   }
-  const all = [...state.movies.filter((m) => !m.private), ...state.shows];
+  // The rest of its film series first, in order; More like this leaves them out.
+  const series = x.collection ? state.movies.filter((m) => !m.private && m.collection === x.collection && m.id !== x.id).sort(byYear) : [];
+  const seriesRow = row(x.collection || '', series.map((o) => card(o, { onclick: openDetails })));
+  if (seriesRow) body.append(seriesRow);
+  const all = [...state.movies.filter((m) => !m.private && !series.includes(m)), ...state.shows];
   const more = similar(x, all);
   const fallback = more.length ? more : all.filter((o) => keyOf(o) !== keyOf(x) && (o.genres || []).some((g) => (x.genres || []).includes(g))).slice(0, 15);
   const r = row('More like this', fallback.map((o) => card(o, { onclick: openDetails })));

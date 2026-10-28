@@ -49,6 +49,13 @@ FILMS = {
     202: dict(title="Night Shift", original_title="Night Shift", release_date="2016-02-02", imdb_id="tt0000202",
               overview="A made-up thriller.", tagline="", genres=["Thriller"], cast=[], director="Director Four",
               cert_in="A", vote=5.5, collection=None),
+    # Two films in one series, for the collection rows.
+    203: dict(title="Long Road", original_title="Long Road", release_date="2019-03-03", imdb_id="tt0000203",
+              overview="A made-up road film, the second of two.", tagline="", genres=["Drama", "Adventure"], cast=[],
+              director="Director Five", cert_in="U", vote=7.1, collection="Road Films Collection"),
+    204: dict(title="Night Train", original_title="Night Train", release_date="2016-04-04", imdb_id="tt0000204",
+              overview="A made-up road film, the first of two.", tagline="", genres=["Drama"], cast=[],
+              director="Director Five", cert_in="U", vote=6.8, collection="Road Films Collection"),
 }
 
 SHOWS = {

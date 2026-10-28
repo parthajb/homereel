@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.parthajb.homereel.shared.Bitrate
+import com.parthajb.homereel.shared.Collections
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.Playability
 import java.util.Locale
@@ -131,7 +132,12 @@ class DetailsActivity : FragmentActivity(), CardHost {
         watched.text = getString(if (m.watched) R.string.mark_unwatched else R.string.mark_watched)
         showMyList(myList, m.inMyList)
 
-        moreAdapter.submit(listOfNotNull(similar(m, all)?.let { HomeRow(getString(R.string.row_more_like_this), it) }))
+        // The rest of its film series first, in order; More like this leaves them out.
+        val series = Collections.sameAs(m, all)
+        moreAdapter.submit(listOfNotNull(
+            series.takeIf { it.isNotEmpty() }?.let { HomeRow(m.collection!!, it.map(::MovieItem)) },
+            similar(m, all.filter { it !in series })?.let { HomeRow(getString(R.string.row_more_like_this), it) },
+        ))
         if (first) primary.requestFocus()
     }
 

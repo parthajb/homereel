@@ -106,6 +106,8 @@
     <string name="row_recent_shows">Recently added shows</string>
     <string name="row_private_all">🔒 Private videos</string>
     <string name="help_genre">%1$d titles. Choose it to see them.</string>
+    <string name="row_collections">Collections</string>
+    <string name="help_collection">%1$d films, in the order they came out. Choose it to see them.</string>
 
     <string name="heavy_line">⚠ %1$d Mbps: this file may stutter over Wi-Fi. A lighter copy can be made on the admin page.</string>
     <string name="action_framerate_on">Match frame rate: On</string>
