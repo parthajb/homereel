@@ -588,12 +588,13 @@ function route() {
   return { section: section || 'home', genre: rest.length ? decodeURIComponent(rest.join('/')) : null };
 }
 function sections() {
-  const films = state.movies.filter((m) => !m.private);
+  const films = state.movies.filter((m) => !m.private && !m.homeVideo);
   return [
     ['home', 'Home'],
     films.length && ['movies', 'Movies'],
     state.shows.length && ['shows', 'TV shows'],
     [...films, ...state.shows].some((x) => (x.genres || []).length) && ['genres', 'Genres'],
+    state.movies.some((m) => m.homeVideo && !m.private) && ['home-videos', 'Home videos'],
     state.myList.length && ['list', 'My List'],
     // Only while Private is unlocked: the phone sends nothing otherwise, and never to a kids profile.
     state.movies.some((m) => m.private) && ['private', '🔒 Private'],
@@ -622,8 +623,21 @@ const collectionsOf = (films) => {
 const byRating = (a, b) => (b.imdbRating || 0) - (a.imdbRating || 0) || a.title.localeCompare(b.title);
 const byTitle = (a, b) => sortKey(a.title).localeCompare(sortKey(b.title));
 
+// Home videos by day, the newest first, as on the TV: "12 October 2026 · 14 clips".
+function clipDays(clips) {
+  const days = new Map();
+  for (const c of [...clips].sort((a, b) => (a.recordedAt || a.addedAt) - (b.recordedAt || b.addedAt))) {
+    const d = new Date(c.recordedAt || c.addedAt);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!days.has(key)) days.set(key, { date: d, clips: [] });
+    days.get(key).clips.push(c);
+  }
+  return [...days.values()].sort((a, b) => b.date - a.date);
+}
+const clipCard = (c) => card(c, { wide: true, caption: c.title, sub: new Date(c.recordedAt || c.addedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) });
+
 function renderSection(section, genre) {
-  const films = state.movies.filter((m) => !m.private);
+  const films = state.movies.filter((m) => !m.private && !m.homeVideo);
   const shows = state.shows;
   const titles = [...films, ...shows];
   const head = (title, sub) => h('div', { class: 'page-head' }, h('h1', { text: title }), sub ? h('p', { class: 'muted', text: sub }) : null);
@@ -668,6 +682,12 @@ function renderSection(section, genre) {
       parts = [head('Genres', 'Choose one, or scroll through them all.'), chips, setChips,
         h('div', { class: 'section-rows' }, all.map(([g]) => row(g, inGenre(titles, g).sort(byRating).map((x) => card(x)))))];
     }
+  } else if (section === 'home-videos') {
+    const clips = state.movies.filter((m) => m.homeVideo && !m.private);
+    parts = [head('Home videos', `${clips.length} ${clips.length === 1 ? 'clip' : 'clips'}, the newest first`), h('div', { class: 'section-rows' },
+      clipDays(clips).map(({ date, clips: day }) => row(
+        `${date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' })} · ${day.length} ${day.length === 1 ? 'clip' : 'clips'}`,
+        day.map(clipCard))))];
   } else if (section === 'list') {
     const byKey = new Map(titles.map((x) => [keyOf(x), x]));
     parts = [head('My List'), grid(null, state.myList.map((k) => byKey.get(k)).filter(Boolean))];
@@ -689,15 +709,18 @@ function render() {
     if (sections().some(([key]) => key === section)) return renderSection(section, genre);
     history.replaceState(null, '', '#/');
   }
-  const films = state.movies.filter((m) => !m.private);
+  // Home videos have their own section and row; the rest of Home is films and shows.
+  const everything = state.movies.filter((m) => !m.private);
+  const films = everything.filter((m) => !m.homeVideo);
+  const clips = everything.filter((m) => m.homeVideo);
   const privateOnes = state.movies.filter((m) => m.private);
   const shows = state.shows;
   const titles = [...films, ...shows];
-  const byKey = new Map(titles.map((x) => [keyOf(x), x]));
+  const byKey = new Map([...everything, ...shows].map((x) => [keyOf(x), x]));
   const rows = [];
 
   const watching = [
-    ...films.filter(inProgress).map((m) => [m.lastPlayedAt, card(m, { wide: true, progress: m.positionMs / (m.durationMs || 1) })]),
+    ...everything.filter(inProgress).map((m) => [m.lastPlayedAt, card(m, { wide: true, progress: m.positionMs / (m.durationMs || 1) })]),
     ...shows.filter((s) => s.upNext).map((s) => [s.lastPlayedAt, card(s.upNext, {
       wide: true, caption: s.title, sub: `${epCode(s.upNext)} · ${s.upNext.title}`,
       progress: s.upNext.positionMs / (s.upNext.durationMs || 1), onclick: (ep) => playEpisode(s, ep),
@@ -706,6 +729,7 @@ function render() {
   rows.push(row('Continue watching', watching));
   rows.push(row('My List', state.myList.map((k) => byKey.get(k)).filter(Boolean).map((x) => card(x))));
   if (titles.length > 4) rows.push(row('Recently added', [...titles].sort((a, b) => b.addedAt - a.addedAt).slice(0, 20).map((x) => card(x))));
+  rows.push(row('Home videos', [...clips].sort((a, b) => (b.recordedAt || b.addedAt) - (a.recordedAt || a.addedAt)).slice(0, 20).map(clipCard)));
   const played = titles.filter((x) => x.lastPlayedAt > 0).sort((a, b) => b.lastPlayedAt - a.lastPlayedAt).slice(0, 2);
   for (const seed of played) {
     const items = similar(seed, titles);
@@ -869,11 +893,18 @@ async function openDetails(x) {
     if (x.subtitles && x.subtitles.length) facts.append(h('dt', { text: 'Subtitles' }), h('dd', { text: x.subtitles.map((s) => s.label).join(', ') }));
     if (facts.children.length) body.append(facts);
   }
-  // The rest of its film series first, in order; More like this leaves them out.
+  if (x.homeVideo) {
+    // A clip's page shows the other clips from that day, not films.
+    const day = clipDays(state.movies.filter((m) => m.homeVideo && !m.private)).find((d) => d.clips.some((c) => c.id === x.id));
+    const sameDay = row('The same day', (day ? day.clips : []).filter((c) => c.id !== x.id).map(clipCard));
+    if (sameDay) body.append(sameDay);
+    return;
+  }
+  // The rest of its film series first, in order; More like this leaves them out, and home videos.
   const series = x.collection ? state.movies.filter((m) => !m.private && m.collection === x.collection && m.id !== x.id).sort(byYear) : [];
   const seriesRow = row(x.collection || '', series.map((o) => card(o, { onclick: openDetails })));
   if (seriesRow) body.append(seriesRow);
-  const all = [...state.movies.filter((m) => !m.private && !series.includes(m)), ...state.shows];
+  const all = [...state.movies.filter((m) => !m.private && !m.homeVideo && !series.includes(m)), ...state.shows];
   const more = similar(x, all);
   const fallback = more.length ? more : all.filter((o) => keyOf(o) !== keyOf(x) && (o.genres || []).some((g) => (x.genres || []).includes(g))).slice(0, 15);
   const r = row('More like this', fallback.map((o) => card(o, { onclick: openDetails })));

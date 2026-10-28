@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.AppUpdate
 import com.parthajb.homereel.shared.Collections
+import com.parthajb.homereel.shared.HomeVideos
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.PlayNext
@@ -25,6 +26,7 @@ import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.Updates
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 import java.util.concurrent.Executors
 
 /**
@@ -226,15 +228,16 @@ class MainActivity : FragmentActivity(), CardHost {
 
     enum class Section(val label: Int) {
         HOME(R.string.nav_home), MOVIES(R.string.nav_movies), SHOWS(R.string.nav_shows), GENRES(R.string.nav_genres),
-        MY_LIST(R.string.nav_my_list), PRIVATE(R.string.nav_private),
+        HOME_VIDEOS(R.string.nav_home_videos), MY_LIST(R.string.nav_my_list), PRIVATE(R.string.nav_private),
     }
 
     /** Only sections with something in them; Private only while it's unlocked (the phone sends nothing otherwise). */
     private fun available(all: List<Movie>): List<Section> = listOfNotNull(
         Section.HOME,
-        Section.MOVIES.takeIf { all.any { !it.private } },
+        Section.MOVIES.takeIf { all.any { !it.private && !it.homeVideo } },
         Section.SHOWS.takeIf { shows.isNotEmpty() },
-        Section.GENRES.takeIf { all.any { !it.private && it.genres.isNotEmpty() } || shows.any { it.genres.isNotEmpty() } },
+        Section.GENRES.takeIf { all.any { !it.private && !it.homeVideo && it.genres.isNotEmpty() } || shows.any { it.genres.isNotEmpty() } },
+        Section.HOME_VIDEOS.takeIf { all.any { it.homeVideo && !it.private } },
         Section.MY_LIST.takeIf { myList.isNotEmpty() },
         Section.PRIVATE.takeIf { all.any { it.private } },
     )
@@ -275,11 +278,23 @@ class MainActivity : FragmentActivity(), CardHost {
 
     private fun buildRows(all: List<Movie>): List<HomeRow> = when (section) {
         Section.HOME -> homeRows(all)
-        Section.MOVIES -> movieRows(all.filter { !it.private })
+        Section.MOVIES -> movieRows(all.filter { !it.private && !it.homeVideo })
         Section.SHOWS -> showRows()
-        Section.GENRES -> genreRows(all.filter { !it.private })
+        Section.GENRES -> genreRows(all.filter { !it.private && !it.homeVideo })
+        Section.HOME_VIDEOS -> homeVideoRows(all.filter { it.homeVideo && !it.private })
         Section.MY_LIST -> listRows(all.filter { !it.private })
         Section.PRIVATE -> listOf(HomeRow(getString(R.string.row_private_all), all.filter { it.private }.sortedByDescending { it.addedAt }.map { MovieItem(it) }))
+    }
+
+    /** A row per day, the newest first: "12 October 2026 · 14 clips", each clip with the time it was recorded. */
+    private fun homeVideoRows(clips: List<Movie>): List<HomeRow> {
+        val dayFormat = java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault())
+        val timeFormat = android.text.format.DateFormat.getTimeFormat(this)
+        return HomeVideos.byDay(clips).map { (day, list) ->
+            val title = if (list.size == 1) getString(R.string.row_clip_day_one, day.format(dayFormat))
+            else getString(R.string.row_clip_day, day.format(dayFormat), list.size)
+            HomeRow(title, list.map { MovieItem(it, landscape = true, caption = timeFormat.format(java.util.Date(it.recordedAt ?: it.addedAt))) })
+        }
     }
 
     private fun movieRows(list: List<Movie>): List<HomeRow> {
@@ -388,12 +403,18 @@ class MainActivity : FragmentActivity(), CardHost {
         val byKey: Map<String, HomeItem> = list.associate { "m:${it.id}" to MovieItem(it) } + shows.associate { "s:${it.id}" to ShowItem(it) }
         val listed = myList.mapNotNull { byKey[it] }
         if (listed.isNotEmpty()) out += HomeRow(getString(R.string.row_my_list), listed)
-        val titles = list.map { Title(MovieItem(it), it.addedAt, it.imdbRating, it.genres, it.title) } +
+        // Home videos have their own section and row; the rest of Home is films and shows.
+        val clips = list.filter { it.homeVideo }
+        val films = list.filter { !it.homeVideo }
+        val titles = films.map { Title(MovieItem(it), it.addedAt, it.imdbRating, it.genres, it.title) } +
             shows.map { Title(ShowItem(it), it.addedAt, it.imdbRating, it.genres, it.title) }
         if (titles.size > 4) {
             out += HomeRow(getString(R.string.row_recent), titles.sortedByDescending { it.addedAt }.take(20).map { it.item })
         }
-        out += becauseYouWatched(list, byKey)
+        if (clips.isNotEmpty()) {
+            out += HomeRow(getString(R.string.nav_home_videos), clips.sortedByDescending { it.recordedAt ?: it.addedAt }.take(20).map { MovieItem(it, landscape = true) })
+        }
+        out += becauseYouWatched(films, byKey)
         if (shows.isNotEmpty()) {
             out += HomeRow(getString(R.string.row_shows), shows.sortedByDescending { it.lastPlayedAt.coerceAtLeast(it.addedAt) }.map { ShowItem(it) })
         }
@@ -414,7 +435,7 @@ class MainActivity : FragmentActivity(), CardHost {
                 privateOnes.sortedByDescending { it.addedAt }.map { MovieItem(it, landscape = true) },
             )
         }
-        val sorted = list.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { sortKey(it.title) })
+        val sorted = films.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { sortKey(it.title) })
         if (sorted.size <= 60) {
             if (sorted.isNotEmpty()) out += HomeRow(getString(R.string.row_all), sorted.map { MovieItem(it) })
         } else {

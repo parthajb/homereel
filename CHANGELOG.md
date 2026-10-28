@@ -36,6 +36,9 @@ update without a cable won't offer the new build.
   Play next row, updated while HomeReel is open and emptied for a kids profile.
 - **The TV's own search and voice search:** HomeReel's titles show in the TV's search, and "Play … on HomeReel"
   plays the title (or a show's next episode), or opens HomeReel's search when more than one fits.
+- **Home videos:** camera and phone clips, and anything marked Don't look up, get their own section on the TV and in
+  the web app, grouped by the day they were recorded, newest first, and a row on Home. A camera clip is named after
+  its date until renamed, and they stay out of the film rows.
 
 ## 0.6.2 (2026-10-26)
 

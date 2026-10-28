@@ -96,6 +96,10 @@
     <string name="nav_shows">TV shows</string>
     <string name="nav_genres">Genres</string>
     <string name="nav_my_list">My List</string>
+    <string name="nav_home_videos">Home videos</string>
+    <string name="row_clip_day">%1$s · %2$d clips</string>
+    <string name="row_clip_day_one">%1$s · 1 clip</string>
+    <string name="row_same_day">The same day</string>
     <string name="nav_private">🔒 Private</string>
     <string name="row_genres">Genres</string>
     <string name="genre_count">%1$s  ·  %2$d</string>

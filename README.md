@@ -395,6 +395,12 @@ finds subtitles for films and episodes that have none, in the languages listed t
   **Play next** row (up to ten), with a picture, so you can carry on without opening HomeReel first. It's updated
   while HomeReel is open, never in the background, and follows the profile watching; a kids profile empties it.
   Remove a title from the row and it stays out until you finish it. Some TV makers' home screens have no such row.
+- **Home videos** have their own section on the TV and in the web app, and a row on Home: camera and phone clips
+  (`VID_…`, `PXL_…`, `DJI_…`), anything in a "Home videos" folder, and anything marked **Don't look up**. They're
+  grouped by the day they were recorded, newest first ("12 October 2026 · 14 clips"), with the date from the file's
+  name when it has one, else from when the file last changed. A camera clip is called by its date ("Video, 12 October
+  2026 at 10:15") until you rename it, and its page shows the other clips from that day. They stay out of Movies,
+  Genres and the film rows.
 - **The TV's own search and voice:** HomeReel's films and shows turn up in the TV's search, and "Hey Google, play
   Dangal on HomeReel" plays it (or the next episode of a show). When more than one title fits, HomeReel's search
   opens with what you said. Both use the library as the TV last loaded it, for the profile watching, never Private;

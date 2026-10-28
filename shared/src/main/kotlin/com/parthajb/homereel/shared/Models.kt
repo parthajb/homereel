@@ -104,6 +104,10 @@ data class Movie(
     val episode: Int? = null,
     /** In the Private folder: only listed while the admin has it unlocked, and never looked up online. */
     val private: Boolean = false,
+    /** A camera or phone clip, or one marked Don't look up: it goes in Home videos rather than among the films. */
+    val homeVideo: Boolean = false,
+    /** For a home video, when it was recorded: from the date in its name, else when the file last changed. */
+    val recordedAt: Long? = null,
     /** On the asking profile's My List. */
     val inMyList: Boolean = false,
     /** The admin's choice for kids profiles: [KidsSetting]. */
