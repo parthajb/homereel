@@ -63,6 +63,8 @@ data class Movie(
     val video: VideoTrack? = null,
     val audio: List<AudioTrack> = emptyList(),
     val subtitles: List<Subtitle> = emptyList(),
+    /** How much later (earlier when negative) the subtitle files are served, set from the TV or the web app. */
+    val subtitleOffsetMs: Long = 0,
     val addedAt: Long = 0,
     val positionMs: Long = 0,
     val watched: Boolean = false,
@@ -247,6 +249,9 @@ data class PairRequest(val code: String, val client: String, val role: String = 
 
 @Serializable
 data class PairResponse(val token: String, val role: String, val serverName: String)
+
+@Serializable
+data class SubtitleOffset(val offsetMs: Long)
 
 @Serializable
 data class ProgressUpdate(val positionMs: Long, val durationMs: Long = 0)

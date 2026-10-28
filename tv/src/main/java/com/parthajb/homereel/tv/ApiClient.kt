@@ -19,6 +19,7 @@ import com.parthajb.homereel.shared.ServerInfo
 import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.ShowDetail
 import com.parthajb.homereel.shared.ShowList
+import com.parthajb.homereel.shared.SubtitleOffset
 import com.parthajb.homereel.shared.Updates
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
@@ -109,6 +110,12 @@ class ApiClient(val host: String, val port: Int, private val token: String?, pri
     fun pair(code: String, client: String): PairResponse = decode(
         request("POST", "/pair", ApiJson.encodeToString(PairRequest.serializer(), PairRequest(code, client))),
         PairResponse.serializer(),
+    )
+
+    /** Moves this video's subtitle files later (earlier when negative); the phone remembers it for everyone. */
+    fun subtitleOffset(id: String, offsetMs: Long): Movie = decode(
+        request("PUT", "/movies/$id/subtitle-offset", ApiJson.encodeToString(SubtitleOffset.serializer(), SubtitleOffset(offsetMs))),
+        Movie.serializer(),
     )
 
     fun progress(id: String, positionMs: Long, durationMs: Long) {
@@ -256,8 +263,19 @@ class TvPrefs(context: Context) {
 
     fun setAudioLanguage(profileId: String?, language: String) = sp.edit().putString("audio.${profileId.orEmpty()}", language).apply()
 
+    /** Subtitle size, an index into the player's sizes, or [TV_SETTING] for the TV's own captions setting. */
+    var subtitleSize: Int
+        get() = sp.getInt("subSize", TV_SETTING)
+        set(value) = sp.edit().putInt("subSize", value).apply()
+
+    /** Subtitle background, an index into the player's backgrounds, or [TV_SETTING]. */
+    var subtitleBackground: Int
+        get() = sp.getInt("subBackground", TV_SETTING)
+        set(value) = sp.edit().putInt("subBackground", value).apply()
+
     companion object {
         const val OFF = "off"
         const val UNDETERMINED = "und"
+        const val TV_SETTING = -1
     }
 }

@@ -24,11 +24,13 @@ import com.parthajb.homereel.shared.PrivateRules
 import com.parthajb.homereel.shared.PrivateState
 import com.parthajb.homereel.shared.PrivateUpdate
 import com.parthajb.homereel.shared.Restore
+import com.parthajb.homereel.shared.SubtitleShift
 import com.parthajb.homereel.shared.Ratings
 import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.Show
 import com.parthajb.homereel.shared.ShowDetail
 import com.parthajb.homereel.shared.TmdbResult
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
 import java.util.concurrent.Executors
@@ -555,9 +557,29 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
     fun subtitle(id: String, index: Int): Pair<InputStream, String> {
         val e = entry(id)
         val docId = e.subtitleDocIds.getOrNull(index) ?: throw HttpError(404, "No such subtitle")
-        val stream = runCatching { cr.openInputStream(Saf.docUri(treeOf(e) ?: requireTree(), docId)) }.getOrNull()
+        fun open() = runCatching { cr.openInputStream(Saf.docUri(treeOf(e) ?: requireTree(), docId)) }.getOrNull()
             ?: throw HttpError(404, "The subtitle file is gone")
-        return stream to (e.subtitles.getOrNull(index)?.mime ?: "application/x-subrip")
+        val mime = e.subtitles.getOrNull(index)?.mime ?: "application/x-subrip"
+        if (e.subtitleOffsetMs == 0L) return open() to mime
+        val bytes = open().use { input ->
+            val out = java.io.ByteArrayOutputStream()
+            val buf = ByteArray(16 * 1024)
+            while (out.size() <= MAX_SUBTITLE_BYTES) {
+                val n = input.read(buf)
+                if (n < 0) break
+                out.write(buf, 0, n)
+            }
+            out.toByteArray()
+        }
+        // Subtitle files are small; one too big to be one is served whole, as it is.
+        if (bytes.size > MAX_SUBTITLE_BYTES) return open() to mime
+        return ByteArrayInputStream(SubtitleShift.shift(bytes, e.subtitleOffsetMs)) to mime
+    }
+
+    /** Moves this video's subtitle files later (earlier when negative), for every profile, the TV and the web app. */
+    fun setSubtitleOffset(id: String, offsetMs: Long, viewer: Viewer): Movie {
+        val updated = catalog.update(id) { it.copy(subtitleOffsetMs = SubtitleShift.clamp(offsetMs)) } ?: throw HttpError(404, "No such movie")
+        return updated.toMovie(updated.showId?.let { catalog.show(it) }, viewer)
     }
 
     /** Saves [viewer]'s place in a video; past 95% counts as watched and goes back to the start. */
@@ -662,7 +684,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
                     description = old.description, genres = old.genres, imdbRating = old.imdbRating, kids = old.kids,
                     // Pictures aren't in the backup: keep the details and let Refresh fetch them again.
                     tmdb = old.tmdb?.copy(poster = false, backdrop = false), match = old.match,
-                    episodeInfo = old.episodeInfo?.copy(still = false),
+                    episodeInfo = old.episodeInfo?.copy(still = false), subtitleOffsetMs = old.subtitleOffsetMs,
                     progress = mergeProgress(it.progress, old.progress + legacy(old)),
                     artVersion = System.currentTimeMillis(),
                 )
@@ -986,6 +1008,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
     private companion object {
         const val TAG = "HomeReel"
         const val DAY = 24 * 60 * 60 * 1000L
+        const val MAX_SUBTITLE_BYTES = 8 * 1024 * 1024
         const val OFFLINE = "Couldn't reach TMDB, even after trying twice. Check the phone's internet connection and try again."
     }
 }

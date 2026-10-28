@@ -18,6 +18,11 @@ update without a cable won't offer the new build.
   nowhere (as blocked sites often do), it didn't answer, it refused the connection, its certificate didn't check out,
   or it had a problem of its own. A site on the internet that doesn't answer may be blocked by the internet provider;
   HomeReel says so, and doesn't work around it.
+- **Subtitle timing:** subtitles that come too early or too late can be moved, in 0.1 s steps, from the TV's
+  subtitles list or the web player's menu. The phone remembers it per video and serves the subtitle files shifted, so
+  every TV and browser gets the same timing. Subtitles inside an MKV can't be moved.
+- **Subtitle style on the TV:** a size, from Small to Extra large, and a background: an outline, a see-through box or
+  a black box.
 
 ## 0.6.2 (2026-10-26)
 

@@ -107,7 +107,8 @@ shows the address.
   - On a phone or tablet, tap to show the controls, and double-tap the left or right side to skip 10 seconds.
   - The phone's lock screen and a laptop's media keys control it too.
 - **Subtitles:** subtitle files beside the video (`.srt`, `.vtt`) are in the player's menu, and each profile's
-  choice is remembered. Subtitles inside an MKV only show on the TV.
+  choice is remembered. Subtitles inside an MKV only show on the TV. **Subtitle timing** in the menu moves them
+  earlier or later, as on the TV.
 - **What a browser can play** depends on the browser, not the TV:
   - MP4 with H.264 video and AAC sound plays everywhere, and so does a lighter copy made by the phone.
   - MKV plays in Chrome and Edge, and may not in other browsers.
@@ -392,7 +393,12 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 - **Player:**
   - With the controls hidden, **Left** and **Right** on the remote skip 10 seconds without opening them.
   - −10 s and +30 s buttons, and "Ends at …" beside the title, allowing for the speed.
-  - **CC** opens a list: Off and each subtitle track, both `.srt` files and subtitles inside an MKV.
+  - **CC** opens a list: Off and each subtitle track, both `.srt` files and subtitles inside an MKV. At the end:
+    - **Subtitle timing…** for subtitles that come too early or too late: Left and Right move them 0.1 s, Up and
+      Down 1 s, and **Save** keeps it. The phone remembers it for that video, and the web app uses it too. It moves
+      subtitle files beside the video, not subtitles inside an MKV.
+    - **Subtitle style…** sets the size (Small to Extra large) and the background (an outline, a see-through box
+      or a black box). Until one is picked, the TV's own captions settings apply.
   - The **speaker** button lists the audio languages of a dubbed film.
   - The **speed** button (it shows the speed, like 1.5×) offers 1×, 1.25×, 1.5× and 2×; voices keep their pitch.
     A TV that sends Dolby sound straight to an amplifier may only play at 1×.
@@ -447,6 +453,7 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `GET /movies`, `GET /movies/{id}` | viewer | Films (not episodes) with tracks, subtitles, progress; private ones only while Private is unlocked |
 | `GET /movies/{id}/stream` | viewer | The file, with `Range` support (`206`, `416`) |
 | `GET /movies/{id}/poster`, `…/backdrop`, `…/subtitles/{n}` | viewer | Poster, wide backdrop, subtitle file |
+| `PUT /movies/{id}/subtitle-offset` `{offsetMs}` | viewer | Move that video's subtitle files later (or earlier, negative), up to 10 minutes |
 | `PUT /movies/{id}/progress` `{positionMs, durationMs}` | viewer | Saves the resume point |
 | `POST /rescan` | viewer | Rescans the folder |
 | `PUT /playability` `{client, items}` | viewer | What the TV can't play |

@@ -34,6 +34,7 @@ import com.parthajb.homereel.shared.RangeResult
 import com.parthajb.homereel.shared.ByteRange
 import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.ServerInfo
+import com.parthajb.homereel.shared.SubtitleOffset
 import com.parthajb.homereel.shared.TmdbResult
 import com.parthajb.homereel.shared.MagnetRequest
 import com.parthajb.homereel.shared.TorrentItem
@@ -330,6 +331,9 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 val (input, mime) = library.subtitle(p[1], index)
                 newChunkedResponse(Response.Status.OK, "$mime; charset=utf-8", input)
             }
+            p.size == 3 && p[0] == "movies" && p[2] == "subtitle-offset" && method == Method.PUT -> json(
+                200, com.parthajb.homereel.shared.Movie.serializer(), library.setSubtitleOffset(p[1], readJson(s, SubtitleOffset.serializer()).offsetMs, viewer),
+            )
             p.size == 3 && p[0] == "movies" && p[2] == "progress" && method == Method.PUT -> {
                 val update = readJson(s, ProgressUpdate.serializer())
                 json(200, com.parthajb.homereel.shared.Movie.serializer(), library.setProgress(p[1], update, viewer))
