@@ -84,6 +84,7 @@
     <string name="help_profile">Change who\'s watching. Leaving a kids profile asks for the parent PIN, if one is set on the admin page.</string>
     <string name="search">Search</string>
     <string name="search_hint">Titles, actors, genres…</string>
+    <string name="search_settings">Films and shows on your phone</string>
     <string name="search_empty">Nothing matches “%1$s”.</string>
     <string name="row_my_list">My List</string>
     <string name="row_because">Because you watched %1$s</string>

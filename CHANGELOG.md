@@ -34,6 +34,8 @@ update without a cable won't offer the new build.
   with two or more films here.
 - **Play next on the TV's home screen:** on Android TV and Google TV, Continue watching also shows in the TV's own
   Play next row, updated while HomeReel is open and emptied for a kids profile.
+- **The TV's own search and voice search:** HomeReel's titles show in the TV's search, and "Play … on HomeReel"
+  plays the title (or a show's next episode), or opens HomeReel's search when more than one fits.
 
 ## 0.6.2 (2026-10-26)
 

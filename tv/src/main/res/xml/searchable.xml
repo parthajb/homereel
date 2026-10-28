@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HomeReel's titles in the TV's own search and Google Assistant's: TvSearchProvider answers from the TV's copy of the
+     library, and a suggestion opens the title's page. -->
+<searchable xmlns:android="http://schemas.android.com/apk/res/android"
+    android:label="@string/app_name"
+    android:hint="@string/search_hint"
+    android:searchSettingsDescription="@string/search_settings"
+    android:searchSuggestAuthority="com.parthajb.homereel.tv.search"
+    android:searchSuggestIntentAction="android.intent.action.VIEW"
+    android:searchSuggestSelection=" ?"
+    android:searchSuggestThreshold="2"
+    android:includeInGlobalSearch="true"
+    android:queryAfterZeroResults="true" />

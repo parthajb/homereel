@@ -385,3 +385,36 @@ class PlayNextTest {
         assertNull(PlayNext.keyOf(null))
     }
 }
+
+class VoiceSearchTest {
+    private val movies = listOf(
+        Movie("1", "Dangal", 2016, "d.mkv", genres = listOf("Sport", "Drama"), cast = listOf("Aamir Khan")),
+        Movie("2", "Dil Chahta Hai", 2001, "c.mkv", cast = listOf("Aamir Khan")),
+        Movie("3", "Secret Clip", 2020, "p.mkv", private = true),
+        Movie("4", "Night Train", 2016, "n.mkv"),
+        Movie("5", "Night Train 2", 2019, "n2.mkv"),
+    )
+    private val shows = listOf(Show("s1", "Panchayat", 2020, genres = listOf("Comedy")))
+
+    @Test fun findsFilmsAndShows() {
+        assertEquals(listOf("m:1"), VoiceSearch.matches("dangal", movies, shows).map { it.key })
+        assertEquals(listOf("s:s1"), VoiceSearch.matches("Panchayat", movies, shows).map { it.key })
+        assertEquals("cast counts", listOf("m:1", "m:2"), VoiceSearch.matches("aamir", movies, shows).map { it.key }.sorted())
+    }
+
+    @Test fun neverPrivate() = assertEquals(emptyList<String>(), VoiceSearch.matches("secret", movies, shows).map { it.key })
+
+    @Test fun playsTheClearWinner() {
+        assertEquals("m:1", VoiceSearch.toPlay("Dangal", movies, shows)?.key)
+        assertEquals("m:1", VoiceSearch.toPlay("play dangal on homereel", movies, shows)?.key)
+        assertEquals("s:s1", VoiceSearch.toPlay("panchayat", movies, shows)?.key)
+    }
+
+    @Test fun asksWhenItIsntClear() {
+        assertNull("two films match the same", VoiceSearch.toPlay("aamir", movies, shows))
+        assertNull("only cast matched", VoiceSearch.toPlay("khan", movies.take(1), shows))
+        assertNull(VoiceSearch.toPlay("nothing like it", movies, shows))
+    }
+
+    @Test fun theCloserTitleWins() = assertEquals("m:4", VoiceSearch.toPlay("night train", movies, shows)?.key)
+}

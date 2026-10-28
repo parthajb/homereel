@@ -1,6 +1,7 @@
 package com.parthajb.homereel.tv
 
 import android.app.Activity
+import android.app.SearchManager
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.Context
@@ -11,10 +12,13 @@ import android.media.tv.TvContract
 import android.net.Uri
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
+import android.provider.MediaStore
 import android.util.Log
+import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.PlayNext
+import com.parthajb.homereel.shared.VoiceSearch
 import java.io.File
 import java.io.FileNotFoundException
 
@@ -140,13 +144,21 @@ class PlayNextRow(private val context: Context) {
         }
     }
 
-    /** Opens what a Play next row points at: a film's page, or a show's. Anything else opens HomeReel's home. */
+    /**
+     * Opens what a Play next row or a search suggestion points at: a film's page, or a show's. "Play … on HomeReel"
+     * plays the clear winner, or shows HomeReel's search when it isn't clear. Anything else opens HomeReel's home.
+     */
     class LinkActivity : Activity() {
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
-            val key = PlayNext.keyOf(intent?.dataString)
             val paired = ServerStore(this).host != null
             val home = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            if (intent?.action == MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH) {
+                startActivities(arrayOf(home) + listOfNotNull(if (paired) playFromSearch(intent.getStringExtra(SearchManager.QUERY).orEmpty()) else null))
+                finish()
+                return
+            }
+            val key = PlayNext.keyOf(intent?.dataString)
             val page = when {
                 key == null || !paired -> null
                 key.startsWith("m:") -> Intent(this, DetailsActivity::class.java).putExtra(DetailsActivity.EXTRA_ID, key.removePrefix("m:"))
@@ -155,6 +167,20 @@ class PlayNextRow(private val context: Context) {
             // HomeReel's home underneath, so Back from the page goes there rather than out of the app.
             if (page == null) startActivity(home) else startActivities(arrayOf(home, page))
             finish()
+        }
+
+        /** The film, or a show's next episode, to play; else HomeReel's search with what was said. */
+        private fun playFromSearch(query: String): Intent {
+            val (movies, shows) = LibraryCache.load(this)
+            val hit = VoiceSearch.toPlay(query, movies, shows)
+            val film = hit?.movie ?: hit?.show?.upNext
+            if (film != null) {
+                return Intent(this, PlaybackActivity::class.java)
+                    .putExtra(PlaybackActivity.EXTRA_MOVIE, ApiJson.encodeToString(Movie.serializer(), film))
+                    .putExtra(PlaybackActivity.EXTRA_START, if (MainActivity.inProgress(film)) film.positionMs else 0L)
+            }
+            hit?.show?.let { return Intent(this, ShowActivity::class.java).putExtra(ShowActivity.EXTRA_ID, it.id) }
+            return Intent(this, SearchActivity::class.java).putExtra(SearchManager.QUERY, query)
         }
     }
 

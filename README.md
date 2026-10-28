@@ -395,6 +395,10 @@ finds subtitles for films and episodes that have none, in the languages listed t
   **Play next** row (up to ten), with a picture, so you can carry on without opening HomeReel first. It's updated
   while HomeReel is open, never in the background, and follows the profile watching; a kids profile empties it.
   Remove a title from the row and it stays out until you finish it. Some TV makers' home screens have no such row.
+- **The TV's own search and voice:** HomeReel's films and shows turn up in the TV's search, and "Hey Google, play
+  Dangal on HomeReel" plays it (or the next episode of a show). When more than one title fits, HomeReel's search
+  opens with what you said. Both use the library as the TV last loaded it, for the profile watching, never Private;
+  playing still needs the phone. The copy is deleted when the TV is unpaired.
 - **Home screen:**
   - A full-screen backdrop and the focused title's details at the top: rating, year, age rating, length, genres,
     description.
