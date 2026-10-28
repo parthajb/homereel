@@ -14,6 +14,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.AppUpdate
+import com.parthajb.homereel.shared.Collections
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.PlayabilityItem
@@ -51,6 +52,10 @@ class MainActivity : FragmentActivity(), CardHost {
     private var section = Section.HOME
     private var genre: String? = null
     private var genreNames: List<String> = emptyList()
+
+    /** The collection chosen among the Genres page's Collections tiles, instead of a genre. */
+    private var collection: String? = null
+    private var collectionNames: List<String> = emptyList()
     private lateinit var nav: LinearLayout
 
     private lateinit var rows: RecyclerView
@@ -180,6 +185,7 @@ class MainActivity : FragmentActivity(), CardHost {
         if (section !in available(list)) {
             section = Section.HOME
             genre = null
+            collection = null
         }
         renderNav(list)
         val built = buildRows(list)
@@ -255,6 +261,7 @@ class MainActivity : FragmentActivity(), CardHost {
         if (s == section && s != Section.GENRES) return
         section = s
         genre = null
+        collection = null
         focusedKey = null
         renderNav(movies)
         adapter.submit(buildRows(movies))
@@ -307,6 +314,15 @@ class MainActivity : FragmentActivity(), CardHost {
         val count = { g: String -> list.count { g in it.genres } + shows.count { g in it.genres } }
         val tiles = genreNames.mapIndexed { i, g -> ActionItem(ACTION_GENRE + i, getString(R.string.genre_count, g, count(g)), R.drawable.ic_genre) }
         val out = arrayListOf(HomeRow(getString(R.string.row_genres), tiles))
+        // Film series with two or more films here, as tiles under the genres.
+        val sets = Collections.of(list.filter { it.kind != Kind.EPISODE })
+        collectionNames = sets.map { it.first }
+        if (sets.isNotEmpty()) {
+            out += HomeRow(getString(R.string.row_collections), sets.mapIndexed { i, (name, films) ->
+                ActionItem(ACTION_COLLECTION + i, getString(R.string.genre_count, name, films.size), R.drawable.ic_genre)
+            })
+        }
+        collection?.let { c -> sets.firstOrNull { it.first == c }?.let { out += HomeRow(c, it.second.map(::MovieItem)) } }
         val g = genre ?: return out
         val films = list.filter { g in it.genres }
         val series = shows.filter { g in it.genres }
@@ -511,6 +527,9 @@ class MainActivity : FragmentActivity(), CardHost {
         in ACTION_GENRE until ACTION_GENRE + 1000 -> genreNames.getOrNull(id - ACTION_GENRE)?.let { g ->
             getString(R.string.help_genre, movies.count { !it.private && g in it.genres } + shows.count { g in it.genres })
         } ?: ""
+        in ACTION_COLLECTION until ACTION_COLLECTION + 1000 -> collectionNames.getOrNull(id - ACTION_COLLECTION)?.let { c ->
+            getString(R.string.help_collection, movies.count { it.collection == c })
+        } ?: ""
         ACTION_REFRESH -> getString(R.string.help_refresh)
         ACTION_RESCAN -> getString(R.string.help_rescan, "http://${store.host}:${store.port}/admin")
         ACTION_ABOUT -> getString(R.string.help_about)
@@ -540,12 +559,19 @@ class MainActivity : FragmentActivity(), CardHost {
     override fun onPlay(movie: Movie) = play(this, movie, if (inProgress(movie)) movie.positionMs else 0)
 
     private fun onAction(id: Int) {
-        if (id in ACTION_GENRE until ACTION_GENRE + 1000) {
-            genre = genreNames.getOrNull(id - ACTION_GENRE) ?: return
-            focusedKey = adapter.rows.getOrNull(1)?.items?.firstOrNull()?.key
+        val chosenGenre = id in ACTION_GENRE until ACTION_GENRE + 1000
+        if (chosenGenre || id in ACTION_COLLECTION until ACTION_COLLECTION + 1000) {
+            if (chosenGenre) {
+                genre = genreNames.getOrNull(id - ACTION_GENRE) ?: return
+                collection = null
+            } else {
+                collection = collectionNames.getOrNull(id - ACTION_COLLECTION) ?: return
+                genre = null
+            }
             adapter.submit(buildRows(movies))
-            // Into the chosen genre's first row.
-            focusedKey = adapter.rows.getOrNull(1)?.items?.firstOrNull()?.key
+            // Into the first row of what was chosen, below the tiles.
+            val first = adapter.rows.indexOfFirst { row -> row.items.none { it is ActionItem } }
+            focusedKey = adapter.rows.getOrNull(first)?.items?.firstOrNull()?.key
             restoreFocus()
             return
         }
@@ -633,6 +659,9 @@ class MainActivity : FragmentActivity(), CardHost {
 
         /** Genre tiles: ACTION_GENRE + the genre's place in [genreNames]. */
         private const val ACTION_GENRE = 1000
+
+        /** Collection tiles: ACTION_COLLECTION + the collection's place in [collectionNames]. */
+        private const val ACTION_COLLECTION = 3000
 
         /** The update version already mentioned in a toast, so it isn't repeated on every visit to Home. */
         private var announcedUpdate = 0L

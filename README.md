@@ -397,7 +397,7 @@ finds subtitles for films and episodes that have none, in the languages listed t
   - Rows underneath: Continue watching (with progress bars), Recently added, Top rated, one row per genre, then
     everything A–Z, and Settings.
   - **The menu along the top** (press Up from the first row): Home, Movies, TV shows, Genres, My List and, while
-    it's unlocked, Private. Genres shows a tile per genre; choose one for its top rated, movies and shows. Sections
+    it's unlocked, Private. Genres shows a tile per genre; choose one for its top rated, movies and shows. Under the genres, **Collections** has a tile per film series with two or more films here (from TMDB, like "Harry Potter Collection"), in the order they came out. A film's page shows the rest of its series above More like this. Sections
     with nothing in them aren't shown.
   - Back jumps to the top, then to Home, then leaves.
 - **Details page:**

@@ -29,6 +29,9 @@ update without a cable won't offer the new build.
   remove them.
 - **Night mode and volume boost on the TV:** the speaker button opens Sound, with night mode (loud parts quieter,
   voices clearer; Android 9 and later) and a volume boost of 3, 6 or 9 dB remembered per film or show.
+- **Collections:** a film in a series (from TMDB, like "Harry Potter Collection") shows the rest of the series, in
+  order, above More like this, on the TV and in the web app. The Genres page has a Collections tile for each series
+  with two or more films here.
 
 ## 0.6.2 (2026-10-26)
 

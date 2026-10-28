@@ -278,6 +278,26 @@ object Recommend {
 }
 
 /** Matching what's typed in search against a title's words: every typed word must start some word of it. */
+/** Film series from TMDB ("Harry Potter Collection"), for a film's own row and the Collections tiles. */
+object Collections {
+    /** Every collection with at least two films here, the biggest first, each in release order. */
+    fun of(films: List<Movie>): List<Pair<String, List<Movie>>> =
+        films.filter { !it.collection.isNullOrBlank() }
+            .groupBy { it.collection!! }
+            .filter { it.value.size >= 2 }
+            .map { (name, list) -> name to inOrder(list) }
+            .sortedWith(compareByDescending<Pair<String, List<Movie>>> { it.second.size }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.first })
+
+    /** The other films in [film]'s collection, in release order; empty when it has none here. */
+    fun sameAs(film: Movie, films: List<Movie>): List<Movie> {
+        val name = film.collection?.takeIf { it.isNotBlank() } ?: return emptyList()
+        return inOrder(films.filter { it.collection == name && it.id != film.id })
+    }
+
+    /** By year, those without one last, then by title. */
+    private fun inOrder(list: List<Movie>) = list.sortedWith(compareBy<Movie>({ it.year ?: Int.MAX_VALUE }, { it.title }))
+}
+
 object Search {
     fun words(text: String?): List<String> =
         if (text == null) emptyList() else Matching.normalise(text).split(' ').filter { it.isNotEmpty() }

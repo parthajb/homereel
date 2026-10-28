@@ -325,3 +325,28 @@ class FeedErrorsTest {
         assertTrue(e?.message, e is IllegalArgumentException && e.message!!.startsWith("Couldn't find nas.local"))
     }
 }
+
+class CollectionsTest {
+    private fun film(id: String, title: String, year: Int?, collection: String?) = Movie(id, title, year, "$title.mkv", collection = collection)
+    private val films = listOf(
+        film("1", "Chamber of Secrets", 2002, "Harry Potter Collection"),
+        film("2", "Philosopher's Stone", 2001, "Harry Potter Collection"),
+        film("3", "Toy Story 2", 1999, "Toy Story Collection"),
+        film("4", "Toy Story", 1995, "Toy Story Collection"),
+        film("5", "Toy Story 4", null, "Toy Story Collection"),
+        film("6", "Dangal", 2016, null),
+        film("7", "Lone Sequel", 2010, "Only One Here Collection"),
+    )
+
+    @Test fun collectionsWithTwoOrMoreBiggestFirst() {
+        val c = Collections.of(films)
+        assertEquals(listOf("Toy Story Collection", "Harry Potter Collection"), c.map { it.first })
+        assertEquals(listOf("Toy Story", "Toy Story 2", "Toy Story 4"), c.first().second.map { it.title })
+    }
+
+    @Test fun theOthersInAFilmsCollection() {
+        assertEquals(listOf("Philosopher's Stone"), Collections.sameAs(films[0], films).map { it.title })
+        assertEquals(emptyList<Movie>(), Collections.sameAs(films[5], films))
+        assertEquals(emptyList<Movie>(), Collections.sameAs(films[6], films))
+    }
+}
