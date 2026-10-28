@@ -39,6 +39,8 @@ update without a cable won't offer the new build.
 - **Home videos:** camera and phone clips, and anything marked Don't look up, get their own section on the TV and in
   the web app, grouped by the day they were recorded, newest first, and a row on Home. A camera clip is named after
   its date until renamed, and they stay out of the film rows.
+- **Watching away from home:** a guide to Tailscale (docs/away-from-home.md), and the TV app now connects to a phone
+  at a Tailscale address (100.64.0.0/10), for a TV stick away from home. It still refuses the internet.
 
 ## 0.6.2 (2026-10-26)
 
