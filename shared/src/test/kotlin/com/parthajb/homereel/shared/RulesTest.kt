@@ -350,3 +350,38 @@ class CollectionsTest {
         assertEquals(emptyList<Movie>(), Collections.sameAs(films[6], films))
     }
 }
+
+class PlayNextTest {
+    private fun row(id: Long, key: String, shown: Boolean = true) = PlayNext.Existing(id, key, shown)
+
+    @Test fun addsUpdatesAndRemoves() {
+        val plan = PlayNext.plan(listOf("m:a", "s:b", "m:c"), listOf(row(1, "m:a"), row(2, "m:old"), row(3, "s:b")))
+        assertEquals(listOf("m:c"), plan.add)
+        assertEquals(listOf(1L to "m:a", 3L to "s:b"), plan.update)
+        assertEquals(listOf(2L), plan.remove)
+    }
+
+    @Test fun aRemovedTitleStaysOutUntilItsFinished() {
+        val hidden = listOf(row(7, "m:a", shown = false))
+        val watching = PlayNext.plan(listOf("m:a"), hidden)
+        assertEquals(emptyList<String>(), watching.add)
+        assertEquals(emptyList<Pair<Long, String>>(), watching.update)
+        assertEquals(emptyList<Long>(), watching.remove)
+        assertEquals("once finished, the hidden row goes, so it can come back later", listOf(7L), PlayNext.plan(emptyList(), hidden).remove)
+    }
+
+    @Test fun atMostTen() = assertEquals(PlayNext.MAX, PlayNext.plan((1..15).map { "m:$it" }, emptyList()).add.size)
+
+    @Test fun duplicatesAreTidied() =
+        assertEquals(listOf(5L), PlayNext.plan(listOf("m:a"), listOf(row(4, "m:a"), row(5, "m:a"))).remove)
+
+    @Test fun keysAndLinks() {
+        assertEquals("m:abc", PlayNext.key(Movie("abc", "Film", fileName = "f.mkv")))
+        assertEquals("s:show1", PlayNext.key(Movie("ep1", "Ep", fileName = "e.mkv", showId = "show1")))
+        assertEquals("homereel://play-next/s/show1", PlayNext.link("s:show1"))
+        assertEquals("s:show1", PlayNext.keyOf("homereel://play-next/s/show1"))
+        assertNull(PlayNext.keyOf("homereel://play-next/m/../../x"))
+        assertNull(PlayNext.keyOf("https://example.com/m/abc"))
+        assertNull(PlayNext.keyOf(null))
+    }
+}

@@ -29,6 +29,25 @@
             </intent-filter>
         </activity>
 
+        <!-- Opens what the TV home screen's Play next row points at. -->
+        <activity
+            android:name=".PlayNextRow$LinkActivity"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="homereel" android:host="play-next" />
+            </intent-filter>
+        </activity>
+
+        <!-- Pictures for the Play next row, read-only; the home screen can't fetch them from the phone itself. -->
+        <provider
+            android:name=".PlayNextRow$ArtProvider"
+            android:authorities="${applicationId}.playnext"
+            android:exported="true" />
+
         <activity
             android:name=".ConnectActivity"
             android:exported="false"

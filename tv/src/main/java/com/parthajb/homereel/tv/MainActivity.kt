@@ -17,6 +17,7 @@ import com.parthajb.homereel.shared.AppUpdate
 import com.parthajb.homereel.shared.Collections
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Movie
+import com.parthajb.homereel.shared.PlayNext
 import com.parthajb.homereel.shared.PlayabilityItem
 import com.parthajb.homereel.shared.PlayabilityReport
 import com.parthajb.homereel.shared.Recommend
@@ -33,6 +34,7 @@ import java.util.concurrent.Executors
  */
 class MainActivity : FragmentActivity(), CardHost {
     private val store by lazy { ServerStore(this) }
+    private val playNext by lazy { PlayNextRow(this) }
     private val codecs by lazy { TvCodecs(this) }
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -190,6 +192,7 @@ class MainActivity : FragmentActivity(), CardHost {
         renderNav(list)
         val built = buildRows(list)
         val changed = adapter.submit(built)
+        updatePlayNext(list)
         if (list.isEmpty() && shows.isEmpty()) {
             hero(getString(R.string.empty_title), null, null, getString(R.string.empty_body, "http://${store.host}:${store.port}/admin"))
         }
@@ -351,6 +354,22 @@ class MainActivity : FragmentActivity(), CardHost {
         if (sorted.isEmpty()) return emptyList()
         if (sorted.size <= 60) return listOf(HomeRow(getString(R.string.row_all), sorted.map { MovieItem(it) }))
         return sorted.groupBy { letter(it.title) }.map { (letter, group) -> HomeRow(getString(R.string.row_letter, letter), group.map { MovieItem(it) }) }
+    }
+
+    /**
+     * The TV home screen's Play next row follows Continue watching, for the profile now watching. A kids profile
+     * empties it, so nothing a grown-up was watching shows there.
+     */
+    private fun updatePlayNext(all: List<Movie>) {
+        val api = store.api()
+        if (store.profileKids) {
+            worker.execute { playNext.clear() }
+            return
+        }
+        val items = all.filter { !it.private && inProgress(it) }.map { PlayNextRow.Item(PlayNext.key(it), it, null, it.lastPlayedAt) } +
+            shows.mapNotNull { show -> show.upNext?.let { PlayNextRow.Item(PlayNext.key(it), it, show.title, show.lastPlayedAt) } }
+        val sorted = items.sortedByDescending { it.lastPlayedAt }
+        worker.execute { playNext.publish(api, sorted) }
     }
 
     private fun homeRows(all: List<Movie>): List<HomeRow> {
