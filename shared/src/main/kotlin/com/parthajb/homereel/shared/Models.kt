@@ -420,6 +420,28 @@ object Updates {
 
     /** Whether an uploaded update is newer than what's installed. */
     fun isNewer(update: AppUpdate?, installedVersionCode: Long): Boolean = update != null && update.versionCode > installedVersionCode
+
+    /** The CPU types the phone app is built for, one APK each, with what people call them. */
+    val PHONE_ABIS = linkedMapOf("arm64-v8a" to "64-bit phones", "armeabi-v7a" to "32-bit phones")
+
+    /** The CPU types an APK has native code for, from its file names (lib/<abi>/…). */
+    fun abisIn(entryNames: Sequence<String>): Set<String> =
+        entryNames.filter { it.startsWith("lib/") }.mapNotNull { it.split('/').getOrNull(1)?.ifEmpty { null } }.toSet()
+
+    /**
+     * Why an APK with native code for [apkAbis] is the wrong one for a phone whose CPU types are [phoneAbis] (its
+     * preferred one first), or null when it fits. An APK without native code fits any phone. A 64-bit phone that can
+     * run the 32-bit copy is still told to use its own, which is faster.
+     */
+    fun wrongAbi(apkAbis: Set<String>, phoneAbis: List<String>): String? {
+        if (apkAbis.isEmpty()) return null
+        val wanted = phoneAbis.firstOrNull() ?: return null
+        if (wanted in apkAbis) return null
+        val isFor = apkAbis.joinToString(" and ") { PHONE_ABIS[it] ?: it }
+        val name = "server-$wanted-release.apk"
+        return if (wanted in PHONE_ABIS) "That copy is for $isFor. This phone needs the one for ${PHONE_ABIS[wanted]}, $name."
+        else "That copy is for $isFor, and this phone's CPU ($wanted) isn't one HomeReel is built for."
+    }
 }
 
 /**

@@ -11,6 +11,9 @@ update without a cable won't offer the new build.
   is refused. Before, such a name was followed unless all of its addresses were on the home network.
 - **Tests for the safety rules:** the torrent search rules (where requests may go, request limits, the cache) and
   the Private, kids and backup restore rules moved into `shared/`, each with tests.
+- **A smaller phone app:** it's built as two copies, one for 64-bit phones (about 17 MB) and one for 32-bit phones
+  (about 15 MB), instead of one 31 MB app for both. **Upload phone app…** refuses the copy for the other kind of
+  phone and names the file it needs.
 
 ## 0.6.2 (2026-10-26)
 

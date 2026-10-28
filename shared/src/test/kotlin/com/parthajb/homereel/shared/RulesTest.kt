@@ -245,3 +245,30 @@ class RestoreTest {
         assertEquals(mapOf("main" to (20L to "backup"), "kid" to (50L to "phone"), "gone" to (1L to "backup")), merged)
     }
 }
+
+class PhoneAbiTest {
+    private val arm64Phone = listOf("arm64-v8a", "armeabi-v7a", "armeabi")
+    private val arm32Phone = listOf("armeabi-v7a", "armeabi")
+
+    @Test fun readsTheAbisFromTheApksFiles() = assertEquals(
+        setOf("arm64-v8a"),
+        Updates.abisIn(sequenceOf("classes.dex", "lib/arm64-v8a/libtorrent4j.so", "res/lib/x.png", "lib/")),
+    )
+
+    @Test fun theRightCopyFits() {
+        assertNull(Updates.wrongAbi(setOf("arm64-v8a"), arm64Phone))
+        assertNull(Updates.wrongAbi(setOf("armeabi-v7a"), arm32Phone))
+        assertNull("a universal APK fits both", Updates.wrongAbi(setOf("arm64-v8a", "armeabi-v7a"), arm32Phone))
+        assertNull("no native code fits anything", Updates.wrongAbi(emptySet(), arm64Phone))
+    }
+
+    @Test fun the64BitCopyOnA32BitPhone() =
+        assertEquals("That copy is for 64-bit phones. This phone needs the one for 32-bit phones, server-armeabi-v7a-release.apk.",
+            Updates.wrongAbi(setOf("arm64-v8a"), arm32Phone))
+
+    @Test fun the32BitCopyOnA64BitPhone() =
+        assertEquals("That copy is for 32-bit phones. This phone needs the one for 64-bit phones, server-arm64-v8a-release.apk.",
+            Updates.wrongAbi(setOf("armeabi-v7a"), arm64Phone))
+
+    @Test fun anUnsupportedCpu() = assertTrue(Updates.wrongAbi(setOf("arm64-v8a"), listOf("x86_64"))!!.contains("x86_64"))
+}

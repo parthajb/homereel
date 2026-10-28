@@ -49,14 +49,23 @@ You need JDK 17 and the Android SDK (platform 34, build-tools 34). Put the SDK p
 ./gradlew :shared:test :server:lintRelease :tv:lintRelease :server:assembleRelease :tv:assembleRelease
 ```
 
-The APKs land in `server/build/outputs/apk/release/server-release.apk` and
-`tv/build/outputs/apk/release/tv-release.apk`. They are signed with your debug key, so later builds from the same
-computer install over them.
+The APKs land in `server/build/outputs/apk/release/` and `tv/build/outputs/apk/release/tv-release.apk`. They are
+signed with your debug key, so later builds from the same computer install over them.
+
+The phone app comes in two copies, one per kind of phone, because libtorrent's native code is most of its size:
+
+| File | For | Size |
+|---|---|---|
+| `server-arm64-v8a-release.apk` | 64-bit phones: almost every phone from 2017 on | about 17 MB |
+| `server-armeabi-v7a-release.apk` | 32-bit phones, and phones running a 32-bit Android | about 15 MB |
+
+`adb shell getprop ro.product.cpu.abi` says which a phone needs.
 
 ## Set up the phone
 
-1. **Install the app:** `adb install -r server/build/outputs/apk/release/server-release.apk` with USB debugging on.
-   Or copy the APK over and open it in the phone's file manager.
+1. **Install the app:** `adb install -r server/build/outputs/apk/release/server-arm64-v8a-release.apk` with USB
+   debugging on (the `armeabi-v7a` copy for a 32-bit phone). Or copy the APK over and open it in the phone's file
+   manager.
 2. **Choose the folder:** open **HomeReel Server**, allow notifications, then tap **Choose movie folder** and pick
    (or create) a folder such as `Movies`. Sub-folders are scanned too.
 3. **Let it run in the background:** tap **Keep running in the background** and allow it. Otherwise Android may
@@ -118,9 +127,10 @@ ADB is only needed for the first install. After that:
 
 1. Build both apps on the same computer as before (the same key signs them).
 2. On the admin page, open **Settings → App updates** and upload `tv-release.apk` with **Upload TV app…** and
-   `server-release.apk` with **Upload phone app…**.
+   the phone's copy (`server-arm64-v8a-release.apk` on a 64-bit phone) with **Upload phone app…**.
    - The phone only keeps a HomeReel app signed with the same key as itself, and a phone app newer than the one
      running. Android refuses an update signed with another key anyway.
+   - It also refuses the copy for the other kind of phone, and says which file it needs.
 3. **TV:** the next time HomeReel opens, it says an update is ready, and the Settings row starts with
    **Update to 0.x.y**. Choose it, then **Update**.
 4. **Phone:** a notification says the update is ready, and HomeReel Server shows **Install update**. Tap it, then
@@ -177,8 +187,8 @@ Off until you turn it on: **Settings → Torrent downloads** on the admin page.
 - **Privacy and the law:** while it downloads, the phone exchanges pieces with the other people sharing that torrent,
   and they can see your internet address. HomeReel never opens ports on your router (UPnP and NAT-PMP are off). Only
   download what you're allowed to, such as public-domain and Creative Commons films, or copies of your own.
-- **Size:** the phone app includes libtorrent for 64-bit and 32-bit ARM, about 30 MB. The engine only starts when
-  there's something to download.
+- **Size:** libtorrent is most of the phone app, about 17 MB on a 64-bit phone. The engine only starts when there's
+  something to download.
 
 ### Torrent search (optional)
 
