@@ -82,8 +82,14 @@ object FeedSafety {
         require(parsed != null && parsed.protocol in setOf("http", "https") && !parsed.host.isNullOrBlank()) {
             "The address should look like ${example(kind)}"
         }
-        require(parsed.protocol != "http" || isHomeHost(parsed.host, resolve)) {
-            "Use https:// for a feed on the internet, so nothing is sent in the clear. Plain http:// is for one on your home network."
+        if (parsed.protocol == "http") {
+            val addresses = runCatching { resolve(parsed.host) }.getOrNull().orEmpty()
+            require(addresses.isNotEmpty()) {
+                "Couldn't find ${parsed.host} on the network. Check the address, or use the computer's IP address instead."
+            }
+            require(addresses.all(::isHomeAddress)) {
+                "Use https:// for a feed on the internet, so nothing is sent in the clear. Plain http:// is for one on your home network."
+            }
         }
         val key = parsed.query?.split('&')?.firstNotNullOfOrNull { part ->
             val name = part.substringBefore('=').lowercase()

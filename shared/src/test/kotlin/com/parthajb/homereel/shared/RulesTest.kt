@@ -272,3 +272,56 @@ class PhoneAbiTest {
 
     @Test fun anUnsupportedCpu() = assertTrue(Updates.wrongAbi(setOf("arm64-v8a"), listOf("x86_64"))!!.contains("x86_64"))
 }
+
+class FeedErrorsTest {
+    private fun ip(s: String) = InetAddress.getByName(s)
+
+    @Test fun classifiesWhatTheConnectionThrew() {
+        assertEquals(FeedErrors.Failure.NO_NAME, FeedErrors.classify(java.net.UnknownHostException("torlock.com")))
+        assertEquals(FeedErrors.Failure.CONNECT_TIMEOUT, FeedErrors.classify(java.net.SocketTimeoutException("failed to connect to torlock.com/13.127.247.216 (port 443) after 8000ms")))
+        assertEquals(FeedErrors.Failure.CONNECT_TIMEOUT, FeedErrors.classify(java.net.SocketTimeoutException("connect timed out")))
+        assertEquals(FeedErrors.Failure.READ_TIMEOUT, FeedErrors.classify(java.net.SocketTimeoutException("Read timed out")))
+        assertEquals(FeedErrors.Failure.REFUSED, FeedErrors.classify(java.net.ConnectException("Connection refused")))
+        assertEquals(FeedErrors.Failure.CONNECT_TIMEOUT, FeedErrors.classify(java.net.ConnectException("Connection timed out")))
+        assertEquals(FeedErrors.Failure.NO_ROUTE, FeedErrors.classify(java.net.NoRouteToHostException("Host unreachable")))
+        assertEquals(FeedErrors.Failure.CERTIFICATE, FeedErrors.classify(javax.net.ssl.SSLHandshakeException("Chain validation failed")))
+        assertEquals("a wrapped cause counts", FeedErrors.Failure.NO_NAME, FeedErrors.classify(java.io.IOException("x", java.net.UnknownHostException("y"))))
+        assertEquals(FeedErrors.Failure.OTHER, FeedErrors.classify(java.io.IOException("Broken pipe")))
+    }
+
+    @Test fun aNameThatPointsNowhereLooksBlocked() {
+        assertTrue(FeedErrors.pointsNowhere("torlock.com", listOf(ip("0.0.0.0"))))
+        assertTrue(FeedErrors.pointsNowhere("torlock.com", listOf(ip("127.0.0.1"))))
+        assertFalse(FeedErrors.pointsNowhere("torlock.com", listOf(ip("13.127.247.216"))))
+        assertFalse("typed as numbers, it's what was meant", FeedErrors.pointsNowhere("127.0.0.1", listOf(ip("127.0.0.1"))))
+        assertTrue("a name that starts with digits is still a name", FeedErrors.pointsNowhere("127.0.0.1.nip.io", listOf(ip("127.0.0.1"))))
+    }
+
+    @Test fun aSiteOnTheInternetMayBeBlocked() {
+        val m = FeedErrors.message(FeedErrors.Failure.CONNECT_TIMEOUT, "www.torlock.com", 443, home = false)
+        assertTrue(m, m.startsWith("didn't answer at www.torlock.com:443.") && "internet provider may block it" in m)
+    }
+
+    @Test fun aComputerAtHomeIsCheckedAtHome() {
+        val m = FeedErrors.message(FeedErrors.Failure.CONNECT_TIMEOUT, "192.168.1.20", 9696, home = true)
+        assertTrue(m, "computer is on" in m && "provider" !in m)
+        assertTrue("refused" in FeedErrors.message(FeedErrors.Failure.REFUSED, "192.168.1.20", 9696, home = true))
+    }
+
+    @Test fun everyMessageFollowsTheFeedsName() {
+        for (f in FeedErrors.Failure.values()) for (home in listOf(true, false)) {
+            val m = FeedErrors.message(f, "host", 1, home)
+            assertTrue("$f: $m", m.first().isLowerCase() || m.startsWith("host"))
+        }
+    }
+
+    @Test fun statuses() {
+        assertTrue("problem of its own" in FeedErrors.forStatus(502))
+        assertTrue("451" in FeedErrors.forStatus(451))
+    }
+
+    @Test fun aLocalNameThatDoesntResolve() {
+        val e = runCatching { FeedSafety.clean("http://nas.local:9696", IndexerKind.PROWLARR) { throw java.net.UnknownHostException(it) } }.exceptionOrNull()
+        assertTrue(e?.message, e is IllegalArgumentException && e.message!!.startsWith("Couldn't find nas.local"))
+    }
+}

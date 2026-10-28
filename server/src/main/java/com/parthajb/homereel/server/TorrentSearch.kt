@@ -4,6 +4,7 @@ import android.util.Log
 import com.parthajb.homereel.shared.ExpiringCache
 import com.parthajb.homereel.shared.FeedBudget
 import com.parthajb.homereel.shared.FeedEdit
+import com.parthajb.homereel.shared.FeedErrors
 import com.parthajb.homereel.shared.FeedSafety
 import com.parthajb.homereel.shared.FeedList
 import com.parthajb.homereel.shared.IndexerCheck
@@ -22,9 +23,11 @@ import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.InetAddress
 import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.URLEncoder
+import java.net.UnknownHostException
 import java.util.UUID
 import java.util.concurrent.Callable
 import java.util.concurrent.CancellationException
@@ -282,6 +285,16 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
     private fun request(feed: StoredFeed, url: String, readTimeout: Int, limit: Int = MAX_REPLY, magnetOk: Boolean = false): Reply {
         var target = URL(url)
         repeat(MAX_REDIRECTS + 1) {
+            val port = if (target.port > 0) target.port else target.defaultPort
+            // A name that doesn't resolve, or resolves to nowhere, gets its own message before anything else.
+            val addresses = try {
+                InetAddress.getAllByName(target.host).toList()
+            } catch (e: UnknownHostException) {
+                throw HttpError(503, FeedErrors.message(FeedErrors.Failure.NO_NAME, target.host, port, home = target.protocol == "http"))
+            }
+            if (target.protocol == "https" && FeedErrors.pointsNowhere(target.host, addresses)) {
+                throw HttpError(503, FeedErrors.message(FeedErrors.Failure.POINTS_NOWHERE, target.host, port, home = false))
+            }
             // Checked at every hop, at request time: a home-network name could point elsewhere now.
             val hop = FeedSafety.hop(target, feed.url)
             if (hop is FeedSafety.Hop.Refused) throw HttpError(if (hop.plainHttp) 400 else 502, hop.reason)
@@ -295,11 +308,12 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
                 c.setRequestProperty("User-Agent", "HomeReel")
                 val code = try {
                     c.responseCode
-                } catch (e: SocketTimeoutException) {
-                    throw HttpError(504, "took too long to answer")
                 } catch (e: IOException) {
+                    val failure = FeedErrors.classify(e)
                     val why = feed.key?.let { e.message?.replace(it, "…") } ?: e.message
-                    throw HttpError(503, "couldn't reach ${feed.url}: $why")
+                    val home = addresses.all(FeedSafety::isHomeAddress)
+                    val status = if (failure == FeedErrors.Failure.READ_TIMEOUT || failure == FeedErrors.Failure.CONNECT_TIMEOUT) 504 else 503
+                    throw HttpError(status, FeedErrors.message(failure, target.host, port, home, why))
                 }
                 when (code) {
                     200 -> return Reply.Body(read(c, limit, feed))
@@ -321,7 +335,7 @@ class TorrentSearch(private val prefs: Prefs, private val torrents: TorrentManag
                         coolDown(feed)
                         throw HttpError(429, "it says too many searches; HomeReel waits 15 minutes before asking it again")
                     }
-                    else -> throw HttpError(503, "it answered $code")
+                    else -> throw HttpError(503, FeedErrors.forStatus(code))
                 }
             } finally {
                 c.disconnect()
