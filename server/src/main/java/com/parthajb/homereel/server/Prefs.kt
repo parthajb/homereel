@@ -55,6 +55,25 @@ class Prefs(context: Context) {
         get() = sp.getString("omdbKey", null)
         set(value) = sp.edit().putString("omdbKey", value?.ifBlank { null }).apply()
 
+    /** An OpenSubtitles API key, for finding subtitles. Never sent to the TV or the admin page. */
+    var openSubtitlesKey: String?
+        get() = sp.getString("openSubtitlesKey", null)
+        set(value) = sp.edit().putString("openSubtitlesKey", value?.ifBlank { null }).apply()
+
+    /** The subtitle languages to find, as typed: "en, hi". */
+    var subtitleLanguages: String
+        get() = sp.getString("subtitleLanguages", null) ?: "en"
+        set(value) = sp.edit().putString("subtitleLanguages", value).apply()
+
+    /** Until when OpenSubtitles' daily download limit stops more downloads. */
+    var subtitlesPausedUntil: Long
+        get() = sp.getLong("subtitlesPausedUntil", 0)
+        set(value) = sp.edit().putLong("subtitlesPausedUntil", value).apply()
+
+    var openSubtitlesBaseUrl: String
+        get() = sp.getString("openSubtitlesBase", null) ?: "https://api.opensubtitles.com/api/v1"
+        set(value) = sp.edit().putString("openSubtitlesBase", value).apply()
+
     var autoMatch: Boolean
         get() = sp.getBoolean("autoMatch", true)
         set(value) = sp.edit().putBoolean("autoMatch", value).apply()

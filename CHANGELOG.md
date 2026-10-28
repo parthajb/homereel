@@ -23,6 +23,10 @@ update without a cable won't offer the new build.
   every TV and browser gets the same timing. Subtitles inside an MKV can't be moved.
 - **Subtitle style on the TV:** a size, from Small to Extra large, and a background: an outline, a see-through box or
   a black box.
+- **Finding subtitles (optional):** with a free OpenSubtitles key, the phone finds subtitles for films and episodes
+  that have none, in the languages chosen in Settings → Movie info. It sends each file's hash, size and title, keeps
+  what it finds in its own storage, and respects OpenSubtitles' daily limit. A film's editor can find them at once or
+  remove them.
 
 ## 0.6.2 (2026-10-26)
 

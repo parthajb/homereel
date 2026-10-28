@@ -295,6 +295,12 @@ data class MetadataSettings(
     val testHooks: Boolean = false,
     /** Make lighter copies of very heavy files by themselves, while the phone is charging. */
     val autoOptimize: Boolean = true,
+    /** Subtitles are found on OpenSubtitles for videos with none, once a key is set. */
+    val openSubtitlesKeySet: Boolean = false,
+    /** The languages to find, as typed: "en, hi". */
+    val subtitleLanguages: String = "en",
+    /** Set while OpenSubtitles' daily download limit is reached: when it lifts. */
+    val subtitlesPausedUntil: Long? = null,
 )
 
 /** A null field is left as it is; an empty key clears it. */
@@ -307,6 +313,9 @@ data class MetadataSettingsUpdate(
     val tmdbBaseUrl: String? = null,
     val tmdbImageBaseUrl: String? = null,
     val omdbBaseUrl: String? = null,
+    val openSubtitlesKey: String? = null,
+    val subtitleLanguages: String? = null,
+    val openSubtitlesBaseUrl: String? = null,
 )
 
 @Serializable
@@ -347,6 +356,9 @@ data class AdminStatus(
     val metadataError: String? = null,
     /** Files waiting for, or being made into, a lighter copy. */
     val optimizeQueue: Int = 0,
+    /** Videos waiting to have subtitles found. */
+    val subtitleQueue: Int = 0,
+    val subtitleError: String? = null,
 )
 
 @Serializable

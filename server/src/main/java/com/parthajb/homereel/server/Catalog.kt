@@ -10,6 +10,7 @@ import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Markers
 import com.parthajb.homereel.shared.MatchState
 import com.parthajb.homereel.shared.MediaFiles
+import com.parthajb.homereel.shared.OpenSubtitles
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.SeasonMarkers
 import com.parthajb.homereel.shared.Show
@@ -47,6 +48,10 @@ data class Entry(
     val subtitles: List<Subtitle> = emptyList(),
     /** Subtitle files are served this much later (earlier when negative): [SubtitleShift]. */
     val subtitleOffsetMs: Long = 0,
+    /** Subtitles found on OpenSubtitles, kept in the app's storage; served after the files beside the video. */
+    val fetchedSubtitles: List<FetchedSubtitle> = emptyList(),
+    /** When subtitles were last looked for, found or not. */
+    val subtitlesTriedAt: Long = 0,
     val addedAt: Long = 0,
     val positionMs: Long = 0,
     val watched: Boolean = false,
@@ -99,6 +104,11 @@ data class Entry(
     val folderName: String? get() = parentDocId.substringAfter(':', "").trimEnd('/').substringAfterLast('/').ifEmpty { null }
 
     /** As [viewer] sees it: their progress and My List. Null is the first profile, for the admin page. */
+    /** The files beside the video, then those found on OpenSubtitles. */
+    fun allSubtitles(): List<Subtitle> = subtitles + fetchedSubtitles.mapIndexed { i, f ->
+        Subtitle(subtitles.size + i, OpenSubtitles.label(f.language), f.language, "application/x-subrip")
+    }
+
     /** [show] is the episode's show, for its title, kids setting and skip markers. */
     fun toMovie(show: ShowRecord? = null, viewer: Viewer? = null): Movie {
         val p = progressFor(viewer?.pid ?: Profiles.MAIN)
@@ -115,7 +125,7 @@ data class Entry(
         durationMs = durationMs,
         video = video,
         audio = audio,
-        subtitles = subtitles,
+        subtitles = allSubtitles(),
         subtitleOffsetMs = subtitleOffsetMs,
         addedAt = addedAt,
         positionMs = p.positionMs,
@@ -173,7 +183,7 @@ data class Entry(
         durationMs = durationMs,
         video = video,
         audio = audio,
-        subtitles = subtitles,
+        subtitles = allSubtitles(),
         subtitleOffsetMs = subtitleOffsetMs,
         addedAt = addedAt,
         positionMs = p.positionMs,
@@ -203,6 +213,10 @@ data class Entry(
 }
 
 /** Where one profile is in one video. */
+/** A subtitle file downloaded from OpenSubtitles, in the app's own storage. */
+@Serializable
+data class FetchedSubtitle(val language: String, val fileName: String)
+
 @Serializable
 data class Progress(val positionMs: Long = 0, val watched: Boolean = false, val lastPlayedAt: Long = 0)
 

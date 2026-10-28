@@ -9,8 +9,8 @@ HomeReel is a home video server on an old phone and a TV app for it. These princ
 
 - **It stays on the home network.** No accounts, no cloud, no analytics or telemetry. The TV app never goes online:
   it talks only to the phone, on private addresses.
-- **Only the phone looks things up**, and only with keys the person adds (TMDB, OMDb). Titles and years are all
-  that leave the phone.
+- **Only the phone looks things up**, and only with keys the person adds (TMDB, OMDb, OpenSubtitles). Titles,
+  years, and for subtitles a file's hash and size, are all that leave the phone.
 - **Your own videos only.** HomeReel plays files people own. Features that find, scrape or stream content from
   elsewhere, or get round DRM or copy protection, won't be accepted. Torrent downloads are the one exception: off
   until someone turns them on, for a `.torrent` or magnet link the person brings, or found through Prowlarr, Jackett

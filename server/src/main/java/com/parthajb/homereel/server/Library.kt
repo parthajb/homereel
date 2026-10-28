@@ -14,6 +14,7 @@ import com.parthajb.homereel.shared.MatchState
 import com.parthajb.homereel.shared.Matching
 import com.parthajb.homereel.shared.MetadataSettings
 import com.parthajb.homereel.shared.MetadataSettingsUpdate
+import com.parthajb.homereel.shared.OpenSubtitles
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.MovieEdit
 import com.parthajb.homereel.shared.PlayabilityItem
@@ -32,6 +33,7 @@ import com.parthajb.homereel.shared.ShowDetail
 import com.parthajb.homereel.shared.TmdbResult
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.Executors
 
@@ -45,6 +47,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
     private val worker = Executors.newSingleThreadExecutor()
     private var scanQueued = false
     val metadata = Metadata(prefs)
+    val subtitles = SubtitleFinder(context, prefs)
     val optimizer = Optimizer(
         context,
         File(context.filesDir, "optimized"),
@@ -461,8 +464,11 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
                 scanError = null
                 val keepCopies = entries.filter { it.optimized }.map { "${it.id}.mp4" }.toSet()
                 optimizer.file("x").parentFile?.listFiles()?.filter { it.name.endsWith(".mp4") && it.name !in keepCopies }?.forEach { it.delete() }
+                val keepSubs = entries.flatMap { e -> e.fetchedSubtitles.map { it.fileName } }.toSet()
+                subtitles.dir.listFiles()?.filter { it.name !in keepSubs }?.forEach { it.delete() }
                 requestMetadata()
                 autoOptimize()
+                requestSubtitles()
             } catch (e: SecurityException) {
                 scanError = "The app lost access to the folder. Choose it again."
                 events.error(scanError!!)
@@ -554,12 +560,19 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
             ?: throw HttpError(404, "No such movie")).toMovie()
     }
 
+    /** A subtitle file: one beside the video, or after those, one found on OpenSubtitles. Shifted if its timing was moved. */
     fun subtitle(id: String, index: Int): Pair<InputStream, String> {
         val e = entry(id)
-        val docId = e.subtitleDocIds.getOrNull(index) ?: throw HttpError(404, "No such subtitle")
-        fun open() = runCatching { cr.openInputStream(Saf.docUri(treeOf(e) ?: requireTree(), docId)) }.getOrNull()
-            ?: throw HttpError(404, "The subtitle file is gone")
-        val mime = e.subtitles.getOrNull(index)?.mime ?: "application/x-subrip"
+        val docId = e.subtitleDocIds.getOrNull(index)
+        val fetched = if (docId == null) e.fetchedSubtitles.getOrNull(index - e.subtitleDocIds.size) else null
+        if (docId == null && fetched == null) throw HttpError(404, "No such subtitle")
+        fun open(): InputStream = if (fetched != null) {
+            subtitles.file(fetched).takeIf { it.exists() }?.inputStream() ?: throw HttpError(404, "The subtitle file is gone")
+        } else {
+            runCatching { cr.openInputStream(Saf.docUri(treeOf(e) ?: requireTree(), docId!!)) }.getOrNull()
+                ?: throw HttpError(404, "The subtitle file is gone")
+        }
+        val mime = e.allSubtitles().getOrNull(index)?.mime ?: "application/x-subrip"
         if (e.subtitleOffsetMs == 0L) return open() to mime
         val bytes = open().use { input ->
             val out = java.io.ByteArrayOutputStream()
@@ -894,6 +907,9 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         autoMatch = prefs.autoMatch,
         testHooks = BuildConfig.DEBUG,
         autoOptimize = prefs.autoOptimize,
+        openSubtitlesKeySet = !prefs.openSubtitlesKey.isNullOrBlank(),
+        subtitleLanguages = subtitles.languages.joinToString(", "),
+        subtitlesPausedUntil = subtitles.pausedUntil.takeIf { it > 0 },
     )
 
     /** Saves the settings; a new TMDB key is tried first, so a typo is caught at once instead of on every lookup. */
@@ -902,6 +918,25 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
             update.tmdbBaseUrl?.let { prefs.tmdbBaseUrl = it }
             update.tmdbImageBaseUrl?.let { prefs.tmdbImageBaseUrl = it }
             update.omdbBaseUrl?.let { prefs.omdbBaseUrl = it }
+            update.openSubtitlesBaseUrl?.let { prefs.openSubtitlesBaseUrl = it }
+        }
+        update.subtitleLanguages?.let { typed ->
+            val langs = OpenSubtitles.languages(typed)
+            if (typed.isNotBlank() && langs.isEmpty()) throw HttpError(400, "Type language codes, like en, hi")
+            prefs.subtitleLanguages = langs.joinToString(", ").ifEmpty { "en" }
+        }
+        update.openSubtitlesKey?.trim()?.let { key ->
+            if (key.isNotEmpty()) {
+                try {
+                    subtitles.checkKey(key)
+                } catch (e: IOException) {
+                    throw HttpError(if (e is SubtitlesStopped) 400 else 502, e.message ?: "Couldn't reach OpenSubtitles")
+                }
+            }
+            prefs.openSubtitlesKey = key
+            // A new key may come with its own daily limit.
+            if (key.isNotEmpty()) prefs.subtitlesPausedUntil = 0
+            subtitleError = null
         }
         update.tmdbKey?.trim()?.let { key ->
             if (key.isNotEmpty()) lookup { metadata.checkTmdbKey(key) }
@@ -915,7 +950,108 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
             if (it) autoOptimize()
         }
         requestMetadata(force = true)
+        requestSubtitles()
         return settings()
+    }
+
+    // ---- Subtitles from OpenSubtitles ----
+
+    private val subtitleWorker = Executors.newSingleThreadExecutor()
+    private val subtitleQueue = LinkedHashSet<String>()
+
+    @Volatile var subtitleError: String? = null
+        private set
+
+    /**
+     * Queues every film and episode with no subtitles at all, that isn't private or a home video, and wasn't tried
+     * in the last week, to be looked for in the background.
+     */
+    fun requestSubtitles() {
+        if (!subtitles.configured || subtitles.pausedUntil > 0) return
+        val now = System.currentTimeMillis()
+        val ids = catalog.all().filter {
+            it.allSubtitles().isEmpty() && !it.offline && PrivateRules.mayLookUp(it.private) &&
+                !Matching.isHomeVideo(it.fileName, it.folderName) && now - it.subtitlesTriedAt > WEEK
+        }.map { it.id }
+        synchronized(subtitleQueue) {
+            val idle = subtitleQueue.isEmpty()
+            subtitleQueue.addAll(ids)
+            if (idle && subtitleQueue.isNotEmpty()) subtitleWorker.execute { drainSubtitles() }
+        }
+    }
+
+    fun subtitleQueueSize(): Int = synchronized(subtitleQueue) { subtitleQueue.size }
+
+    private fun drainSubtitles() {
+        while (true) {
+            val id = synchronized(subtitleQueue) { subtitleQueue.firstOrNull()?.also { subtitleQueue.remove(it) } } ?: return
+            try {
+                findSubtitlesFor(id)
+                subtitleError = null
+            } catch (e: SubtitlesStopped) {
+                subtitleError = e.message
+                events.error("Subtitles: ${e.message}")
+                synchronized(subtitleQueue) { subtitleQueue.clear() }
+                return
+            } catch (e: IOException) {
+                Log.w(TAG, "Subtitles for $id", e)
+                subtitleError = e.message
+            }
+        }
+    }
+
+    /** Looks for the subtitle languages this video lacks, saves what's found, and notes that it was tried. */
+    private fun findSubtitlesFor(id: String): Entry? {
+        val e = catalog.get(id) ?: return null
+        if (e.private) throw HttpError(400, "Private videos are never looked up online")
+        val m = e.toMovie(e.showId?.let { catalog.show(it) })
+        val query = if (e.isEpisode) {
+            SubtitleQuery(null, m.showTitle ?: m.title, null, m.season, m.episode)
+        } else {
+            SubtitleQuery(m.imdbId, m.title, m.year)
+        }
+        val have = e.allSubtitles().mapNotNull { it.language?.lowercase() }.toSet()
+        val tree = treeOf(e) ?: requireTree()
+        val found = try {
+            subtitles.find(e.id, Saf.docUri(tree, e.docId), e.size, query, have)
+        } catch (ex: SubtitlesStopped) {
+            throw ex // not asked at all: it's tried again once OpenSubtitles answers
+        } catch (ex: IOException) {
+            catalog.update(id) { it.copy(subtitlesTriedAt = System.currentTimeMillis()) }
+            throw ex
+        }
+        catalog.update(id) { it.copy(subtitlesTriedAt = System.currentTimeMillis()) }
+        if (found.isEmpty()) return catalog.get(id)
+        return catalog.update(id) { cur ->
+            val kept = cur.fetchedSubtitles.filter { old -> found.none { it.language == old.language } }
+            cur.copy(fetchedSubtitles = kept + found)
+        }
+    }
+
+    /** Find subtitles now, from the admin page: for the languages this video lacks, even if it was tried lately. */
+    fun findSubtitles(id: String): Movie {
+        if (!subtitles.configured) throw HttpError(409, "Add an OpenSubtitles key in Settings → Movie info first")
+        val current = entry(id)
+        val have = current.allSubtitles().mapNotNull { it.language?.lowercase() }.toSet()
+        if (subtitles.languages.all { it in have }) throw HttpError(409, "It already has subtitles in ${subtitles.languages.joinToString(", ")}")
+        val before = current.fetchedSubtitles.size
+        val e = try {
+            findSubtitlesFor(id) ?: throw HttpError(404, "No such movie")
+        } catch (ex: SubtitlesStopped) {
+            throw HttpError(409, ex.message ?: "OpenSubtitles won't answer now")
+        } catch (ex: IOException) {
+            throw HttpError(502, ex.message ?: "Couldn't reach OpenSubtitles")
+        }
+        if (e.fetchedSubtitles.size == before) throw HttpError(404, "OpenSubtitles has nothing new in ${subtitles.languages.joinToString(", ")} for this video")
+        return e.toMovie(e.showId?.let { catalog.show(it) })
+    }
+
+    /** Deletes the subtitles found on OpenSubtitles for this video. They aren't looked for again for a week. */
+    fun removeFetchedSubtitles(id: String): Movie {
+        val e = entry(id)
+        e.fetchedSubtitles.forEach { subtitles.file(it).delete() }
+        val updated = catalog.update(id) { it.copy(fetchedSubtitles = emptyList(), subtitlesTriedAt = System.currentTimeMillis()) }!!
+        return updated.toMovie(updated.showId?.let { catalog.show(it) })
     }
 
     /** Runs a lookup for the admin page, turning lookup failures into errors the page can show. */
@@ -949,6 +1085,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         tmdbFile(id, true).delete()
         tmdbFile(id, false).delete()
         stillFile(id).delete()
+        e.fetchedSubtitles.forEach { subtitles.file(it).delete() }
         optimizer.cancel(id)
         optimizer.file(id).delete()
         catalog.remove(id)
@@ -990,6 +1127,8 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
             metadataQueue = lookupQueueSize(),
             metadataError = metadataError,
             optimizeQueue = optimizer.queued(),
+            subtitleQueue = subtitleQueueSize(),
+            subtitleError = subtitleError ?: subtitles.pausedUntil.takeIf { it > 0 }?.let { subtitles.pausedMessage() },
         )
     }
 
@@ -1008,6 +1147,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
     private companion object {
         const val TAG = "HomeReel"
         const val DAY = 24 * 60 * 60 * 1000L
+        const val WEEK = 7 * DAY
         const val MAX_SUBTITLE_BYTES = 8 * 1024 * 1024
         const val OFFLINE = "Couldn't reach TMDB, even after trying twice. Check the phone's internet connection and try again."
     }
