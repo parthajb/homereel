@@ -6,6 +6,24 @@ import kotlinx.serialization.json.Json
 /** Constants both apps agree on. Bump [VERSION] only for a change an older TV app can't read. */
 object Api {
     const val VERSION = 1
+
+    /**
+     * The oldest API this build still works with. Raise it only when dropping support for older apps; each side
+     * then tells the person which app to update, instead of failing.
+     */
+    const val OLDEST = 1
+
+    /** The TV app sends its [VERSION] in this header, so the phone can say plainly when it's too old. */
+    const val VERSION_HEADER = "X-HomeReel-Api"
+
+    enum class Outdated { THIS_APP, OTHER_APP }
+
+    /** Null when this build and one at [theirs] (working back to [theirsOldest]) understand each other. */
+    fun outdated(theirs: Int, theirsOldest: Int): Outdated? = when {
+        VERSION < theirsOldest -> Outdated.THIS_APP
+        theirs < OLDEST -> Outdated.OTHER_APP
+        else -> null
+    }
     const val PREFIX = "/api/v1"
     const val SERVICE_TYPE = "_homereel._tcp"
     const val DEFAULT_PORT = 8080
@@ -242,6 +260,8 @@ data class ServerInfo(
     val name: String,
     val version: String,
     val api: Int = Api.VERSION,
+    /** The oldest TV app API the phone still serves; 1 from phones before it was sent. */
+    val oldestApi: Int = 1,
     val movieCount: Int,
     val scanning: Boolean,
     /** Set while the Private folder is unlocked: when it locks again. */
@@ -364,6 +384,18 @@ data class AdminStatus(
     val subtitleQueue: Int = 0,
     val subtitleError: String? = null,
 )
+
+/** The backup file's format. Bump [VERSION] when a backup can't be read by an older phone app. */
+object Backups {
+    const val VERSION = 1
+
+    /** Why a backup in format [version] can't be restored here, or null when it can. */
+    fun refuse(version: Int): String? = when {
+        version > VERSION -> "That backup comes from a newer HomeReel. Update the phone app, then restore it."
+        version < 1 -> "That isn't a HomeReel backup"
+        else -> null
+    }
+}
 
 @Serializable
 data class ErrorBody(val error: String)

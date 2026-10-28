@@ -12,6 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
+import com.parthajb.homereel.shared.Api
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.AppUpdate
 import com.parthajb.homereel.shared.Collections
@@ -119,6 +120,14 @@ class MainActivity : FragmentActivity(), CardHost {
         val api = store.api()
         worker.execute {
             try {
+                // First, whether this TV app and the phone still understand each other.
+                runCatching { api.info() }.getOrNull()?.let { info ->
+                    when (Api.outdated(info.api, info.oldestApi)) {
+                        Api.Outdated.THIS_APP -> throw Outdated(getString(R.string.outdated_tv_app, info.version))
+                        Api.Outdated.OTHER_APP -> throw Outdated(getString(R.string.outdated_phone_app, info.version))
+                        null -> Unit
+                    }
+                }
                 val list = api.movies()
                 val showList = api.shows()
                 val listKeys = runCatching { api.myList() }.getOrDefault(emptyList())
@@ -153,6 +162,11 @@ class MainActivity : FragmentActivity(), CardHost {
                     Toast.makeText(this, R.string.pair_again, Toast.LENGTH_LONG).show()
                     startActivity(Intent(this, ConnectActivity::class.java))
                     finish()
+                }
+            } catch (e: Outdated) {
+                main.post {
+                    loading = false
+                    if (!isDestroyed) showOffline(e.message)
                 }
             } catch (e: IOException) {
                 main.post {
@@ -688,6 +702,9 @@ class MainActivity : FragmentActivity(), CardHost {
         worker.shutdown()
         super.onDestroy()
     }
+
+    /** This TV app and the phone's are too far apart in version: the message says which to update. */
+    private class Outdated(message: String) : Exception(message)
 
     companion object {
         private const val ACTION_REFRESH = 1

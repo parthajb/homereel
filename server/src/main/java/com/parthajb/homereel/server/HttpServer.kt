@@ -119,6 +119,14 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
         if (p == listOf("pair") && method == Method.POST) return pair(s)
 
         val role = authenticate(s) ?: throw HttpError(401, "Pair with the code shown in the HomeReel app on the phone")
+        // A TV app (it signs in with a token, not a cookie) too old for this phone is told so plainly; /info still
+        // answers, so a newer TV app can see what the phone is. TV apps before 0.7 send no version: they count as 1.
+        if (s.headers.containsKey("authorization") && p != listOf("info")) {
+            val tvApi = s.headers[Api.VERSION_HEADER.lowercase()]?.toIntOrNull() ?: 1
+            if (Api.outdated(tvApi, 1) == Api.Outdated.OTHER_APP) {
+                throw HttpError(426, "Update the HomeReel TV app: this phone runs HomeReel ${BuildConfig.VERSION_NAME}, which needs a newer one.")
+            }
+        }
         fun requireAdmin() {
             if (role != Api.ROLE_ADMIN) throw HttpError(403, "Only a browser paired as admin can do that")
         }
@@ -141,7 +149,7 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
             p == listOf("info") && method == Method.GET -> json(
                 200, ServerInfo.serializer(),
                 ServerInfo(
-                    app.prefs.serverName, BuildConfig.VERSION_NAME, Api.VERSION, library.count(), library.scanning,
+                    app.prefs.serverName, BuildConfig.VERSION_NAME, Api.VERSION, Api.OLDEST, library.count(), library.scanning,
                     library.privateState().until,
                 ),
             )

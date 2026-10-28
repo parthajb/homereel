@@ -451,3 +451,25 @@ class HomeVideoTitleTest {
         assertNull("other files keep their own title", HomeVideos.title("Beach day.mp4", at, utc))
     }
 }
+
+class VersionsTest {
+    @Test fun appsAtTheSameVersionAgree() = assertNull(Api.outdated(Api.VERSION, Api.OLDEST))
+
+    @Test fun saysWhichAppToUpdate() {
+        assertEquals("the other side needs an API this build no longer has", Api.Outdated.THIS_APP, Api.outdated(Api.VERSION + 5, Api.VERSION + 1))
+        assertEquals(Api.Outdated.OTHER_APP, Api.outdated(Api.OLDEST - 1, 1))
+    }
+
+    @Test fun backups() {
+        assertNull(Backups.refuse(Backups.VERSION))
+        assertNull("every older format", (1..Backups.VERSION).firstNotNullOfOrNull { Backups.refuse(it) })
+        assertEquals("That backup comes from a newer HomeReel. Update the phone app, then restore it.", Backups.refuse(Backups.VERSION + 1))
+    }
+
+    @Test fun anOlderPhonesInfoStillReads() {
+        val old = """{"name":"HomeReel on Redmi","version":"0.6.2","api":1,"movieCount":3,"scanning":false}"""
+        val info = ApiJson.decodeFromString(ServerInfo.serializer(), old)
+        assertEquals(1, info.oldestApi)
+        assertNull(Api.outdated(info.api, info.oldestApi))
+    }
+}

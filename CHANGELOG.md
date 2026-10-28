@@ -41,6 +41,8 @@ update without a cable won't offer the new build.
   its date until renamed, and they stay out of the film rows.
 - **Watching away from home:** a guide to Tailscale (docs/away-from-home.md), and the TV app now connects to a phone
   at a Tailscale address (100.64.0.0/10), for a TV stick away from home. It still refuses the internet.
+- **Version checks:** the TV app and the phone check each other's API version and say plainly which to update when
+  they're too far apart, rather than failing; a backup from a newer HomeReel is refused with the same advice.
 
 ## 0.6.2 (2026-10-26)
 

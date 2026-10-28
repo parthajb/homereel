@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import android.util.Log
 import com.parthajb.homereel.shared.AdminStatus
+import com.parthajb.homereel.shared.Backups
 import com.parthajb.homereel.shared.Bitrate
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.Genres
@@ -672,7 +673,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         val (entries, shows) = catalog.snapshot()
         return ApiJson.encodeToString(
             BackupFile.serializer(),
-            BackupFile(1, System.currentTimeMillis(), prefs.serverName, entries, shows, profiles.exportJson(), prefs.autoMatch, prefs.autoOptimize),
+            BackupFile(Backups.VERSION, System.currentTimeMillis(), prefs.serverName, entries, shows, profiles.exportJson(), prefs.autoMatch, prefs.autoOptimize),
         )
     }
 
@@ -686,6 +687,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         } catch (e: Exception) {
             throw HttpError(400, "That isn't a HomeReel backup")
         }
+        Backups.refuse(b.version)?.let { throw HttpError(400, it) }
         val current = catalog.all()
         val byName = current.groupBy { it.fileName to it.size }
         var films = 0

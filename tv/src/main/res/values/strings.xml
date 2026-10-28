@@ -97,6 +97,8 @@
     <string name="nav_genres">Genres</string>
     <string name="nav_my_list">My List</string>
     <string name="nav_home_videos">Home videos</string>
+    <string name="outdated_tv_app">This TV app is too old for the phone, which runs HomeReel %1$s. Update it: on the admin page, Settings → App updates → Upload TV app.</string>
+    <string name="outdated_phone_app">The phone runs HomeReel %1$s, too old for this TV app. Update the phone app first.</string>
     <string name="row_clip_day">%1$s · %2$d clips</string>
     <string name="row_clip_day_one">%1$s · 1 clip</string>
     <string name="row_same_day">The same day</string>
