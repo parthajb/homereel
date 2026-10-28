@@ -12,6 +12,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.RecyclerView
 import com.parthajb.homereel.shared.Bitrate
 import com.parthajb.homereel.shared.Collections
+import com.parthajb.homereel.shared.HomeVideos
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.Playability
 import java.util.Locale
@@ -132,12 +133,20 @@ class DetailsActivity : FragmentActivity(), CardHost {
         watched.text = getString(if (m.watched) R.string.mark_unwatched else R.string.mark_watched)
         showMyList(myList, m.inMyList)
 
-        // The rest of its film series first, in order; More like this leaves them out.
-        val series = Collections.sameAs(m, all)
-        moreAdapter.submit(listOfNotNull(
-            series.takeIf { it.isNotEmpty() }?.let { HomeRow(m.collection!!, it.map(::MovieItem)) },
-            similar(m, all.filter { it !in series })?.let { HomeRow(getString(R.string.row_more_like_this), it) },
-        ))
+        if (m.homeVideo) {
+            // A clip's page shows the other clips from that day, not films.
+            val day = HomeVideos.byDay(all.filter { it.homeVideo }).firstOrNull { (_, clips) -> clips.any { it.id == m.id } }?.second.orEmpty()
+            val others = day.filter { it.id != m.id }.map { MovieItem(it, landscape = true) }
+            moreAdapter.submit(listOfNotNull(others.takeIf { it.isNotEmpty() }?.let { HomeRow(getString(R.string.row_same_day), it) }))
+        } else {
+            // The rest of its film series first, in order; More like this leaves them out, and home videos.
+            val films = all.filter { !it.homeVideo }
+            val series = Collections.sameAs(m, films)
+            moreAdapter.submit(listOfNotNull(
+                series.takeIf { it.isNotEmpty() }?.let { HomeRow(m.collection!!, it.map(::MovieItem)) },
+                similar(m, films.filter { it !in series })?.let { HomeRow(getString(R.string.row_more_like_this), it) },
+            ))
+        }
         if (first) primary.requestFocus()
     }
 

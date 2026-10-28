@@ -5,10 +5,12 @@ import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.AudioTrack
 import com.parthajb.homereel.shared.Bitrate
 import com.parthajb.homereel.shared.Certifications
+import com.parthajb.homereel.shared.HomeVideos
 import com.parthajb.homereel.shared.KidsSetting
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.Markers
 import com.parthajb.homereel.shared.MatchState
+import com.parthajb.homereel.shared.Matching
 import com.parthajb.homereel.shared.MediaFiles
 import com.parthajb.homereel.shared.OpenSubtitles
 import com.parthajb.homereel.shared.Movie
@@ -104,7 +106,10 @@ data class Entry(
     val folderName: String? get() = parentDocId.substringAfter(':', "").trimEnd('/').substringAfterLast('/').ifEmpty { null }
 
     /** As [viewer] sees it: their progress and My List. Null is the first profile, for the admin page. */
-    /** The files beside the video, then those found on OpenSubtitles. */
+    /** A camera or phone clip, one in a Home videos folder, or a film marked Don't look up; never a private one. */
+    fun isHomeVideo(): Boolean = !private && !isEpisode && (Matching.isHomeVideo(fileName, folderName) || match == MatchState.SKIPPED)
+
+        /** The files beside the video, then those found on OpenSubtitles. */
     fun allSubtitles(): List<Subtitle> = subtitles + fetchedSubtitles.mapIndexed { i, f ->
         Subtitle(subtitles.size + i, OpenSubtitles.label(f.language), f.language, "application/x-subrip")
     }
@@ -117,7 +122,7 @@ data class Entry(
 
     private fun toFilm(p: Progress, viewer: Viewer?) = Movie(
         id = id,
-        title = titleOverride ?: tmdb?.title ?: parsedTitle,
+        title = titleOverride ?: tmdb?.title ?: HomeVideos.title(fileName, HomeVideos.recordedAt(fileName, modified)).takeIf { isHomeVideo() } ?: parsedTitle,
         year = if (yearOverridden) yearOverride else tmdb?.year ?: parsedYear,
         fileName = fileName,
         container = MediaFiles.extension(fileName),
@@ -161,6 +166,8 @@ data class Entry(
             "poster".takeIf { customPoster },
         ),
         private = private,
+        homeVideo = isHomeVideo(),
+        recordedAt = if (isHomeVideo()) HomeVideos.recordedAt(fileName, modified) else null,
         inMyList = viewer?.myList?.contains("m:$id") == true,
         kids = kids,
         kidsOk = kidsOk,

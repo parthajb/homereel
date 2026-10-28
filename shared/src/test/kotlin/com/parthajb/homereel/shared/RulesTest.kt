@@ -418,3 +418,36 @@ class VoiceSearchTest {
 
     @Test fun theCloserTitleWins() = assertEquals("m:4", VoiceSearch.toPlay("night train", movies, shows)?.key)
 }
+
+class HomeVideosTest {
+    private val utc = java.time.ZoneId.of("UTC")
+    private fun at(text: String) = java.time.LocalDateTime.parse(text).atZone(utc).toInstant().toEpochMilli()
+
+    @Test fun theDateInTheName() {
+        assertEquals(at("2026-10-12T10:15:30"), HomeVideos.recordedAt("VID_20261012_101530.mp4", 0, utc))
+        assertEquals(at("2026-10-12T10:15:30"), HomeVideos.recordedAt("PXL_20261012_101530123.mp4", 0, utc))
+        assertEquals(at("2025-01-31T00:00"), HomeVideos.recordedAt("Beach 2025-01-31.mov", 0, utc))
+    }
+
+    @Test fun elseWhenTheFileChanged() {
+        assertEquals(42L, HomeVideos.recordedAt("DJI_0001.MP4", 42, utc))
+        assertEquals("not a real date", 42L, HomeVideos.recordedAt("VID_20261399_000000.mp4", 42, utc))
+    }
+
+    @Test fun groupedByDayNewestFirst() {
+        fun clip(id: String, time: String) = Movie(id, id, fileName = "$id.mp4", recordedAt = at(time), homeVideo = true)
+        val days = HomeVideos.byDay(listOf(clip("a", "2026-10-11T09:00"), clip("c", "2026-10-12T18:00"), clip("b", "2026-10-12T08:00")), utc)
+        assertEquals(listOf("2026-10-12", "2026-10-11"), days.map { it.first.toString() })
+        assertEquals(listOf("b", "c"), days.first().second.map { it.id })
+    }
+}
+
+class HomeVideoTitleTest {
+    private val utc = java.time.ZoneId.of("UTC")
+
+    @Test fun aCameraClipReadsLikeItsDate() {
+        val at = HomeVideos.recordedAt("VID_20261012_101530.mp4", 0, utc)
+        assertEquals("Video, 12 October 2026 at 10:15", HomeVideos.title("VID_20261012_101530.mp4", at, utc))
+        assertNull("other files keep their own title", HomeVideos.title("Beach day.mp4", at, utc))
+    }
+}

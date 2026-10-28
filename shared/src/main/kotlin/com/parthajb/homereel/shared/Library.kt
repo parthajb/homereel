@@ -196,6 +196,38 @@ object Matching {
         CAMERA_NAME.containsMatchIn(fileName) || folderName?.contains("home video", ignoreCase = true) == true
 }
 
+/** Home videos: their own section, newest day first, with each clip's date from its name when it has one. */
+object HomeVideos {
+    // 20261012 or 2026-10-12, with the time after it when there is one (VID_20261012_101530, PXL_20261012_101530123).
+    private val STAMP = Regex("(?<!\\d)(20\\d{2})-?([01]\\d)-?([0-3]\\d)(?:[_ T-]?([0-2]\\d)[.-]?([0-5]\\d)[.-]?([0-5]\\d))?")
+
+    /** When the clip was recorded: the date and time in its name, else when the file last changed. */
+    fun recordedAt(fileName: String, modified: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Long {
+        val m = STAMP.find(fileName) ?: return modified
+        val (y, mo, d, h, mi, s) = m.destructured
+        return runCatching {
+            java.time.LocalDateTime.of(y.toInt(), mo.toInt(), d.toInt(), h.ifEmpty { "0" }.toInt(), mi.ifEmpty { "0" }.toInt(), s.ifEmpty { "0" }.toInt())
+                .atZone(zone).toInstant().toEpochMilli()
+        }.getOrDefault(modified)
+    }
+
+    /**
+     * A camera or phone clip's name reads like its date ("Video, 12 October 2026 at 10:15") rather than its file name;
+     * null for any other video, which keeps its own title.
+     */
+    fun title(fileName: String, recordedAt: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String? {
+        if (!Matching.isHomeVideo(fileName, null)) return null
+        val at = java.time.Instant.ofEpochMilli(recordedAt).atZone(zone)
+        return "Video, " + at.format(java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy 'at' HH:mm", java.util.Locale.ENGLISH))
+    }
+
+    /** Clips grouped by the day they were recorded, the newest day first, each day in the order it happened. */
+    fun byDay(clips: List<Movie>, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Pair<java.time.LocalDate, List<Movie>>> =
+        clips.groupBy { java.time.Instant.ofEpochMilli(it.recordedAt ?: it.addedAt).atZone(zone).toLocalDate() }
+            .map { (day, list) -> day to list.sortedBy { it.recordedAt ?: it.addedAt } }
+            .sortedByDescending { it.first }
+}
+
 /** Reads "Show S01E02", "Show 1x02" and "Show/Season 1/02 - Title" style names. */
 object EpisodeParser {
     data class Episode(val show: String, val showYear: Int?, val season: Int, val episode: Int, val title: String?)
