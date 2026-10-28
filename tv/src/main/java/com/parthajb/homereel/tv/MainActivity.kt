@@ -128,6 +128,7 @@ class MainActivity : FragmentActivity(), CardHost {
                     if (isDestroyed) return@post
                     movies = list
                     shows = showList
+                    worker.execute { runCatching { LibraryCache.save(this, list, showList) } }
                     myList = listKeys
                     privateUntil = until
                     update = newer

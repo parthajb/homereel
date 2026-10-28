@@ -321,6 +321,43 @@ object Search {
     }
 }
 
+/**
+ * The TV's own search and voice search ("Play Dangal on HomeReel"): titles matching what was said, best first, from
+ * the library the TV last loaded. Films and shows score as HomeReel's own search does.
+ */
+object VoiceSearch {
+    /** A film or a show that matched, with its score. */
+    data class Hit(val key: String, val title: String, val year: Int?, val score: Int, val movie: Movie? = null, val show: Show? = null)
+
+    fun matches(query: String, movies: List<Movie>, shows: List<Show>, limit: Int = 10): List<Hit> {
+        val q = query.trim().lowercase().removePrefix("play ").removeSuffix(" on homereel").trim()
+        // The exact title beats a longer one that starts the same ("Night Train" over "Night Train 2").
+        fun exact(title: String) = if (Matching.normalise(title) == Matching.normalise(q)) 2 else 0
+        val films = movies.filter { !it.private && it.kind != Kind.EPISODE }.map {
+            val score = Search.score(q, it.title, listOf(it.director, it.year?.toString(), it.collection) + it.cast + it.genres)
+            Hit("m:${it.id}", it.title, it.year, if (score > 0) score + exact(it.title) else 0, movie = it)
+        }
+        val series = shows.map {
+            val score = Search.score(q, it.title, listOf(it.creators, it.year?.toString()) + it.cast + it.genres)
+            Hit("s:${it.id}", it.title, it.year, if (score > 0) score + exact(it.title) else 0, show = it)
+        }
+        return (films + series).filter { it.score > 0 }
+            .sortedWith(compareByDescending<Hit> { it.score }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+            .take(limit)
+    }
+
+    /**
+     * What to play for "Play …": the clear winner, when its title matched (not only cast or genre) and nothing else
+     * scored as high. Otherwise null, and the TV shows the matches instead.
+     */
+    fun toPlay(query: String, movies: List<Movie>, shows: List<Show>): Hit? {
+        val hits = matches(query, movies, shows, 2)
+        val best = hits.firstOrNull() ?: return null
+        val titleMatch = Search.score(query.trim().lowercase().removePrefix("play ").removeSuffix(" on homereel"), best.title, emptyList()) > 0
+        return best.takeIf { titleMatch && (hits.size < 2 || hits[1].score < it.score) }
+    }
+}
+
 object Bitrate {
     /** Above this, a stream can outrun an old phone's Wi-Fi (a 90 Mbps drone clip stuttered; 30 Mbps played fine). */
     const val HEAVY_MBPS = 60.0

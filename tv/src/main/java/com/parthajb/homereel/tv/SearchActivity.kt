@@ -1,6 +1,7 @@
 package com.parthajb.homereel.tv
 
 import android.content.Intent
+import android.app.SearchManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -44,6 +45,8 @@ class SearchActivity : FragmentActivity(), CardHost {
         results.layoutManager = StartAlignLayoutManager(this, RecyclerView.VERTICAL)
         results.itemAnimator = null
         results.adapter = adapter
+        // From the TV's own search, or a "Play …" that wasn't clear: start with what was asked.
+        intent.getStringExtra(SearchManager.QUERY)?.let { box.setText(it); box.setSelection(it.length) }
 
         box.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit

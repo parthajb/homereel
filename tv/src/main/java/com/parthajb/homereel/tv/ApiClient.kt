@@ -219,7 +219,7 @@ class ApiClient(val host: String, val port: Int, private val token: String?, pri
 }
 
 /** The paired phone: its address, name and token. */
-class ServerStore(context: Context) {
+class ServerStore(private val context: Context) {
     private val sp = context.getSharedPreferences("server", Context.MODE_PRIVATE)
 
     val host: String? get() = sp.getString("host", null)
@@ -251,6 +251,8 @@ class ServerStore(context: Context) {
 
     fun forget() {
         sp.edit().clear().apply()
+        // The copy of the library kept for the TV's own search goes with the pairing.
+        LibraryCache.clear(context)
     }
 }
 

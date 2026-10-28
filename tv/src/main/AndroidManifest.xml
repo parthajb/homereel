@@ -40,6 +40,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="homereel" android:host="play-next" />
             </intent-filter>
+            <!-- "Hey Google, play Dangal on HomeReel". -->
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <!-- Pictures for the Play next row, read-only; the home screen can't fetch them from the phone itself. -->
@@ -63,8 +68,23 @@
 
         <activity
             android:name=".SearchActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustNothing|stateVisible" />
+            android:exported="true"
+            android:windowSoftInputMode="adjustNothing|stateVisible">
+            <!-- The TV's own search can hand a query over; the searchable file points it at TvSearchProvider. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.searchable"
+                android:resource="@xml/searchable" />
+        </activity>
+
+        <!-- Suggestions for the TV's own search, which only the system may read. -->
+        <provider
+            android:name=".TvSearchProvider"
+            android:authorities="${applicationId}.search"
+            android:exported="true"
+            android:readPermission="android.permission.GLOBAL_SEARCH" />
 
         <activity
             android:name=".ShowActivity"
