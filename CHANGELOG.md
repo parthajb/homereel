@@ -3,6 +3,11 @@
 Versions are the `versionName` of both apps, which are released together. Raise `versionCode` too, or the
 update without a cable won't offer the new build.
 
+## Unreleased
+
+- **Checks on every pull request:** GitHub runs the unit tests, lint on both apps and both release builds on each
+  pull request and on every push to `main` and `dev`.
+
 ## 0.6.2 (2026-10-26)
 
 - **Several search feeds, searched together:** torrent search keeps a list of feeds instead of one indexer: Torznab
