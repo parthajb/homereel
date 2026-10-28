@@ -485,7 +485,6 @@ The TV app sends its API version in an `X-HomeReel-Api` header. When the phone a
 says which app to update, and the phone answers an outdated TV app with `426` and the same advice, instead of either
 failing. Backups carry a format number too; a phone refuses one from a newer HomeReel and says to update first.
 
-
 | Method and path | Role | What it does |
 |---|---|---|
 | `POST /pair` `{code, client, role}` | none | Returns `{token, role, serverName}`, and sets the browser's cookie |
