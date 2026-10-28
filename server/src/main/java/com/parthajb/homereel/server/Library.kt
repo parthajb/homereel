@@ -912,6 +912,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         openSubtitlesKeySet = !prefs.openSubtitlesKey.isNullOrBlank(),
         subtitleLanguages = subtitles.languages.joinToString(", "),
         subtitlesPausedUntil = subtitles.pausedUntil.takeIf { it > 0 },
+        stayAwakeWhileCharging = prefs.stayAwakeWhileCharging,
     )
 
     /** Saves the settings; a new TMDB key is tried first, so a typo is caught at once instead of on every lookup. */
@@ -947,6 +948,7 @@ class Library(context: Context, private val prefs: Prefs, private val locks: Act
         }
         update.omdbKey?.trim()?.let { prefs.omdbKey = it }
         update.autoMatch?.let { prefs.autoMatch = it }
+        update.stayAwakeWhileCharging?.let { prefs.stayAwakeWhileCharging = it }
         update.autoOptimize?.let {
             prefs.autoOptimize = it
             if (it) autoOptimize()

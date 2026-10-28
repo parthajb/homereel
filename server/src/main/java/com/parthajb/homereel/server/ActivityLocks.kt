@@ -7,8 +7,9 @@ import android.os.Looper
 import android.os.PowerManager
 
 /**
- * Keeps the CPU and Wi-Fi awake only while a stream or an upload is open, and for a minute after, because a
- * player opens and closes connections as it seeks. An idle server lets the phone sleep.
+ * Keeps the CPU and Wi-Fi awake while a stream or an upload is open, and for a minute after, because a player opens
+ * and closes connections as it seeks. An idle server lets the phone sleep, unless [pinned]: while charging, with
+ * "Stay reachable while charging" on, they stay awake all the time.
  */
 class ActivityLocks(context: Context) {
     private val wake = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
@@ -25,12 +26,27 @@ class ActivityLocks(context: Context) {
     private var streams = 0
     private val release = Runnable {
         synchronized(this) {
-            if (active == 0) {
+            if (active == 0 && !pinned) {
                 if (wake.isHeld) wake.release()
                 if (wifi.isHeld) wifi.release()
             }
         }
     }
+
+    /**
+     * Awake whatever is happening. Set again every few minutes by [Reachability], which renews the CPU lock's
+     * 10-minute timeout, so a lock can't be left on if that stops.
+     */
+    var pinned: Boolean = false
+        set(value) = synchronized(this) {
+            field = value
+            if (value) {
+                if (active == 0) wake.acquire(10 * 60 * 1000L)
+                if (!wifi.isHeld) wifi.acquire()
+            } else if (active == 0) {
+                handler.post(release)
+            }
+        }
 
     /** [watching] marks a video stream, so torrent downloads know to slow down. */
     fun begin(watching: Boolean = false) = synchronized(this) {

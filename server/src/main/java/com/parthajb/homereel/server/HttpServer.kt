@@ -387,7 +387,9 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 requireAdmin()
                 val settings = when (method) {
                     Method.GET -> library.settings()
-                    Method.PUT -> library.updateSettings(readJson(s, MetadataSettingsUpdate.serializer()))
+                    Method.PUT -> library.updateSettings(readJson(s, MetadataSettingsUpdate.serializer())).also {
+                        ServerService.current?.apply() // Stay reachable while charging, at once
+                    }
                     else -> throw HttpError(405, "Method not allowed")
                 }
                 json(200, MetadataSettings.serializer(), settings)

@@ -325,6 +325,8 @@ data class MetadataSettings(
     val subtitleLanguages: String = "en",
     /** Set while OpenSubtitles' daily download limit is reached: when it lifts. */
     val subtitlesPausedUntil: Long? = null,
+    /** Keep the phone awake on the Wi-Fi whenever it's charging, so the TV always finds it. */
+    val stayAwakeWhileCharging: Boolean = true,
 )
 
 /** A null field is left as it is; an empty key clears it. */
@@ -340,6 +342,7 @@ data class MetadataSettingsUpdate(
     val openSubtitlesKey: String? = null,
     val subtitleLanguages: String? = null,
     val openSubtitlesBaseUrl: String? = null,
+    val stayAwakeWhileCharging: Boolean? = null,
 )
 
 @Serializable
