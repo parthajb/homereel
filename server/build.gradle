@@ -27,6 +27,16 @@ android {
         }
     }
 
+    // One APK per CPU type: libtorrent's native code is most of the app, and each phone needs only its own.
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a'
+            universalApk false
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

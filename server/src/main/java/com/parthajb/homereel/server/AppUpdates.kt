@@ -15,6 +15,7 @@ import com.parthajb.homereel.shared.Updates
 import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
+import java.util.zip.ZipFile
 
 /**
  * App updates without ADB: the admin page uploads a newer TV or phone APK, the phone keeps it, and each app offers
@@ -73,6 +74,10 @@ class AppUpdates(private val context: Context, private val events: EventLog) {
             }
             if (signers(apk).isEmpty() || signers(apk) != signers(ownInfo())) {
                 throw HttpError(400, "That app isn't signed with the same key as this HomeReel, so it can't update it")
+            }
+            if (target == Updates.PHONE) {
+                val abis = ZipFile(tmp).use { zip -> Updates.abisIn(zip.entries().asSequence().map { it.name }) }
+                Updates.wrongAbi(abis, Build.SUPPORTED_ABIS.toList())?.let { throw HttpError(400, it) }
             }
             if (target == Updates.PHONE && versionCode(apk) <= versionCode(ownInfo())) {
                 throw HttpError(400, "That's version ${apk.versionName}; the phone already runs ${ownInfo().versionName}")
