@@ -471,6 +471,7 @@
       </div>
       <div class="ed-pane hidden" data-etab="playback">
       <div class="play-box hidden" id="playBox"></div>
+      <div class="play-box hidden" id="subBox"></div>
       <div class="play-box hidden" id="markerBox">
         <strong>Skip intro and credits</strong>
         <div class="muted small" style="margin:2px 0 10px">Times are the same for every episode of a season. The TV offers
@@ -522,6 +523,13 @@
     <label class="field"><span>OMDb API key (optional, for IMDb ratings)</span>
       <input type="password" id="sOmdb" placeholder="Paste your key" autocomplete="off" spellcheck="false"></label>
     <div class="muted small" style="margin:-8px 0 14px" id="sOmdbState"></div>
+    <label class="field"><span>OpenSubtitles API key (optional, to find subtitles)</span>
+      <input type="password" id="sOs" placeholder="Paste your key" autocomplete="off" spellcheck="false"></label>
+    <div class="muted small" style="margin:-8px 0 14px" id="sOsState"></div>
+    <label class="field"><span>Subtitle languages to find</span>
+      <input type="text" id="sLangs" placeholder="en, hi" autocomplete="off" spellcheck="false"></label>
+    <div class="muted small" style="margin:-8px 0 14px">Language codes, separated by commas, up to five: en English,
+      hi Hindi, ta Tamil, te Telugu, bn Bengali, es Spanish… Videos with no subtitles get them in these languages.</div>
     <label class="switch"><input type="checkbox" id="sAuto"><span>Look up new movies automatically<br>
       <span class="muted small">Only confident matches are filled in. Others wait under “Needs a match”. Camera clips
       (DJI_, VID_, PXL_…) and anything in a “Home videos” folder are never looked up.</span></span></label>
@@ -529,12 +537,15 @@
       <label class="field"><span>Test hook: TMDB base URL (debug builds only)</span><input type="text" id="sBase"></label>
       <label class="field"><span>Test hook: image base URL</span><input type="text" id="sImg"></label>
       <label class="field"><span>Test hook: OMDb base URL</span><input type="text" id="sOmdbBase"></label>
+      <label class="field"><span>Test hook: OpenSubtitles base URL</span><input type="text" id="sOsBase"></label>
     </div>
     <p class="muted small"><strong>Privacy:</strong> movie titles and years are sent to TMDB, and IMDb ids to OMDb,
-      to find their details. Nothing else leaves the phone. The keys stay on the phone; this page can only see whether
+      to find their details. With an OpenSubtitles key, each video's file hash, size, title (or IMDb id) and the
+      languages are sent to OpenSubtitles. Private videos and home videos never are. Nothing else leaves the phone. The keys stay on the phone; this page can only see whether
       they're set.</p>
     <p class="small"><a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Get a free TMDB key</a> ·
-      <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">Get a free OMDb key</a></p>
+      <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">Get a free OMDb key</a> ·
+      <a href="https://www.opensubtitles.com/consumers" target="_blank" rel="noopener">Get a free OpenSubtitles key</a></p>
 
       </section>
       <section class="set-pane hidden" data-pane="playback" aria-labelledby="pane-playback">
@@ -797,10 +808,12 @@ function applyStatus(st) {
   if (st.metadataError) html = `${esc(st.metadataError)} <button type="button" data-open-settings="info">Settings</button>`;
   else if (st.metadataQueue > 0) html = `Looking up ${st.metadataQueue} title${st.metadataQueue === 1 ? '' : 's'} on TMDB…`;
   else if (st.optimizeQueue > 0) html = `Making lighter copies of ${st.optimizeQueue} heavy file${st.optimizeQueue === 1 ? '' : 's'}…`;
+  else if (st.subtitleQueue > 0) html = `Finding subtitles for ${st.subtitleQueue} video${st.subtitleQueue === 1 ? '' : 's'} on OpenSubtitles…`;
+  else if (st.subtitleError) html = `${esc(st.subtitleError)} <button type="button" data-open-settings="info">Settings</button>`;
   else if (!st.metadataEnabled) html = 'Want posters, descriptions, cast and ratings filled in by themselves? <button type="button" data-open-settings="info">Add a free TMDB key</button>';
   note.innerHTML = html;
   note.classList.toggle('hidden', !html);
-  metaBusy = st.metadataQueue > 0 || st.optimizeQueue > 0;
+  metaBusy = st.metadataQueue > 0 || st.optimizeQueue > 0 || st.subtitleQueue > 0;
 }
 let metaBusy = false;
 document.addEventListener('click', (e) => {
@@ -1053,6 +1066,7 @@ function openEditor(id) {
   $('#infoBox').classList.toggle('hidden', !!m.private);
   if (isShow) loadEpisodes(m);
   renderPlayBox(m);
+  renderSubBox(m);
   renderMarkers(m);
   resets = new Set();
   renderLocks(m);
@@ -1061,7 +1075,7 @@ function openEditor(id) {
   $('#fileTab').textContent = isShow ? 'Episodes' : 'File';
   $('#onlineNote').classList.toggle('hidden', !m.private);
   $('#onlineDot').classList.toggle('hidden', !(m.match === 'needs-match' || (!m.private && needsDetails(m))));
-  $('#noPlayback').classList.toggle('hidden', !($('#playBox').classList.contains('hidden') && $('#markerBox').classList.contains('hidden')));
+  $('#noPlayback').classList.toggle('hidden', !['#playBox', '#subBox', '#markerBox'].every((b) => $(b).classList.contains('hidden')));
   showEditorTab(filter === 'match' || filter === 'details' ? 'online' : 'details');
   $('#scrim').classList.remove('hidden');
   $('#editor').classList.remove('hidden');
@@ -1197,6 +1211,41 @@ async function loadEpisodes(show) {
 }
 
 // ---- Playback: lighter copies and skip markers ----
+// Subtitles: the files beside the video and those found on OpenSubtitles, their timing, and Find subtitles.
+function renderSubBox(m) {
+  const box = $('#subBox');
+  if (m._type === 'show' || m.private) { box.classList.add('hidden'); return; }
+  const subs = m.subtitles || [];
+  const found = subs.filter((s) => / · OpenSubtitles$/.test(s.label));
+  const list = subs.length ? subs.map((s) => esc(s.label)).join(', ') : 'none yet';
+  const timing = m.subtitleOffsetMs ? ` Timing moved ${m.subtitleOffsetMs > 0 ? 'later' : 'earlier'} by ${(Math.abs(m.subtitleOffsetMs) / 1000).toFixed(1)} s on the TV or web app.` : '';
+  box.innerHTML = `<strong>Subtitles</strong>
+    <div class="muted small" style="margin:2px 0 10px">${list}.${timing}</div>
+    <button type="button" id="subFind">Find subtitles</button>
+    ${found.length ? '<button type="button" class="ghost danger" id="subRemove">Remove found subtitles</button>' : ''}`;
+  box.classList.remove('hidden');
+  $('#subFind').addEventListener('click', async () => {
+    const b = $('#subFind');
+    b.disabled = true;
+    b.textContent = 'Looking on OpenSubtitles…';
+    try {
+      const updated = await api('POST', `/movies/${m.id}/found-subtitles`);
+      Object.assign(m, updated);
+      toast('Found subtitles');
+      renderSubBox(m);
+    } catch (err) {
+      if (!err.quiet) toast(err.message, true);
+      b.disabled = false;
+      b.textContent = 'Find subtitles';
+    }
+  });
+  if (found.length) {
+    $('#subRemove').addEventListener('click', async () => {
+      try { Object.assign(m, await api('DELETE', `/movies/${m.id}/found-subtitles`)); toast('Removed'); renderSubBox(m); } catch (err) { if (!err.quiet) toast(err.message, true); }
+    });
+  }
+}
+
 function renderPlayBox(m) {
   const box = $('#playBox');
   if (m._type === 'show' || m.bitrateMbps == null) { box.classList.add('hidden'); return; }
@@ -1573,6 +1622,11 @@ async function openSettings(pane) {
     $('#sOmdb').value = '';
     $('#sTmdbState').textContent = st.tmdbKeySet ? 'A key is set. Leave this empty to keep it, or paste a new one.' : 'No key yet.';
     $('#sOmdbState').textContent = st.omdbKeySet ? 'A key is set. Leave this empty to keep it.' : 'No key: TMDB scores are shown instead.';
+    $('#sOs').value = '';
+    $('#sOsState').textContent = !st.openSubtitlesKeySet ? 'No key: only the subtitle files beside the videos are used.'
+      : st.subtitlesPausedUntil ? `A key is set. Today's download limit is reached; it carries on at ${new Date(st.subtitlesPausedUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`
+        : 'A key is set. Leave this empty to keep it. Videos with no subtitles get them, a few at a time.';
+    $('#sLangs').value = st.subtitleLanguages || 'en';
     $('#sAuto').checked = st.autoMatch;
     $('#sOpt').checked = st.autoOptimize;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
@@ -1608,18 +1662,21 @@ $('#sSave').addEventListener('click', async () => {
       updateSetNav();
       toast('Saved');
     } else {
-      const body = { autoMatch: $('#sAuto').checked, autoOptimize: $('#sOpt').checked };
+      const body = { autoMatch: $('#sAuto').checked, autoOptimize: $('#sOpt').checked, subtitleLanguages: $('#sLangs').value };
       if ($('#sTmdb').value.trim()) body.tmdbKey = $('#sTmdb').value.trim();
       if ($('#sOmdb').value.trim()) body.omdbKey = $('#sOmdb').value.trim();
+      if ($('#sOs').value.trim()) body.openSubtitlesKey = $('#sOs').value.trim();
       if (!$('#sTest').classList.contains('hidden')) {
         if ($('#sBase').value.trim()) body.tmdbBaseUrl = $('#sBase').value.trim();
         if ($('#sImg').value.trim()) body.tmdbImageBaseUrl = $('#sImg').value.trim();
         if ($('#sOmdbBase').value.trim()) body.omdbBaseUrl = $('#sOmdbBase').value.trim();
+        if ($('#sOsBase').value.trim()) body.openSubtitlesBaseUrl = $('#sOsBase').value.trim();
       }
-      button.textContent = body.tmdbKey ? 'Checking the key…' : 'Saving…';
+      button.textContent = body.tmdbKey || body.openSubtitlesKey ? 'Checking the key…' : 'Saving…';
       const st = await api('PUT', '/admin/settings', body);
       $('#sTmdb').value = '';
       $('#sOmdb').value = '';
+      $('#sOs').value = '';
       updateSetNav(st);
       toast(body.tmdbKey ? 'Key works. Looking up your movies…' : 'Saved');
       setTimeout(load, 800);

@@ -14,7 +14,8 @@ a streaming service.
 
 **Everything stays on your network.** There's no account, no cloud and no tracking, and nothing is copied to the
 TV. The TV app never goes online. The phone only does if you add a free TMDB key for posters and details, and then
-it sends titles and years and nothing else.
+it sends titles and years and nothing else; with an OpenSubtitles key, also each video's file hash and size, to find
+subtitles timed for it.
 
 **HomeReel plays files you already have:** your own rips, DRM-free purchases, home videos. It doesn't find or
 stream anything from elsewhere, and it can't play anything protected by DRM. It can fetch a `.torrent` or magnet
@@ -374,6 +375,20 @@ How it behaves:
 
 This product uses the TMDB API but is not endorsed or certified by TMDB.
 
+### Finding subtitles (optional)
+
+With a free [OpenSubtitles](https://www.opensubtitles.com/consumers) API key in **Settings → Movie info**, the phone
+finds subtitles for films and episodes that have none, in the languages listed there (`en, hi`, up to five).
+
+- **What's sent:** each video's OpenSubtitles hash (worked out from the start and end of the file), its size, its
+  title or IMDb id, and the languages. Private videos and home videos are never looked up.
+- **Where they go:** into the phone app's own storage, not the movie folder. They show on the TV and in the web app as
+  "English · OpenSubtitles", after any subtitle files beside the video. Deleting a video deletes them too.
+- **A few at a time:** the phone asks at most once a second, tries each video once a week, and stops for the day
+  when OpenSubtitles' daily download limit is reached. The admin page says when it carries on.
+- **By hand:** in a film's editor, **Playback → Find subtitles** looks for the languages it's missing straight away,
+  and **Remove found subtitles** deletes them.
+
 ## On the TV
 
 - **Home screen:**
@@ -454,6 +469,7 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `GET /movies/{id}/stream` | viewer | The file, with `Range` support (`206`, `416`) |
 | `GET /movies/{id}/poster`, `…/backdrop`, `…/subtitles/{n}` | viewer | Poster, wide backdrop, subtitle file |
 | `PUT /movies/{id}/subtitle-offset` `{offsetMs}` | viewer | Move that video's subtitle files later (or earlier, negative), up to 10 minutes |
+| `POST` / `DELETE /movies/{id}/found-subtitles` | admin | Find subtitles on OpenSubtitles now, or delete the ones found |
 | `PUT /movies/{id}/progress` `{positionMs, durationMs}` | viewer | Saves the resume point |
 | `POST /rescan` | viewer | Rescans the folder |
 | `PUT /playability` `{client, items}` | viewer | What the TV can't play |
@@ -514,6 +530,7 @@ used. The web app is served at `/` and the admin page at `/admin`.
 | `server/` | Phone app: NanoHTTPD server, Storage Access Framework scanner, uploads, NSD, the admin page and the web app (`src/main/assets/admin.html`, `watch.html`) |
 | `tv/` | TV app: AndroidX Leanback and Media3 ExoPlayer |
 | `tools/mock_tmdb.py` | A fake TMDB and OMDb with made-up data, for testing online movie info without keys |
+| `tools/mock_opensubtitles.py` | A fake OpenSubtitles, for testing Find subtitles without a key |
 
 ## Contributing
 

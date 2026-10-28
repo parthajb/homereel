@@ -331,6 +331,14 @@ class HttpServer(private val app: ServerApp, port: Int) : NanoHTTPD(port) {
                 val (input, mime) = library.subtitle(p[1], index)
                 newChunkedResponse(Response.Status.OK, "$mime; charset=utf-8", input)
             }
+            p.size == 3 && p[0] == "movies" && p[2] == "found-subtitles" -> {
+                requireAdmin()
+                when (method) {
+                    Method.POST -> json(200, com.parthajb.homereel.shared.Movie.serializer(), library.findSubtitles(p[1]))
+                    Method.DELETE -> json(200, com.parthajb.homereel.shared.Movie.serializer(), library.removeFetchedSubtitles(p[1]))
+                    else -> throw HttpError(405, "Method not allowed")
+                }
+            }
             p.size == 3 && p[0] == "movies" && p[2] == "subtitle-offset" && method == Method.PUT -> json(
                 200, com.parthajb.homereel.shared.Movie.serializer(), library.setSubtitleOffset(p[1], readJson(s, SubtitleOffset.serializer()).offsetMs, viewer),
             )
