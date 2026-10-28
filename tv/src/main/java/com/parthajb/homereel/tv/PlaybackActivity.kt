@@ -47,12 +47,14 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.SubtitleView
 import androidx.media3.ui.leanback.LeanbackPlayerAdapter
 import com.parthajb.homereel.shared.Kind
 import com.parthajb.homereel.shared.ApiJson
 import com.parthajb.homereel.shared.Movie
 import com.parthajb.homereel.shared.Playability
+import com.parthajb.homereel.shared.SubtitleShift
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -217,10 +219,8 @@ class PlaybackFragment : VideoSupportFragment() {
         val root = super.onCreateView(inflater, container, savedInstanceState) as ViewGroup
         val context = requireContext()
         // Above the video surface, below the controls, which Leanback adds later.
-        subtitleView = SubtitleView(context).apply {
-            setUserDefaultStyle()
-            setUserDefaultTextSize()
-        }
+        subtitleView = SubtitleView(context)
+        applySubtitleStyle()
         root.addView(subtitleView, 1, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         osd = TextView(context).apply {
             setTextColor(Color.WHITE)
@@ -252,6 +252,96 @@ class PlaybackFragment : VideoSupportFragment() {
         p.seekTo(to)
         val arrow = if (by < 0) "«  ${-by / 1000} s" else "${by / 1000} s  »"
         showOsd("$arrow     ${Format.clock(to)} / ${Format.clock(duration)}")
+    }
+
+    /** The size and background picked in Subtitle style, or the TV's own captions settings until then. */
+    private fun applySubtitleStyle() {
+        val view = subtitleView ?: return
+        val prefs = TvPrefs(requireContext())
+        val scale = SUBTITLE_SIZES.getOrNull(prefs.subtitleSize)
+        if (scale == null) view.setUserDefaultTextSize() else view.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * scale)
+        when (prefs.subtitleBackground) {
+            0 -> view.setStyle(CaptionStyleCompat(Color.WHITE, Color.TRANSPARENT, Color.TRANSPARENT, CaptionStyleCompat.EDGE_TYPE_OUTLINE, Color.BLACK, null))
+            1 -> view.setStyle(CaptionStyleCompat(Color.WHITE, 0x99000000.toInt(), Color.TRANSPARENT, CaptionStyleCompat.EDGE_TYPE_NONE, Color.BLACK, null))
+            2 -> view.setStyle(CaptionStyleCompat(Color.WHITE, Color.BLACK, Color.TRANSPARENT, CaptionStyleCompat.EDGE_TYPE_NONE, Color.BLACK, null))
+            else -> view.setUserDefaultStyle()
+        }
+    }
+
+    /** Subtitle style: a size and a background, each with the TV's own setting first. */
+    private fun pickSubtitleStyle() {
+        val context = context ?: return
+        val prefs = TvPrefs(context)
+        AlertDialog.Builder(context)
+            .setTitle(R.string.subtitle_style)
+            .setItems(arrayOf(getString(R.string.subtitle_size), getString(R.string.subtitle_background))) { _, which ->
+                val size = which == 0
+                val names = listOf(getString(R.string.tv_setting)) +
+                    resources.getStringArray(if (size) R.array.subtitle_sizes else R.array.subtitle_backgrounds)
+                val current = (if (size) prefs.subtitleSize else prefs.subtitleBackground) + 1
+                AlertDialog.Builder(context)
+                    .setTitle(if (size) R.string.subtitle_size else R.string.subtitle_background)
+                    .setSingleChoiceItems(names.toTypedArray(), current) { dialog, choice ->
+                        if (size) prefs.subtitleSize = choice - 1 else prefs.subtitleBackground = choice - 1
+                        applySubtitleStyle()
+                        dialog.dismiss()
+                    }
+                    .show()
+            }
+            .show()
+    }
+
+    /**
+     * Subtitle timing: Left and Right move the subtitle files 0.1 s, Up and Down 1 s. Saving stores it on the phone,
+     * which serves the files shifted, and reloads the video where it was.
+     */
+    private fun adjustTiming() {
+        val context = context ?: return
+        var offset = movie.subtitleOffsetMs
+        val dialog = AlertDialog.Builder(context)
+            .setTitle(getString(R.string.timing_title, SubtitleShift.label(offset)))
+            .setMessage(R.string.timing_help)
+            .setPositiveButton(R.string.save) { _, _ -> saveTiming(offset) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnKeyListener { d, keyCode, event ->
+            val by = when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> -100L
+                KeyEvent.KEYCODE_DPAD_RIGHT -> 100L
+                KeyEvent.KEYCODE_DPAD_DOWN -> -1000L
+                KeyEvent.KEYCODE_DPAD_UP -> 1000L
+                else -> return@setOnKeyListener false
+            }
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                offset = SubtitleShift.clamp(offset + by)
+                (d as AlertDialog).setTitle(getString(R.string.timing_title, SubtitleShift.label(offset)))
+            }
+            true
+        }
+        dialog.show()
+    }
+
+    private fun saveTiming(offset: Long) {
+        if (offset == movie.subtitleOffsetMs) return
+        val api = store.api()
+        val id = movie.id
+        worker.execute {
+            val result = runCatching { api.subtitleOffset(id, offset) }
+            main.post {
+                val p = player ?: return@post
+                result.onSuccess { updated ->
+                    if (movie.id != id) return@onSuccess
+                    movie = movie.copy(subtitleOffsetMs = updated.subtitleOffsetMs)
+                    // The subtitle files come from the phone already shifted: load them again, from the same spot.
+                    val position = p.currentPosition
+                    p.setMediaItem(mediaItem(movie), position)
+                    p.prepare()
+                    showOsd(getString(R.string.timing_saved, SubtitleShift.label(movie.subtitleOffsetMs)))
+                }.onFailure {
+                    Toast.makeText(context, getString(R.string.timing_failed, it.message ?: ""), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun showOsd(text: String) {
@@ -318,7 +408,8 @@ class PlaybackFragment : VideoSupportFragment() {
     private fun mediaItem(m: Movie): MediaItem {
         val api = store.api()
         val subtitles = m.subtitles.map { s ->
-            MediaItem.SubtitleConfiguration.Builder(Uri.parse(api.url("/movies/${m.id}/subtitles/${s.index}")))
+            // The offset in the address makes a changed timing a new file to the player.
+            MediaItem.SubtitleConfiguration.Builder(Uri.parse(api.url("/movies/${m.id}/subtitles/${s.index}?o=${m.subtitleOffsetMs}")))
                 .setMimeType(s.mime)
                 .setLanguage(s.language)
                 .setLabel(s.label)
@@ -581,12 +672,21 @@ class PlaybackFragment : VideoSupportFragment() {
             val names = options.mapIndexed { n, (group, i) -> trackName(group.getTrackFormat(i), n) }
             val off = text && C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes
             val current = if (off) -1 else options.indexOfFirst { (group, i) -> group.isTrackSelected(i) }
-            val items = if (text) listOf(context.getString(R.string.off)) + names else names
+            // Subtitles end with their timing (only for files beside the video) and style.
+            val extras = if (!text) emptyList() else listOfNotNull(
+                context.getString(R.string.subtitle_timing).takeIf { movie.subtitles.isNotEmpty() },
+                context.getString(R.string.subtitle_style),
+            )
+            val items = (if (text) listOf(context.getString(R.string.off)) + names else names) + extras
             AlertDialog.Builder(context)
                 .setTitle(if (text) R.string.subtitles else R.string.audio_track)
                 .setSingleChoiceItems(items.toTypedArray(), if (text) current + 1 else current) { dialog, which ->
-                    select(type, options.getOrNull(if (text) which - 1 else which))
                     dialog.dismiss()
+                    when (items[which]) {
+                        context.getString(R.string.subtitle_timing) -> adjustTiming()
+                        context.getString(R.string.subtitle_style) -> pickSubtitleStyle()
+                        else -> select(type, options.getOrNull(if (text) which - 1 else which))
+                    }
                 }
                 .show()
         }
@@ -668,3 +768,6 @@ private const val ACTION_SPEED = 1002L
 
 /** The speeds offered, on the TV and in the web app. */
 private val SPEEDS = floatArrayOf(1f, 1.25f, 1.5f, 2f)
+
+/** Subtitle sizes against the player's default: Small, Medium, Large and Extra large. */
+private val SUBTITLE_SIZES = floatArrayOf(0.8f, 1f, 1.3f, 1.6f)

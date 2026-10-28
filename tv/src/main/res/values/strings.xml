@@ -124,6 +124,27 @@
     <string name="track_number">Track %1$d</string>
     <string name="subtitles">Subtitles</string>
     <string name="off">Off</string>
+    <string name="subtitle_timing">Subtitle timing…</string>
+    <string name="subtitle_style">Subtitle style…</string>
+    <string name="timing_title">Subtitle timing: %1$s</string>
+    <string name="timing_help">Left and Right move them 0.1 s, Up and Down 1 s: later if they come too early, earlier if they come too late. Only subtitle files beside the video move, not ones inside it.</string>
+    <string name="save">Save</string>
+    <string name="timing_saved">Subtitles %1$s</string>
+    <string name="timing_failed">Couldn\'t save the timing: %1$s</string>
+    <string name="subtitle_size">Size</string>
+    <string name="subtitle_background">Background</string>
+    <string name="tv_setting">The TV\'s own setting</string>
+    <string-array name="subtitle_sizes">
+        <item>Small</item>
+        <item>Medium</item>
+        <item>Large</item>
+        <item>Extra large</item>
+    </string-array>
+    <string-array name="subtitle_backgrounds">
+        <item>None, with an outline</item>
+        <item>See-through box</item>
+        <item>Black box</item>
+    </string-array>
     <string name="speed">Playback speed</string>
     <string name="speed_normal">Normal (1×)</string>
     <string name="speed_value">%1$s×</string>

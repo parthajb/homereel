@@ -232,6 +232,9 @@
   .pmenu button::before { content: ''; width: 18px; flex: none; text-align: center; }
   .pmenu button[aria-checked="true"] { color: #fff; font-weight: 650; }
   .pmenu button[aria-checked="true"]::before { content: '✓'; color: var(--accent); }
+  .pmenu .timing { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .pmenu .timing button { justify-content: center; padding: 7px 10px; background: rgb(255 255 255 / 8%); }
+  .pmenu .timing button::before { content: none; }
   @media (max-width: 560px) { .pmenu { left: 12px; right: 12px; flex-wrap: wrap; gap: 16px 28px; } }
   .posd { position: absolute; left: 50%; top: 20%; transform: translateX(-50%); padding: 10px 18px; border-radius: 10px;
     background: rgb(0 0 0 / 62%); font-weight: 700; font-size: 18px; white-space: nowrap; opacity: 0; transition: opacity .25s; pointer-events: none; }
@@ -948,6 +951,8 @@ async function addSubtitles(m) {
       const url = URL.createObjectURL(new Blob([text], { type: 'text/vtt' }));
       player.tracks.push(url);
       const el = h('track', { kind: 'subtitles', label: s.language ? langName(s.language) : (s.label || `Subtitles ${s.index + 1}`), srclang: s.language || 'und', src: url });
+      // A track's cues load only once it's turned on; a timing change made before then is applied when they do.
+      el.addEventListener('load', () => { if (el.pendingShift) { moveCues(el.track, el.pendingShift); el.pendingShift = 0; } });
       video.append(el);
       // Turned on by itself when it's the language this profile picked last time.
       const want = store.get(subKey());
@@ -955,6 +960,29 @@ async function addSubtitles(m) {
       syncSubsButton();
     } catch (_) { /* this subtitle is skipped */ }
   }
+}
+
+// Subtitle timing, as on the TV: the phone keeps it per video and serves the files shifted; here the cues move at once.
+const timingLabel = (ms) => (ms === 0 ? '0 s' : `${ms > 0 ? '+' : '−'}${(Math.abs(ms) / 1000).toFixed(1)} s`);
+function moveCues(track, seconds) {
+  for (const c of [...(track.cues || [])]) {
+    c.startTime = Math.max(0, c.startTime + seconds);
+    c.endTime = Math.max(0, c.endTime + seconds);
+  }
+}
+async function shiftSubs(deltaMs) {
+  const m = player.movie;
+  if (!m) return;
+  const was = m.subtitleOffsetMs || 0;
+  const next = Math.max(-600000, Math.min(600000, was + deltaMs));
+  if (next === was) return;
+  m.subtitleOffsetMs = next;
+  const seconds = (next - was) / 1000;
+  for (const el of video.querySelectorAll('track')) {
+    if (el.readyState === 2) moveCues(el.track, seconds); else el.pendingShift = (el.pendingShift || 0) + seconds;
+  }
+  osd(`Subtitles ${timingLabel(next)}`);
+  try { await api('PUT', `/movies/${m.id}/subtitle-offset`, { offsetMs: next }); } catch (err) { if (!err.quiet) osd(`Couldn't save the timing: ${err.message}`); }
 }
 
 function save(force) {
@@ -1196,6 +1224,10 @@ function renderMenu() {
       ? group('Subtitles', [['Off', !shown, () => showSubs(null)], ...tracks.map((t) => [t.label, t === shown, () => showSubs(t)])])
       : h('div', {}, h('h4', { text: 'Subtitles' }), h('p', { class: 'none', text: 'None for this video' })),
     tracks.length ? group('Subtitle size', [['Small', size === 's', () => setSubSize('s')], ['Medium', size === 'm', () => setSubSize('m')], ['Large', size === 'l', () => setSubSize('l')]]) : null,
+    tracks.length ? h('div', { role: 'group', 'aria-label': 'Subtitle timing' },
+      h('h4', { text: `Subtitle timing: ${timingLabel(player.movie.subtitleOffsetMs || 0)}` }),
+      h('div', { class: 'timing' }, ...[[-500, '−0.5 s'], [-100, '−0.1 s'], [100, '+0.1 s'], [500, '+0.5 s']].map(([ms, label]) =>
+        h('button', { 'aria-label': `${ms < 0 ? 'Earlier' : 'Later'} by ${Math.abs(ms) / 1000} s`, onclick: async () => { await shiftSubs(ms); renderMenu(); } }, label)))) : null,
   ];
   // Only Safari lets a page switch audio tracks; elsewhere the file's first track plays.
   const audio = video.audioTracks;
