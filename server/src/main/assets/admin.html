@@ -2088,7 +2088,7 @@ function renderSearch() {
   if (!page) return;
   $('#tsTitle').textContent = `Search results for “${page.query}”`;
   const left = page.skipped ? ` ${page.skipped} result${page.skipped === 1 ? '' : 's'} left out: nothing HomeReel could download.` : '';
-  const failed = page.failed.length ? ` Didn't answer: ${page.failed.join('; ')}.` : '';
+  const failed = page.failed.length ? ` Couldn't search ${page.failed.map((f) => (/[.!?]$/.test(f) ? f : f + '.')).join(' ')}` : '';
   const asked = page.feeds > 1 ? `From ${page.feeds - page.failed.length} of ${page.feeds} feeds. ` : '';
   $('#tsNote').textContent = (!page.items.length ? `${asked}Nothing found.`
     : `${asked}Most seeders first. Seeders are what the sites last saw; a torrent may still have nobody sharing it.`) + left + failed;

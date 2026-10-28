@@ -14,6 +14,10 @@ update without a cable won't offer the new build.
 - **A smaller phone app:** it's built as two copies, one for 64-bit phones (about 17 MB) and one for 32-bit phones
   (about 15 MB), instead of one 31 MB app for both. **Upload phone app…** refuses the copy for the other kind of
   phone and names the file it needs.
+- **Clearer feed errors:** a search feed that fails says why in plain words: its name didn't resolve, it points
+  nowhere (as blocked sites often do), it didn't answer, it refused the connection, its certificate didn't check out,
+  or it had a problem of its own. A site on the internet that doesn't answer may be blocked by the internet provider;
+  HomeReel says so, and doesn't work around it.
 
 ## 0.6.2 (2026-10-26)
 
