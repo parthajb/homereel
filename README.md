@@ -414,7 +414,12 @@ finds subtitles for films and episodes that have none, in the languages listed t
       subtitle files beside the video, not subtitles inside an MKV.
     - **Subtitle style…** sets the size (Small to Extra large) and the background (an outline, a see-through box
       or a black box). Until one is picked, the TV's own captions settings apply.
-  - The **speaker** button lists the audio languages of a dubbed film.
+  - The **speaker** button opens **Sound**: the audio languages of a dubbed film, then:
+    - **Night mode** (Android 9 and later) makes loud parts quieter and voices clearer, for watching late. It stays on
+      for the next film until it's turned off.
+    - **Volume boost** raises a quiet film by 3, 6 or 9 dB. It's remembered for that film, or for every episode of a
+      show.
+    - Neither can change Dolby sound that the TV sends straight to an amplifier or soundbar (passthrough).
   - The **speed** button (it shows the speed, like 1.5×) offers 1×, 1.25×, 1.5× and 2×; voices keep their pitch.
     A TV that sends Dolby sound straight to an amplifier may only play at 1×.
   - The subtitle and audio language you pick are remembered for each profile on that TV.

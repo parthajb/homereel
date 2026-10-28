@@ -27,6 +27,8 @@ update without a cable won't offer the new build.
   that have none, in the languages chosen in Settings → Movie info. It sends each file's hash, size and title, keeps
   what it finds in its own storage, and respects OpenSubtitles' daily limit. A film's editor can find them at once or
   remove them.
+- **Night mode and volume boost on the TV:** the speaker button opens Sound, with night mode (loud parts quieter,
+  voices clearer; Android 9 and later) and a volume boost of 3, 6 or 9 dB remembered per film or show.
 
 ## 0.6.2 (2026-10-26)
 

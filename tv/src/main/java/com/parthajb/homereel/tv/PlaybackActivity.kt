@@ -107,6 +107,7 @@ class PlaybackFragment : VideoSupportFragment() {
     private var player: ExoPlayer? = null
     private var glue: MovieGlue? = null
     private var subtitleView: SubtitleView? = null
+    private val sound = SoundEffects()
     private var ended = false
 
     private val tick = object : Runnable {
@@ -180,8 +181,12 @@ class PlaybackFragment : VideoSupportFragment() {
             override fun onCues(cueGroup: CueGroup) {
                 subtitleView?.setCues(cueGroup.cues)
             }
+
+            override fun onAudioSessionIdChanged(audioSessionId: Int) = sound.attach(audioSessionId)
         })
         exo.prepare()
+        applySound()
+        sound.attach(exo.audioSessionId)
 
         val adapter = LeanbackPlayerAdapter(requireContext(), exo, 500)
         glue = MovieGlue(requireContext(), adapter, exo).apply {
@@ -252,6 +257,44 @@ class PlaybackFragment : VideoSupportFragment() {
         p.seekTo(to)
         val arrow = if (by < 0) "«  ${-by / 1000} s" else "${by / 1000} s  »"
         showOsd("$arrow     ${Format.clock(to)} / ${Format.clock(duration)}")
+    }
+
+    /** A film's boost is its own; an episode's is its show's, so it carries on to the next episode. */
+    private fun boostKey(m: Movie = movie) = m.showId?.let { "s:$it" } ?: m.id
+
+    /** Night mode as last left, and this film's boost. */
+    private fun applySound() {
+        val prefs = TvPrefs(requireContext())
+        sound.setNight(prefs.nightMode && sound.nightAvailable)
+        sound.setBoost(prefs.boost(boostKey()))
+    }
+
+    private fun toggleNightMode() {
+        val context = context ?: return
+        if (!sound.nightAvailable) {
+            Toast.makeText(context, R.string.night_mode_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
+        val prefs = TvPrefs(context)
+        prefs.nightMode = !prefs.nightMode
+        sound.setNight(prefs.nightMode)
+        showOsd(getString(if (prefs.nightMode) R.string.night_mode_note else R.string.night_mode_off))
+    }
+
+    private fun pickBoost() {
+        val context = context ?: return
+        val prefs = TvPrefs(context)
+        val names = BOOSTS.map { if (it == 0) getString(R.string.off) else "+$it dB" }
+        val now = prefs.boost(boostKey())
+        AlertDialog.Builder(context)
+            .setTitle(getString(R.string.volume_boost, if (now == 0) getString(R.string.boost_off) else "+$now dB"))
+            .setSingleChoiceItems(names.toTypedArray(), BOOSTS.indexOf(prefs.boost(boostKey())).coerceAtLeast(0)) { dialog, which ->
+                prefs.setBoost(boostKey(), BOOSTS[which])
+                sound.setBoost(BOOSTS[which])
+                dialog.dismiss()
+                showOsd(getString(R.string.boost_note, if (BOOSTS[which] == 0) getString(R.string.boost_off) else names[which]))
+            }
+            .show()
     }
 
     /** The size and background picked in Subtitle style, or the TV's own captions settings until then. */
@@ -388,6 +431,7 @@ class PlaybackFragment : VideoSupportFragment() {
         skipDialog?.dismiss()
         main.removeCallbacks(tick)
         main.removeCallbacks(markerTick)
+        sound.release()
         player?.release()
         player = null
         worker.shutdown()
@@ -563,6 +607,7 @@ class PlaybackFragment : VideoSupportFragment() {
         nextDeclined = false
         val p = player ?: return
         movie = next
+        applySound()
         upcoming = upcoming.drop(1)
         ended = false
         p.setMediaItem(mediaItem(next), next.positionMs.takeIf { MainActivity.inProgress(next) } ?: 0)
@@ -607,7 +652,7 @@ class PlaybackFragment : VideoSupportFragment() {
         private val rewind = PlaybackControlsRow.RewindAction(context)
         private val forward = PlaybackControlsRow.FastForwardAction(context)
         private val captions = PlaybackControlsRow.ClosedCaptioningAction(context)
-        private val audio = Action(ACTION_AUDIO, context.getString(R.string.audio_track), null,
+        private val audio = Action(ACTION_AUDIO, context.getString(R.string.sound), null,
             ContextCompat.getDrawable(context, R.drawable.ic_audio))
         private val speed = Action(ACTION_SPEED, context.getString(R.string.speed), null, speedIcon(1f))
 
@@ -640,7 +685,7 @@ class PlaybackFragment : VideoSupportFragment() {
                 rewind -> player.seekTo((player.currentPosition - 10_000).coerceAtLeast(0))
                 forward -> player.seekTo(player.currentPosition + 30_000)
                 captions -> pickTrack(C.TRACK_TYPE_TEXT)
-                audio -> pickTrack(C.TRACK_TYPE_AUDIO)
+                audio -> pickSound()
                 speed -> pickSpeed()
                 else -> super.onActionClicked(action)
             }
@@ -686,6 +731,29 @@ class PlaybackFragment : VideoSupportFragment() {
                         context.getString(R.string.subtitle_timing) -> adjustTiming()
                         context.getString(R.string.subtitle_style) -> pickSubtitleStyle()
                         else -> select(type, options.getOrNull(if (text) which - 1 else which))
+                    }
+                }
+                .show()
+        }
+
+        /** Sound: the audio languages of a dubbed film, then night mode and the volume boost. */
+        private fun pickSound() {
+            val options = tracksOf(C.TRACK_TYPE_AUDIO).takeIf { it.size >= 2 }.orEmpty()
+            val names = options.mapIndexed { n, (group, i) -> trackName(group.getTrackFormat(i), n) }
+            val prefs = TvPrefs(context)
+            val boost = prefs.boost(boostKey())
+            val night = context.getString(if (prefs.nightMode && sound.nightAvailable) R.string.night_mode_on else R.string.night_mode_off)
+            val boostItem = context.getString(R.string.volume_boost, if (boost == 0) context.getString(R.string.boost_off) else "+$boost dB")
+            val items = names + night + boostItem
+            val current = options.indexOfFirst { (group, i) -> group.isTrackSelected(i) }
+            AlertDialog.Builder(context)
+                .setTitle(R.string.sound)
+                .setSingleChoiceItems(items.toTypedArray(), current) { dialog, which ->
+                    dialog.dismiss()
+                    when (which) {
+                        names.size -> toggleNightMode()
+                        names.size + 1 -> pickBoost()
+                        else -> select(C.TRACK_TYPE_AUDIO, options[which])
                     }
                 }
                 .show()
@@ -768,6 +836,9 @@ private const val ACTION_SPEED = 1002L
 
 /** The speeds offered, on the TV and in the web app. */
 private val SPEEDS = floatArrayOf(1f, 1.25f, 1.5f, 2f)
+
+/** Volume boost steps, in dB. */
+private val BOOSTS = listOf(0, 3, 6, 9)
 
 /** Subtitle sizes against the player's default: Small, Medium, Large and Extra large. */
 private val SUBTITLE_SIZES = floatArrayOf(0.8f, 1f, 1.3f, 1.6f)

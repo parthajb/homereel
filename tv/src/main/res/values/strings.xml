@@ -121,6 +121,14 @@
     <string name="audio_track">Audio track</string>
     <string name="no_subtitles">This movie has no subtitles</string>
     <string name="one_audio_track">This movie has one audio track</string>
+    <string name="sound">Sound</string>
+    <string name="night_mode_on">Night mode: on</string>
+    <string name="night_mode_off">Night mode: off</string>
+    <string name="night_mode_note">Night mode on: loud parts quieter, voices clearer</string>
+    <string name="night_mode_unavailable">Night mode needs Android 9 or later</string>
+    <string name="volume_boost">Volume boost: %1$s</string>
+    <string name="boost_off">off</string>
+    <string name="boost_note">Volume boost %1$s for this film</string>
     <string name="track_number">Track %1$d</string>
     <string name="subtitles">Subtitles</string>
     <string name="off">Off</string>
