@@ -4,6 +4,7 @@
     <string name="channel_name">Movie server</string>
     <string name="notification_title">Serving your movies</string>
     <string name="notification_text">Your TV can play what\'s in the movie folder.</string>
+    <string name="notification_address">At %1$s on the Wi-Fi. Your TV finds it by itself.</string>
     <string name="status_running">● Running at %1$s</string>
     <string name="status_no_wifi">● Running, but not on Wi-Fi</string>
     <string name="status_stopped">○ Stopped</string>

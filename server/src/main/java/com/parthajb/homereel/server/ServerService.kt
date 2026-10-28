@@ -26,6 +26,7 @@ class ServerService : Service() {
     private var http: HttpServer? = null
     private var registration: NsdManager.RegistrationListener? = null
     private var scheduler: ScheduledExecutorService? = null
+    private var reachability: Reachability? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -38,6 +39,10 @@ class ServerService : Service() {
             error = null
             running = true
             advertise(app.prefs.serverName, app.prefs.port)
+            reachability = Reachability(this, app.prefs, app.locks) { ip -> addressChanged(ip) }.also {
+                current = it
+                it.start()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Couldn't start the server", e)
             error = "Couldn't open port ${app.prefs.port}: ${e.message}"
@@ -51,6 +56,8 @@ class ServerService : Service() {
         scheduler = Executors.newSingleThreadScheduledExecutor().also {
             it.scheduleWithFixedDelay({ app.library.requestScan() }, 15, 15, TimeUnit.MINUTES)
             it.scheduleWithFixedDelay({ runCatching { app.health.check() } }, 1, 5, TimeUnit.MINUTES)
+            // Also renews the stay-awake locks while charging, and lets go of them once unplugged.
+            it.scheduleWithFixedDelay({ runCatching { reachability?.apply() } }, 5, 5, TimeUnit.MINUTES)
         }
     }
 
@@ -61,9 +68,47 @@ class ServerService : Service() {
         running = false
         (application as ServerApp).torrents.stop()
         scheduler?.shutdownNow()
+        reachability?.stop()
+        current = null
         registration?.let { runCatching { nsd().unregisterService(it) } }
         http?.stop()
         super.onDestroy()
+    }
+
+    /**
+     * The Wi-Fi address changed (or came back): the notification shows the new one, and after a change the server
+     * announces itself again, so TVs find it by name. Each change goes in the event log.
+     */
+    private fun addressChanged(ip: String?) {
+        val app = application as ServerApp
+        getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification(ip))
+        if (ip == null) {
+            app.events.info("Wi-Fi disconnected")
+            return
+        }
+        if (seenAddress != null) {
+            app.events.info("Wi-Fi address is now $ip")
+            registration?.let { runCatching { nsd().unregisterService(it) } }
+            registration = null
+            advertise(app.prefs.serverName, app.prefs.port)
+        }
+        seenAddress = ip
+    }
+
+    private var seenAddress: String? = null
+
+    private fun notification(ip: String?): Notification {
+        val open = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+        )
+        val port = (application as ServerApp).prefs.port
+        return Notification.Builder(this, CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(getString(R.string.notification_title))
+            .setContentText(ip?.let { getString(R.string.notification_address, "http://$it:$port") } ?: getString(R.string.notification_text))
+            .setContentIntent(open)
+            .setOngoing(true)
+            .build()
     }
 
     private fun startInForeground() {
@@ -71,16 +116,7 @@ class ServerService : Service() {
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW),
         )
-        val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
-        )
-        val notification = Notification.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text))
-            .setContentIntent(open)
-            .setOngoing(true)
-            .build()
+        val notification = notification(null)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
@@ -125,6 +161,10 @@ class ServerService : Service() {
             private set
 
         @Volatile var error: String? = null
+            private set
+
+        /** While the server runs, so a changed setting takes effect at once. */
+        @Volatile var current: Reachability? = null
             private set
 
         fun start(context: Context) {

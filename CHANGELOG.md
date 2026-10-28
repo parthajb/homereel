@@ -5,6 +5,10 @@ update without a cable won't offer the new build.
 
 ## Unreleased
 
+- **The phone stays findable with the screen off:** HomeReel Server holds a multicast lock while it runs, so TVs
+  can find it by name, and with Stay reachable while charging (on by default) keeps its CPU and Wi-Fi awake whenever
+  it's plugged in. It announces itself again when its Wi-Fi address changes, shows the address in its notification,
+  and notes the change in the event log.
 - **Checks on every pull request:** GitHub runs the unit tests, lint on both apps and both release builds on each
   pull request and on every push to `main` and `dev`.
 - **Torrent search, safer redirects:** a download link that redirects to a name with any address on the home network

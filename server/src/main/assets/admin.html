@@ -550,6 +550,9 @@
       </section>
       <section class="set-pane hidden" data-pane="playback" aria-labelledby="pane-playback">
         <h3 id="pane-playback">Playback</h3>
+    <label class="switch"><input type="checkbox" id="sAwake"><span>Stay reachable while charging<br>
+      <span class="muted small">Keeps the phone awake on the Wi-Fi whenever it's plugged in, so the TV always finds it
+      and nothing waits for a sleeping phone. On battery it sleeps between streams, as before.</span></span></label>
     <label class="switch"><input type="checkbox" id="sOpt"><span>Make lighter copies of very heavy files by themselves<br>
       <span class="muted small">Files over 60 Mbps (like 4K drone footage) can stutter over Wi-Fi. While the phone is
       charging, it makes a lighter copy of each one with its hardware encoder and the TV plays that instead. The
@@ -1629,6 +1632,7 @@ async function openSettings(pane) {
     $('#sLangs').value = st.subtitleLanguages || 'en';
     $('#sAuto').checked = st.autoMatch;
     $('#sOpt').checked = st.autoOptimize;
+    $('#sAwake').checked = st.stayAwakeWhileCharging !== false;
     $('#sTest').classList.toggle('hidden', !st.testHooks);
     fillTorrentSettings(downloads ? downloads.settings : (await api('GET', '/admin/torrents')).settings);
     await loadFeeds();
@@ -1662,7 +1666,7 @@ $('#sSave').addEventListener('click', async () => {
       updateSetNav();
       toast('Saved');
     } else {
-      const body = { autoMatch: $('#sAuto').checked, autoOptimize: $('#sOpt').checked, subtitleLanguages: $('#sLangs').value };
+      const body = { autoMatch: $('#sAuto').checked, autoOptimize: $('#sOpt').checked, stayAwakeWhileCharging: $('#sAwake').checked, subtitleLanguages: $('#sLangs').value };
       if ($('#sTmdb').value.trim()) body.tmdbKey = $('#sTmdb').value.trim();
       if ($('#sOmdb').value.trim()) body.omdbKey = $('#sOmdb').value.trim();
       if ($('#sOs').value.trim()) body.openSubtitlesKey = $('#sOs').value.trim();

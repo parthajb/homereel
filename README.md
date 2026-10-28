@@ -303,6 +303,11 @@ Anything without a season and episode is a film.
   - Warnings cover a battery at 42°C or more, the phone not charging, no Wi-Fi, a folder that isn't there, less
     than 2 GB free, and a failed scan.
   - The phone checks itself every five minutes and writes a hot battery into the event log once an hour.
+- **Staying reachable:** with the screen off, Android stops passing on the messages TVs use to find the phone by
+  name, unless an app asks it to; HomeReel Server does, all the time it's running. With **Settings → Playback → Stay
+  reachable while charging** (on by default), the phone also keeps its CPU and Wi-Fi awake whenever it's plugged in,
+  not only during a stream. When the phone's Wi-Fi address changes, it announces itself again, the notification
+  shows the new address, and the event log says so.
 - **Event log:** the last 200 starts, stops, scans, failed lookups, failed copies and crashes, newest first on the
   Health panel. A crash is written down before the server dies; Android then restarts the server by itself.
 - **More folders, such as a USB drive:** on the phone, tap **Add another folder (e.g. a USB drive)** and pick a
@@ -540,6 +545,7 @@ failing. Backups carry a format number too; a phone refuses one from a newer Hom
 |---|---|
 | The TV doesn't list the phone | Open HomeReel Server on the phone and check it says Running. Type the address it shows on the TV instead. |
 | "Can't reach the phone" | The phone may be off Wi-Fi or asleep with battery optimisation on. Allow **Keep running in the background**. |
+| The TV can't find the phone now and then, until the phone is woken | Update HomeReel Server (0.7 keeps the phone findable with the screen off), keep it charging with **Stay reachable while charging** on, and set the phone's battery use to **Unrestricted**. In the router, reserve the phone's address (DHCP reservation) and turn off client or AP isolation; on a mesh network, allow mDNS between nodes. In the phone's Wi-Fi settings, keep its MAC address fixed for your network. If the HomeReel notification is still there when it happens, Android didn't stop the app: it's the network. |
 | A movie shows ⚠ | The TV has no decoder for that video or audio. DTS and TrueHD audio are common culprits. Convert it, for example `ffmpeg -i in.mkv -map 0 -c:v copy -c:a aac -b:a 384k -c:s copy out.mkv` for the audio. A soundbar or receiver over HDMI ARC may decode it instead. |
 | Stutters in 4K | Wi-Fi bandwidth. Move the phone closer to the router or onto 5 GHz, or use a smaller copy. |
 | No poster | The phone couldn't decode a frame. Add `Movie Name.jpg` beside the file. |

@@ -95,6 +95,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("autoOptimize", true)
         set(value) = sp.edit().putBoolean("autoOptimize", value).apply()
 
+    /** Keep the CPU and Wi-Fi awake whenever the phone is charging, not only during a stream. */
+    var stayAwakeWhileCharging: Boolean
+        get() = sp.getBoolean("stayAwakeWhileCharging", true)
+        set(value) = sp.edit().putBoolean("stayAwakeWhileCharging", value).apply()
+
     /** When the Private folder locks itself again; 0 when locked. */
     var privateUntil: Long
         get() = sp.getLong("privateUntil", 0)
