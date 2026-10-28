@@ -46,6 +46,7 @@ class ApiClient(val host: String, val port: Int, private val token: String?, pri
 
     fun headers(): Map<String, String> = buildMap {
         token?.let { put("Authorization", "Bearer $it") }
+        put(Api.VERSION_HEADER, Api.VERSION.toString())
         profileId?.let { put("X-Profile", it) }
     }
 

@@ -481,10 +481,15 @@ also send `X-Profile: <profile id>`; pictures and video in a browser use `?profi
 `<video>` can't send headers. Progress, My List and kids filtering follow it, and without it the first profile is
 used. The web app is served at `/` and the admin page at `/admin`.
 
+The TV app sends its API version in an `X-HomeReel-Api` header. When the phone and a TV app are too far apart, the TV
+says which app to update, and the phone answers an outdated TV app with `426` and the same advice, instead of either
+failing. Backups carry a format number too; a phone refuses one from a newer HomeReel and says to update first.
+
+
 | Method and path | Role | What it does |
 |---|---|---|
 | `POST /pair` `{code, client, role}` | none | Returns `{token, role, serverName}`, and sets the browser's cookie |
-| `GET /info` | viewer | Name, version, movie count, whether a scan is running |
+| `GET /info` | viewer | Name, version, API version and the oldest TV app API it serves, movie count, whether a scan is running |
 | `GET /movies`, `GET /movies/{id}` | viewer | Films (not episodes) with tracks, subtitles, progress; private ones only while Private is unlocked |
 | `GET /movies/{id}/stream` | viewer | The file, with `Range` support (`206`, `416`) |
 | `GET /movies/{id}/poster`, `…/backdrop`, `…/subtitles/{n}` | viewer | Poster, wide backdrop, subtitle file |
